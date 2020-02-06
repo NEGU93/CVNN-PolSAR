@@ -6,6 +6,7 @@ from pdb import set_trace
 import cvnn.data_processing as dp
 import cvnn.data_analysis as da
 import cvnn.cvnn_v1_compat as cvnn
+import cvnn.layers as layers
 
 
 def load_gilles_mat_data(fname, default_path="/media/barrachina/data/gilles_data/"):
@@ -44,15 +45,14 @@ def run_mlp(x_train, y_train, x_test, y_test, type=np.complex64):
     mlp = cvnn.Cvnn("Gilles_net_complex", automatic_restore=False, logging_level="INFO", tensorboard=False,
                     verbose=False, save_loss_acc=False)
     mlp.create_mlp_graph(tf.keras.losses.categorical_crossentropy,
-                         [(input_size, 'ignored'),
-                          (h1_size, 'cart_selu'),
-                          (h2_size, 'cart_selu'),
-                          (output_size, 'cart_softmax_real')],
-                         input_dtype=type)
-
+                         [layers.Dense(input_size=input_size, output_size=h1_size, activation='cart_selu',
+                                       input_dtype=type, output_dtype=type),
+                          layers.Dense(input_size=h1_size, output_size=h2_size, activation='cart_selu',
+                                       input_dtype=type, output_dtype=type),
+                          layers.Dense(input_size=h2_size, output_size=output_size, activation='cart_softmax_real',
+                                       input_dtype=type, output_dtype=np.float32)])
     mlp.train(x_train, y_train, x_test, y_test, epochs=100, batch_size=100, display_freq=1000)
     print(da.categorical_confusion_matrix(mlp.predict(x_test), y_test))
-    set_trace()
     # mlp.plot_loss_and_acc()
     return mlp.compute_loss(x_test, y_test), mlp.compute_accuracy(x_test, y_test)
 
@@ -101,7 +101,7 @@ def train_monte_carlo(data_name, iterations=10):
     ic, nb_sig, sx, types, xp, xx = load_gilles_mat_data(data_name)
     cat_ic = dp.sparse_into_categorical(ic, num_classes=len(types))  # TODO: make sparse crossentropy test
     x_train, y_train, x_test, y_test = dp.separate_into_train_and_test(xx, cat_ic, pre_rand=True)
-
+    
     # Train networks
     monte_carlo_comparison(x_train, y_train, x_test, y_test,
                            iterations=iterations, filename=os.path.splitext(data_name)[0])
@@ -114,14 +114,16 @@ if __name__ == '__main__':
     data_2chirps_test = "data_cnn1dT.mat"
 
     data_name = data_2chirps_test
-    # train_monte_carlo(data_name, iterations=1)
+    train_monte_carlo(data_name, iterations=3000)
 
     # Show results
     # show_montecarlo_results(data_name, True)
 
+    """
     # gets data
     ic, nb_sig, sx, types, xp, xx = load_gilles_mat_data(data_name)
     cat_ic = dp.sparse_into_categorical(ic, num_classes=len(types))  # TODO: make sparse crossentropy test
     x_train, y_train, x_test, y_test = dp.separate_into_train_and_test(xx, cat_ic, pre_rand=True)
     # train net
     cvloss, cvacc = run_mlp(x_train, y_train, x_test, y_test, np.complex64)
+    """
