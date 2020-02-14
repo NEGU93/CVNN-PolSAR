@@ -5,7 +5,8 @@ import os
 from pdb import set_trace
 import cvnn.data_processing as dp
 import cvnn.data_analysis as da
-import cvnn.cvnn_v1_compat as cvnn
+import cvnn.cvnn_v1_compat as cvnnv1
+import cvnn.cvnn_model as cvnnv2
 import cvnn.layers as layers
 
 
@@ -26,10 +27,15 @@ def load_gilles_mat_data(fname, default_path="/media/barrachina/data/gilles_data
     return ic, nb_sig, sx, types, xp, xx
 
 
-def run_mlp(x_train, y_train, x_test, y_test, type=np.complex64, axis_legends=None,
-            tensorboard=False, verbose=False, save_loss_acc=False, epochs=100):
+def run_mlp_v1(x_train, y_train, x_test, y_test, type=np.complex64, axis_legends=None,
+               tensorboard=False, verbose=False, save_loss_acc=False, epochs=100):
     if type != np.complex64 and type != np.float32:
         sys.exit("Unsupported data type " + str(type))
+    name = "gilles_net_"
+    if type == np.complex64:
+        name = name + "complex"
+    elif type == np.float32:
+        name = name + "real"
     # Hyper-parameters
     input_size = x_train.shape[1]  # Size of input
     output_size = y_train.shape[1]  # Size of output
@@ -43,8 +49,8 @@ def run_mlp(x_train, y_train, x_test, y_test, type=np.complex64, axis_legends=No
         x_train, x_test = dp.get_real_train_and_test(x_train, x_test)  # and transform data to real
 
     # Network creation
-    mlp = cvnn.Cvnn("Gilles_net_complex", automatic_restore=False, logging_level="INFO", tensorboard=tensorboard,
-                    verbose=verbose, save_loss_acc=save_loss_acc)
+    mlp = cvnnv1.Cvnn(name, automatic_restore=False, logging_level="INFO", tensorboard=tensorboard,
+                      verbose=verbose, save_loss_acc=save_loss_acc)
     mlp.create_mlp_graph(tf.keras.losses.categorical_crossentropy,
                          [layers.Dense(input_size=input_size, output_size=h1_size, activation='cart_selu',
                                        input_dtype=type, output_dtype=type),
@@ -53,10 +59,47 @@ def run_mlp(x_train, y_train, x_test, y_test, type=np.complex64, axis_legends=No
                           layers.Dense(input_size=h2_size, output_size=output_size, activation='cart_softmax_real',
                                        input_dtype=type, output_dtype=np.float32)])
     mlp.train(x_train, y_train, x_test, y_test, epochs=epochs, batch_size=100, display_freq=1000)
-    print(da.categorical_confusion_matrix(mlp.predict(x_test), y_test, axis_legends=axis_legends))
-    mlp.plot_loss_and_acc()
+    # print(da.categorical_confusion_matrix(mlp.predict(x_test), y_test, axis_legends=axis_legends))
+    # mlp.plot_loss_and_acc()
     # mlp.plot_loss_and_acc()
     return mlp.compute_loss(x_test, y_test), mlp.compute_accuracy(x_test, y_test)
+
+
+def run_mlp(x_train, y_train, x_test, y_test, axis_legends=None,
+            tensorboard=False, verbose=False, save_loss_acc=False, epochs=100):
+    name = "gilles_net_"
+    if x_train.dtype == np.complex64 or x_train.dtype == np.complex128:
+        name = name + "complex"
+    elif x_train.dtype == np.float32 or x_train.dtype == np.float64:
+        name = name + "real"
+    else:
+        sys.exit("Error: Unknown dtype for data " + str(x_train.dtype))
+
+    # Hyper-parameters
+    dtype = np.complex64
+    input_size = x_train.shape[1]  # Size of input
+    output_size = y_train.shape[1]  # Size of output
+    h1_size = 25
+    h2_size = 10
+    if x_train.dtype == np.float32 or x_train.dtype == np.float64:  # if the network must be real
+        input_size *= 2  # double the input size
+        h1_size *= 2
+        h2_size *= 2
+        x_train, x_test = dp.get_real_train_and_test(x_train, x_test)  # and transform data to real
+
+    shape = [layers.Dense(input_size=input_size, output_size=h1_size, activation='cart_sigmoid',
+                          input_dtype=dtype, output_dtype=dtype),
+             layers.Dense(input_size=h1_size, output_size=h2_size, activation='cart_sigmoid',
+                          input_dtype=dtype, output_dtype=dtype),
+             layers.Dense(input_size=h2_size, output_size=output_size, activation='cart_softmax_real',
+                          input_dtype=dtype, output_dtype=np.float32)]
+    # Network creation
+    mlp = cvnnv2.CvnnModel(name, shape, tf.keras.losses.categorical_crossentropy, display_freq=1000)
+    mlp.fit(x_train.astype(np.complex64), y_train, epochs=epochs, batch_size=100)
+    # print(da.categorical_confusion_matrix(mlp.predict(x_test), y_test, axis_legends=axis_legends))
+    # mlp.plot_loss_and_acc()
+    # mlp.plot_loss_and_acc()
+    return mlp.evaluate(x_test, y_test)
 
 
 def monte_carlo_comparison(x_train, y_train, x_test, y_test, iterations=10, path='./results/', filename='CVNNvsRVNN'):
@@ -116,8 +159,8 @@ if __name__ == '__main__':
     data_all_classes = "data_cnn1dC.mat"
     data_2chirps_test = "data_cnn1dT.mat"
 
-    data_name = data_2chirps_test
-    # train_monte_carlo(data_name, iterations=30000)
+    data_name = data_all_classes
+    # train_monte_carlo(data_name, iterations=3000)
 
     # Show results
     # show_montecarlo_results(data_name, True)
@@ -127,7 +170,7 @@ if __name__ == '__main__':
     cat_ic = dp.sparse_into_categorical(ic, num_classes=len(types))  # TODO: make sparse crossentropy test
     x_train, y_train, x_test, y_test = dp.separate_into_train_and_test(xx, cat_ic, pre_rand=True)
     # train net
-    cvloss, cvacc = run_mlp(x_train, y_train, x_test, y_test, np.complex64, axis_legends=types,
-                            tensorboard=True, verbose=True, save_loss_acc=True, epochs=10000)
-    rvloss, rvacc = run_mlp(x_train, y_train, x_test, y_test, np.float32, axis_legends=types,
-                            tensorboard=True, verbose=True, save_loss_acc=True, epochs=10000)
+    cvloss, cvacc = run_mlp(x_train, y_train, x_test, y_test, axis_legends=types,
+                            tensorboard=True, verbose=True, save_loss_acc=True, epochs=200)
+    rvloss, rvacc = run_mlp(x_train, y_train, x_test, y_test, axis_legends=types,
+                            tensorboard=True, verbose=True, save_loss_acc=True, epochs=200)
