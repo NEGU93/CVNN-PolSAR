@@ -4,11 +4,15 @@ import sys
 import os
 import pandas as pd
 from pdb import set_trace
+import cvnn.montecarlo as montecarlo
 import cvnn.data_processing as dp
 import cvnn.data_analysis as da
 import cvnn.cvnn_v1_compat as cvnnv1
 import cvnn.cvnn_model as cvnnv2
 import cvnn.layers as layers
+import keras
+import complexnn
+from datetime import datetime
 
 montecarlo_options = {'CVNNvsRVNN', 'TFversion'}
 
@@ -83,12 +87,14 @@ def run_mlp(x_train, y_train, x_test, y_test, epochs=100, batch_size=100, dtype=
     # Hyper-parameters
     input_size = x_train.shape[1]  # Size of input
     output_size = y_train.shape[1]  # Size of output
-    h1_size = 25
-    h2_size = 10
+    h1_size = 100
+    h2_size = 50
+    h3_size = 25
     if dtype == np.float32 or dtype == np.float64:  # if the network must be real
         input_size *= 2  # double the input size
         h1_size *= 2
         h2_size *= 2
+        h3_size *= 2
         x_train, x_test = dp.get_real_train_and_test(x_train, x_test)  # and transform data to real
 
     if v1:
@@ -97,7 +103,9 @@ def run_mlp(x_train, y_train, x_test, y_test, epochs=100, batch_size=100, dtype=
                                      input_dtype=dtype, output_dtype=dtype),
                  layers.ComplexDense(input_size=h1_size, output_size=h2_size, activation='cart_selu',
                                      input_dtype=dtype, output_dtype=dtype),
-                 layers.ComplexDense(input_size=h2_size, output_size=output_size, activation='cart_softmax_real',
+                 layers.ComplexDense(input_size=h2_size, output_size=h3_size, activation='cart_selu',
+                                     input_dtype=dtype, output_dtype=dtype),
+                 layers.ComplexDense(input_size=h3_size, output_size=output_size, activation='cart_softmax_real',
                                      input_dtype=dtype, output_dtype=np.float32)]
         mlp.create_mlp_graph(tf.keras.losses.categorical_crossentropy, shape=shape)
         mlp.train(x_train.astype(dtype), y_train, x_test, y_test,
@@ -110,7 +118,9 @@ def run_mlp(x_train, y_train, x_test, y_test, epochs=100, batch_size=100, dtype=
                                 input_dtype=dtype, output_dtype=dtype),
             layers.ComplexDense(input_size=h1_size, output_size=h2_size, activation='cart_selu',
                                 input_dtype=dtype, output_dtype=dtype),
-            layers.ComplexDense(input_size=h2_size, output_size=output_size, activation='cart_softmax_real',
+            layers.ComplexDense(input_size=h2_size, output_size=h3_size, activation='cart_selu',
+                                input_dtype=dtype, output_dtype=dtype),
+            layers.ComplexDense(input_size=h3_size, output_size=output_size, activation='cart_softmax_real',
                                 input_dtype=dtype, output_dtype=np.float32)
         ]
         mlp = cvnnv2.CvnnModel(name, shape, tf.keras.losses.categorical_crossentropy)
@@ -130,6 +140,9 @@ def run_mlp(x_train, y_train, x_test, y_test, epochs=100, batch_size=100, dtype=
 def monte_carlo_real_vs_complex_comparison(x_train, y_train, x_test, y_test, iterations=10,
                                            path='./results/', filename='CVNNvsRVNN', display_freq=100):
     write = True
+    now = datetime.today()
+    date_dir = str(now.year) + "/" + str(now.month) + now.strftime("%B") + "/" + str(now.day) + now.strftime("%A") + "/"
+    path = path + date_dir
     if not os.path.exists(path):
         os.makedirs(path)
     if os.path.exists(path + filename + '.csv'):
@@ -246,27 +259,70 @@ def train_monte_carlo(data_name, iterations=10, montecarlo='TFversion'):
     print("Monte carlo finished")
 
 
+def keras_complex(data_name):
+    # gets data
+    ic, nb_sig, sx, types, xp, xx = load_gilles_mat_data(data_name)
+    cat_ic = dp.sparse_into_categorical(ic, num_classes=len(types))  # TODO: make sparse crossentropy test
+    x_train, y_train, x_test, y_test = dp.separate_into_train_and_test(xx, cat_ic, pre_rand=True)
+    x_train, x_test = dp.get_real_train_and_test(x_train, x_test)
+
+    # Hyper-parameters
+    input_size = x_train.shape[1]  # Size of input
+    output_size = y_train.shape[1]  # Size of output
+    h1_size = 2*25
+    h2_size = 2*10
+    # https://github.com/JesperDramsch/keras-complex
+    model = keras.models.Sequential()
+    model.add(complexnn.dense.ComplexDense(h1_size, activation='selu', input_shape=(input_size,)))
+    model.add(complexnn.dense.ComplexDense(h2_size, activation='selu'))
+    model.add(keras.layers.Dense(output_size, activation='softmax'))
+
+    model.compile(optimizer='sgd', loss=keras.losses.categorical_crossentropy)
+    model.fit(x_train, y_train, epochs=5)
+
+
 if __name__ == '__main__':
     data_2chirps = "data_cnn1d.mat"
     data_all_classes = "data_cnn1dC.mat"
     data_2chirps_test = "data_cnn1dT.mat"
 
     data_name = data_2chirps_test
-    train_monte_carlo(data_name, iterations=5, montecarlo='CVNNvsRVNN')
+    # bkeras_complex(data_name)
+    # train_monte_carlo(data_name, iterations=1000, montecarlo='CVNNvsRVNN')
 
     # Show results
-    # show_monte_carlo_results(data_name, True)
+    # show_monte_carlo_results(data_name, True, montecarlo='CVNNvsRVNN')
 
-    """
     # gets data
     ic, nb_sig, sx, types, xp, xx = load_gilles_mat_data(data_name)
     cat_ic = dp.sparse_into_categorical(ic, num_classes=len(types))  # TODO: make sparse crossentropy test
-    x_train, y_train, x_test, y_test = dp.separate_into_train_and_test(xx, cat_ic, pre_rand=True)
+    x = xx.astype(np.complex64)
+    y = cat_ic.astype(np.float32)
+    # x_train, y_train, x_test, y_test = dp.separate_into_train_and_test(xx, cat_ic, pre_rand=True)
     # train net
-
+    input_size = x.shape[1]  # Size of input
+    output_size = y.shape[1]  # Size of output
+    h1_size = 100
+    h2_size = 50
+    h3_size = 25
+    shape = [
+        layers.ComplexDense(input_size=input_size, output_size=h1_size, activation='cart_selu',
+                            input_dtype=np.complex64, output_dtype=np.complex64),
+        layers.ComplexDense(input_size=h1_size, output_size=h2_size, activation='cart_selu',
+                            input_dtype=np.complex64, output_dtype=np.complex64),
+        layers.ComplexDense(input_size=h2_size, output_size=h3_size, activation='cart_selu',
+                            input_dtype=np.complex64, output_dtype=np.complex64),
+        layers.ComplexDense(input_size=h3_size, output_size=output_size, activation='cart_softmax_real',
+                            input_dtype=np.complex64, output_dtype=np.float32)
+    ]
+    complex_network = cvnnv2.CvnnModel(name="complex_network", shape=shape,
+                                             loss_fun=tf.keras.losses.categorical_crossentropy,
+                                             verbose=False, tensorboard=False)
+    montecarlo = montecarlo.RealVsComplex(complex_network)
+    montecarlo.run(x, y, iterations=10, debug=False)
+    montecarlo.plotter.plot_histogram('test accuracy', library='plotly')
     # v1 = False
     # cvloss_v1, cvacc_v1 = run_mlp_v1(x_train, y_train, x_test, y_test, epochs=100)
     # cvloss, cvacc = run_mlp(x_train, y_train, x_test, y_test, epochs=10, v1=v1, display_freq=100, learning_rate=0.01)
     # rvloss, rvacc = run_mlp(x_train, y_train, x_test, y_test, epochs=100, v1=v1, dtype=np.float32)
-    """
 
