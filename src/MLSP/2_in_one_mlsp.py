@@ -1,6 +1,9 @@
 import numpy as np
-from cvnn.montecarlo import run_gaussian_dataset_montecarlo, mlp_run_montecarlo
+# from cvnn.montecarlo import run_montecarlo
+from cvnn.montecarlo import run_gaussian_dataset_montecarlo, mlp_run_real_comparison_montecarlo
 from cvnn.data_analysis import SeveralMonteCarloComparison
+from cvnn.dataset import CorrelatedGaussianCoeffCorrel
+from pdb import set_trace
 
 
 def data_size(path, value, dropout=None):
@@ -193,8 +196,31 @@ def swipe_section():
     # feature_vector_size(path=path, value=128, dropout=0.5)
 
 
+def dropout_new_tests():
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeA/", polar=False, dropout=0.5)
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeA/", polar=True, dropout=0.5)
+    # Type B
+    print("Type B")
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeB/", dropout=0.5)
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeB/", shape_raw=[100, 40], dropout=0.5)
+    # Type C
+    print("Type C")
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeC/", dropout=0.5)
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeC/", shape_raw=[100, 40], dropout=0.5)
+
+    print("Polar 2HL")
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeA/",
+                                       polar=False, shape_raw=[100, 40], dropout=0.5)
+    mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeA/",
+                                       polar=True, shape_raw=[100, 40], dropout=0.5)
+
+
 if __name__ == '__main__':
-    run_gaussian_dataset_montecarlo(activation='cart_tanh', shape_raw=[100, 40], iterations=500)
-    run_gaussian_dataset_montecarlo(activation='cart_tanh', shape_raw=[64], iterations=500)
-    run_gaussian_dataset_montecarlo(activation='cart_sigmoid', shape_raw=[100, 40], iterations=500)
-    run_gaussian_dataset_montecarlo(activation='cart_sigmoid', shape_raw=[64], iterations=500)
+    """dataset = CorrelatedGaussianCoeffCorrel(m=10000, n=128, param_list=[[0.5, 1, 1], [-0.5, 1, 1]])
+    dataset.save_data("./data/TypeA/")
+    dataset = CorrelatedGaussianCoeffCorrel(m=10000, n=128, param_list=[[0., 2, 1], [0., 1, 2]])
+    dataset.save_data("./data/TypeB/")
+    dataset = CorrelatedGaussianCoeffCorrel(m=10000, n=128, param_list=[[0.5, 2, 1], [-0.5, 1, 2]])
+    dataset.save_data("./data/TypeC/")"""
+    # mlp_run_real_comparison_montecarlo(dataset=None, open_dataset="./data/TypeA/", iterations=10)
+    dropout_new_tests()

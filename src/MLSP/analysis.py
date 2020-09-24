@@ -1,5 +1,6 @@
 from cvnn.data_analysis import SeveralMonteCarloComparison, MonteCarloAnalyzer, MonteCarloPlotter
 import numpy as np
+from pdb import set_trace
 
 
 # Simus GdR
@@ -229,7 +230,7 @@ def test_coef_correl_1hl_dropout():
 
 if __name__ == "__main__":
     # test_coef_correl_1hl_dropout()
-    test_data_size_mlsp()
+    # test_data_size_mlsp()
     # test_two_hidden_layers()
     # test_coef_correl()
     # test_polar_mode()
@@ -262,3 +263,21 @@ if __name__ == "__main__":
     path = "W:/HardDiskDrive/Documentos/GitHub/cvnn/log/2020/03March/27Friday/run-18h47m07"
     plotter = Plotter(path=path)
     plotter.plot_key(key='accuracy')"""
+    # path = "/home/barrachina/Documents/onera/log/montecarlo/2020/07July/29Wednesday/run-14h37m01/run_data"
+    # path = "/home/barrachina/Documents/onera/log/montecarlo/2020/07July/30Thursday/run-16h45m09/run_data.csv"
+    # monte_carlo_analyzer = MonteCarloAnalyzer(df=None, path=path)
+    # monte_carlo_analyzer.box_plot(library='seaborn')
+    paths = [
+        "log/montecarlo/2020/08August/30Sunday/run-03h06m08/run_data",
+        "log/montecarlo/2020/08August/30Sunday/run-14h35m58/run_data"
+    ]
+    x = [
+        "cartesian",
+        'polar'
+    ]
+    several_monte_carlo = SeveralMonteCarloComparison(label="Polar", x=x, paths=paths)
+    # several_monte_carlo.box_plot(showfig=True)
+    several_monte_carlo.monte_carlo_analyzer.df = several_monte_carlo.monte_carlo_analyzer.df[
+        several_monte_carlo.monte_carlo_analyzer.df['network'] != 'complex network polar']
+    several_monte_carlo.plot_histogram(savefig=True, showfig=False, library='seaborn')
+    # set_trace()
