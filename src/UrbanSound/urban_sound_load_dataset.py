@@ -145,15 +145,14 @@ def filter_dataset(classes=None, duration_ms: int = 4000, pad: bool = False):
     audio, label = load_dataset(duration_ms=duration_ms, pad=pad)
     if classes is None:
         classes = [0, 2, 4, 5, 7, 8, 9]
-    path = _get_path(duration_ms=duration_ms, pad=pad)
-    path = path / ("filtered" + str(len(classes)) + "classes")
+    path = _get_path(duration_ms=duration_ms, pad=pad, filtered=True)
     os.makedirs(path / "raw_audio", exist_ok=True)
     os.makedirs(path / "labels", exist_ok=True)
     for i in range(len(label)):
         if os.path.exists(path / ("raw_audio/fold" + str(i+1) + "_audio.npy")):
             # print("Loading filtered fold " + str(i+1))
             audio[i] = np.load(path / ("raw_audio/fold" + str(i+1) + "_audio.npy"))
-            label[i] = np.load(path / ("labels/fold" + str(i + 1) + "_audio.npy"))
+            label[i] = np.load(path / ("labels/fold" + str(i + 1) + "_labels.npy"))
         else:
             # print("Filtering fold " + str(i + 1))
             filter = [lab in classes for lab in label[i]]
@@ -164,11 +163,11 @@ def filter_dataset(classes=None, duration_ms: int = 4000, pad: bool = False):
                 map += 1
             audio[i] = np.array(list(compress(audio[i], filter)))
             np.save(path / ("raw_audio/fold" + str(i+1) + "_audio.npy"), audio[i])
-            np.save(path / ("labels/fold" + str(i + 1) + "_labels.npy"), audio[i])
+            np.save(path / ("labels/fold" + str(i + 1) + "_labels.npy"), label[i])
     return audio, label
 
 
-def _compute_mel_spectrogram(duration_ms=4000, pad=False, n_fft=2048, hop_length=1024, n_mels=60, debug=False):
+def _compute_mel_spectrogram(duration_ms=4000, pad=False, n_fft=2048, hop_length=1024, n_mels=60):
     sr = 22050  # librosa default
     audio, label = filter_dataset(duration_ms=duration_ms, pad=pad)
     mel_spect_complex = [[] for _ in range(10)]

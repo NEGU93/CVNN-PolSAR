@@ -264,10 +264,10 @@ if __name__ == "__main__":
     plotter = Plotter(path=path)
     plotter.plot_key(key='accuracy')"""
     # path = "/home/barrachina/Documents/onera/log/montecarlo/2020/07July/29Wednesday/run-14h37m01/run_data"
-    # path = "/home/barrachina/Documents/onera/log/montecarlo/2020/07July/30Thursday/run-16h45m09/run_data.csv"
-    # monte_carlo_analyzer = MonteCarloAnalyzer(df=None, path=path)
-    # monte_carlo_analyzer.box_plot(library='seaborn')
-    paths = [
+    path = "./log/montecarlo/2020/08August/30Sunday/run-03h06m08/run_data.csv"
+    monte_carlo_analyzer = MonteCarloAnalyzer(df=None, path=path)
+    monte_carlo_analyzer.do_all()
+    """paths = [
         "log/montecarlo/2020/08August/30Sunday/run-03h06m08/run_data",
         "log/montecarlo/2020/08August/30Sunday/run-14h35m58/run_data"
     ]
@@ -280,4 +280,4 @@ if __name__ == "__main__":
     several_monte_carlo.monte_carlo_analyzer.df = several_monte_carlo.monte_carlo_analyzer.df[
         several_monte_carlo.monte_carlo_analyzer.df['network'] != 'complex network polar']
     several_monte_carlo.plot_histogram(savefig=True, showfig=False, library='seaborn')
-    # set_trace()
+    # set_trace()"""
