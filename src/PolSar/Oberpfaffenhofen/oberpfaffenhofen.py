@@ -146,13 +146,14 @@ def get_dataset():
     return T, labels
 
 
-def run_monte(dataset, validation_data, iterations=10, epochs=200, optimizer='sgd', shape_raw=None):
+def run_monte(dataset, validation_data, iterations=10, epochs=200,
+              optimizer='sgd', shape_raw=None, activation='cart_relu', polar=False):
     if shape_raw is None:
         shape_raw = [50]
     mlp_run_real_comparison_montecarlo(dataset,
                                        validation_split=0.0, validation_data=validation_data,
-                                       iterations=iterations, epochs=epochs,
-                                       optimizer=optimizer, shape_raw=shape_raw)
+                                       iterations=iterations, epochs=epochs, do_conf_mat=True,
+                                       optimizer=optimizer, shape_raw=shape_raw, activation=activation, polar=polar)
 
 
 if __name__ == '__main__':
@@ -163,22 +164,30 @@ if __name__ == '__main__':
     y_train = Dataset.sparse_into_categorical(y_train)
     y_test = Dataset.sparse_into_categorical(y_test)
     y_val = Dataset.sparse_into_categorical(y_val)
-    dataset = Dataset(x_train.astype(np.complex64), y_train)
+    dataset = Dataset(x_train.astype(np.complex64), y_train, dataset_name='Oberpfaffenhofen')
     print("Training model")
+    # run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val), iterations=2, epochs=10)
+
     shapes = [
-        [],
-        [5], [10], [50],
-        [10, 10], [50, 50]
+        # [],
+        # [5], [10], [50],
+        # [10, 10],
+        [50, 50]
     ]
-    optimizers = ['sgd', 'rmsprop',
-                  cvnn.optimizers.SGD(learning_rate=0.1), cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.9),
-                  cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.75),
-                  cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.999, momentum=0.9),
-                  cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.8, momentum=0.75)]
+    optimizers = ['sgd', 'rmsprop'
+                  # cvnn.optimizers.SGD(learning_rate=0.1), cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.9),
+                  # cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.75),
+                  # cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.999, momentum=0.9),
+                  # cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.8, momentum=0.75)]
+                  ]
+    functions = ['cart_relu', 'cart_tanh', 'cart_sigmoid']
+    polar_modes = [False, True]
     for opt in optimizers:
-        for shape in shapes:
-            run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
-                      iterations=10, epochs=200,
-                      optimizer=opt, shape_raw=shape)
+        for pol in polar_modes:
+            for act_fun in functions:
+                for shape in shapes:
+                    run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
+                              iterations=100, epochs=300,
+                              optimizer=opt, shape_raw=shape, activation=act_fun, polar=pol)
 
     set_trace()
