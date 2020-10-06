@@ -147,18 +147,20 @@ def get_dataset():
 
 
 def run_monte(dataset, validation_data, iterations=10, epochs=200,
-              optimizer='sgd', shape_raw=None, activation='cart_relu', polar=False):
+              optimizer='sgd', shape_raw=None, activation='cart_relu', polar=False, dropout=0.5):
     if shape_raw is None:
         shape_raw = [50]
     mlp_run_real_comparison_montecarlo(dataset,
                                        validation_split=0.0, validation_data=validation_data,
                                        iterations=iterations, epochs=epochs, do_conf_mat=True,
-                                       optimizer=optimizer, shape_raw=shape_raw, activation=activation, polar=polar)
+                                       optimizer=optimizer, shape_raw=shape_raw, activation=activation, polar=polar,
+                                       dropout=dropout)
 
 
 if __name__ == '__main__':
     print("Loading Dataset")
     T, labels = get_dataset()
+    T, labels = randomize(T, labels)
     x_train, y_train, x_test, y_test = separate_train_test(T, labels, ratio=0.1)
     x_train, y_train, x_val, y_val = separate_train_test(x_train, y_train, ratio=0.8)
     y_train = Dataset.sparse_into_categorical(y_train)
@@ -166,13 +168,14 @@ if __name__ == '__main__':
     y_val = Dataset.sparse_into_categorical(y_val)
     dataset = Dataset(x_train.astype(np.complex64), y_train, dataset_name='Oberpfaffenhofen')
     print("Training model")
-    # run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val), iterations=2, epochs=10)
+    # run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val), iterations=5, epochs=200,
+    #          shape_raw=[100, 50], optimizer=cvnn.optimizers.SGD(), dropout=0.5)
 
     shapes = [
         # [],
         # [5], [10], [50],
-        # [10, 10],
-        [50, 50]
+        # [10, 10], [50, 50],
+        [100, 50],
     ]
     optimizers = ['sgd', 'rmsprop'
                   # cvnn.optimizers.SGD(learning_rate=0.1), cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.9),
@@ -189,5 +192,3 @@ if __name__ == '__main__':
                     run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
                               iterations=100, epochs=300,
                               optimizer=opt, shape_raw=shape, activation=act_fun, polar=pol)
-
-    set_trace()
