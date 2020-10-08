@@ -168,27 +168,31 @@ if __name__ == '__main__':
     y_val = Dataset.sparse_into_categorical(y_val)
     dataset = Dataset(x_train.astype(np.complex64), y_train, dataset_name='Oberpfaffenhofen')
     print("Training model")
-    # run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val), iterations=5, epochs=200,
-    #          shape_raw=[100, 50], optimizer=cvnn.optimizers.SGD(), dropout=0.5)
-
+    run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
+              iterations=100, epochs=300,
+              shape_raw=[100, 50], optimizer=cvnn.optimizers.RMSprop(), dropout=0.5, activation='cart_relu', polar=False)
+    """
     shapes = [
         # [],
         # [5], [10], [50],
         # [10, 10], [50, 50],
         [100, 50],
     ]
-    optimizers = ['sgd', 'rmsprop'
+    optimizers = ['sgd'
+                  # 'rmsprop'
                   # cvnn.optimizers.SGD(learning_rate=0.1), cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.9),
                   # cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.75),
                   # cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.999, momentum=0.9),
                   # cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.8, momentum=0.75)]
                   ]
     functions = ['cart_relu', 'cart_tanh', 'cart_sigmoid']
-    polar_modes = [False, True]
+    polar_modes = [
+                   # False,
+                   True]
     for opt in optimizers:
         for pol in polar_modes:
             for act_fun in functions:
                 for shape in shapes:
                     run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
                               iterations=100, epochs=300,
-                              optimizer=opt, shape_raw=shape, activation=act_fun, polar=pol)
+                              optimizer=opt, shape_raw=shape, activation=act_fun, polar=pol)"""
