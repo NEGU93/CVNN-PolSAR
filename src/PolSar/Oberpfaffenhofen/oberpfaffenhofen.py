@@ -9,6 +9,7 @@ from cvnn.utils import standarize, randomize
 from cvnn.dataset import Dataset
 from cvnn.montecarlo import mlp_run_real_comparison_montecarlo
 import cvnn.optimizers
+from cvnn.optimizers import t_optimizer
 
 
 def separate_dataset(data, window_size: int = 9, stride: int = 3):
@@ -147,14 +148,15 @@ def get_dataset():
 
 
 def run_monte(dataset, validation_data, iterations=10, epochs=200,
-              optimizer='sgd', shape_raw=None, activation='cart_relu', polar=False, dropout=0.5):
+              optimizer: t_optimizer = 'sgd', shape_raw=None, activation='cart_relu',
+              polar=False, dropout=0.5, checkpoints=False):
     if shape_raw is None:
         shape_raw = [50]
     mlp_run_real_comparison_montecarlo(dataset,
                                        validation_split=0.0, validation_data=validation_data,
                                        iterations=iterations, epochs=epochs, do_conf_mat=True,
                                        optimizer=optimizer, shape_raw=shape_raw, activation=activation, polar=polar,
-                                       dropout=dropout)
+                                       dropout=dropout, checkpoints=checkpoints)
 
 
 if __name__ == '__main__':
@@ -170,7 +172,8 @@ if __name__ == '__main__':
     print("Training model")
     run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
               iterations=100, epochs=300,
-              shape_raw=[100, 50], optimizer=cvnn.optimizers.RMSprop(), dropout=0.5, activation='cart_relu', polar=False)
+              shape_raw=[100, 50], optimizer=cvnn.optimizers.RMSprop(), dropout=0.5, activation='cart_relu',
+              polar=False, checkpoints=True)
     """
     shapes = [
         # [],
