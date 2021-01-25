@@ -5,10 +5,10 @@ from cvnn.cvnn_model import CvnnModel
 import numpy as np
 from tensorflow.keras.losses import categorical_crossentropy
 import time
-from typing import List
+from typing import List, Optional
 
 
-def run_with_shape(shape_raw: List):
+def run_with_shape(shape_raw: List, dropout: Optional[float] = 0.5):
     # Create complex network
     input_size = 128  # Size of input
     output_size = 2  # Size of output
@@ -22,9 +22,9 @@ def run_with_shape(shape_raw: List):
         ]
     else:  # len(shape_raw) > 0:
         shape = [Dense(input_size=input_size, output_size=shape_raw[0], activation='cart_relu',
-                       input_dtype=np.complex64, dropout=None)]
+                       input_dtype=np.complex64, dropout=dropout)]
         for i in range(1, len(shape_raw)):
-            shape.append(Dense(output_size=shape_raw[i], activation='cart_relu', dropout=None))
+            shape.append(Dense(output_size=shape_raw[i], activation='cart_relu', dropout=dropout))
         shape.append(Dense(output_size=output_size, activation='softmax_real', dropout=None))
 
     complex_network = CvnnModel(name="complex_network", shape=shape, loss_fun=categorical_crossentropy,
@@ -41,9 +41,9 @@ def run_with_shape(shape_raw: List):
         ]
     else:  # len(shape_raw) > 0:
         shape = [Dense(input_size=input_size, output_size=shape_raw[0], activation='cart_relu',
-                       input_dtype=np.float32, dropout=None)]
+                       input_dtype=np.float32, dropout=dropout)]
         for i in range(1, len(shape_raw)):
-            shape.append(Dense(output_size=shape_raw[i], activation='cart_relu', dropout=None))
+            shape.append(Dense(output_size=shape_raw[i], activation='cart_relu', dropout=dropout))
         shape.append(Dense(output_size=output_size, activation='softmax_real', dropout=None))
 
     real_network = CvnnModel(name="real_network", shape=shape, loss_fun=categorical_crossentropy,
@@ -59,12 +59,12 @@ def run_with_shape(shape_raw: List):
     time.sleep(1)
     models.append(real_network)
 
-    run_gaussian_dataset_montecarlo(models=models, iterations=100)
+    run_gaussian_dataset_montecarlo(models=models, iterations=100, dropout=0.5)
 
 
 if __name__ == "__main__":
     print("1 HL")
-    shapes = [8, 16, 32, 64, 128, 512, 1024, 2024, 4048]
+    shapes = [8, 16, 32, 64, 128, 512, 1024]
     for sha in shapes:
         run_with_shape([sha])
 

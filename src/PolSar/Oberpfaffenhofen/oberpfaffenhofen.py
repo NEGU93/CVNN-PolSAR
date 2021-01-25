@@ -90,11 +90,16 @@ def remove_unlabeled(x, y):
 
 
 def labels_to_ground_truth(labels):
+    colors = np.array([
+        [1, 0.349, 0.392],
+        [0.086, 0.858, 0.576],
+        [0.937, 0.917, 0.352]
+    ])
     ground_truth = np.zeros(labels.shape + (3,), dtype=float)
     for i in range(labels.shape[0]):
         for j in range(labels.shape[1]):
             if labels[i, j] != 0:
-                ground_truth[i, j, labels[i, j] - 1] = 1.
+                ground_truth[i, j] = colors[labels[i, j] - 1]
     plt.imshow(ground_truth)
     plt.show()
     plt.imsave("ground_truth.pdf", ground_truth)
@@ -148,7 +153,7 @@ def separate_train_test(x, y, ratio=0.1):
 
 def get_dataset():
     T, labels = open_dataset_t6()
-    # labels_to_ground_truth(labels)
+    labels_to_ground_truth(labels)
     T, labels = remove_unlabeled(T, labels)
     labels -= 1  # map [1, 3] to [0, 2]
     T = T.reshape(-1, T.shape[-1])
@@ -221,31 +226,33 @@ if __name__ == '__main__':
     T, labels = get_dataset()
     T, labels = randomize(T, labels)
     x_train, y_train, x_test, y_test = separate_train_test(T, labels, ratio=0.05)
-    x_train, y_train, x_val, y_val = separate_train_test(x_train, y_train, ratio=0.5)
+    x_train, y_train, x_val, y_val = separate_train_test(x_train, y_train, ratio=0.1)
     y_train = Dataset.sparse_into_categorical(y_train)
     y_test = Dataset.sparse_into_categorical(y_test)
     y_val = Dataset.sparse_into_categorical(y_val)
     dataset = Dataset(x_train.astype(np.complex64), y_train, dataset_name='Oberpfaffenhofen')
-    print("Training model")
+    # print("Training model")
     """run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
               iterations=5, epochs=200,
               shape_raw=[100, 50], optimizer=cvnn.optimizers.SGD(), dropout=None, activation='cart_relu',
               polar=False, checkpoints=False)"""
-
+    """
     shapes = [
         # [],
         # [5],
         [10], [50],
         [10, 10], [50, 50],
         [100, 50], [200, 100],
-        [500], [5000],
-        [500, 500], [5000, 5000],
-        [10000]
+        [500], [500, 500],
+        [1000]
+        # [5000],
+        # [500, 500], [5000, 5000],
+        # [10000]
     ]
     for shape in shapes:
         run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
-                  iterations=10, epochs=150,
-                  optimizer='sgd', shape_raw=shape, activation='cart_relu', polar=False, dropout=None)
+                  iterations=10, epochs=300,
+                  optimizer='sgd', shape_raw=shape, activation='cart_relu', polar=False, dropout=None)"""
     """
     optimizers = [# 'sgd'
                   'rmsprop'

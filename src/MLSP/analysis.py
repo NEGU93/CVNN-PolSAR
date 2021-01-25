@@ -255,7 +255,9 @@ if __name__ == "__main__":
     # monte_carlo_analyzer.do_all()
     # monte_carlo_analyzer.plot_histogram(library='matplotlib', extension=".png")
     # path = "W:/HardDiskDrive/Documentos/GitHub/cvnn/montecarlo/2020/03March/26Thursday/run-18h16m02"
-    """plotter = MonteCarloPlotter(path=path)
+    """
+    path = "log/montecarlo/2020/08August/30Sunday/run-03h06m08"
+    plotter = MonteCarloPlotter(path=path)
     plotter.plot_key(key='accuracy')
     plotter.plot_key(key='accuracy', library='matplotlib')
     plotter.plot_distribution()"""
@@ -264,20 +266,28 @@ if __name__ == "__main__":
     plotter = Plotter(path=path)
     plotter.plot_key(key='accuracy')"""
     # path = "/home/barrachina/Documents/onera/log/montecarlo/2020/07July/29Wednesday/run-14h37m01/run_data"
-    path = "./log/montecarlo/2020/08August/30Sunday/run-03h06m08/run_data.csv"
+    path = "/media/barrachina/data/results/MLSP/results/two hidden layer/Dropout/run_data.csv"
+    # path = "/media/barrachina/data/results/MLSP/results/two hidden layer/TwoLayerTypeA/run_data.csv"
     monte_carlo_analyzer = MonteCarloAnalyzer(df=None, path=path)
-    monte_carlo_analyzer.do_all()
+    monte_carlo_analyzer.monte_carlo_plotter.plot_line_confidence_interval(key="test loss", x_axis='step',
+                                                                           library="seaborn",
+                                                                           showfig=True, savefig=True)
+    # monte_carlo_analyzer.do_all()
+
+
+    # Plot of polar histogram
     """paths = [
         "log/montecarlo/2020/08August/30Sunday/run-03h06m08/run_data",
         "log/montecarlo/2020/08August/30Sunday/run-14h35m58/run_data"
     ]
     x = [
-        "cartesian",
+        "",
         'polar'
     ]
-    several_monte_carlo = SeveralMonteCarloComparison(label="Polar", x=x, paths=paths)
+    several_monte_carlo = SeveralMonteCarloComparison(label="Polar", x=x, paths=paths,
+                                                      output_path="./results/polarmode_two_layers/")
     # several_monte_carlo.box_plot(showfig=True)
     several_monte_carlo.monte_carlo_analyzer.df = several_monte_carlo.monte_carlo_analyzer.df[
         several_monte_carlo.monte_carlo_analyzer.df['network'] != 'complex network polar']
-    several_monte_carlo.plot_histogram(savefig=True, showfig=False, library='seaborn')
-    # set_trace()"""
+    several_monte_carlo.plot_histogram(savefig=True, showfig=True, library='seaborn')"""
+    # set_trace()
