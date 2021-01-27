@@ -111,5 +111,4 @@ if __name__ == '__main__':
     df = pd.DataFrame(data)
     save_dataset(df, root_path)
     save_dataset(data, root_path)
-    set_trace()
 
