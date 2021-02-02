@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from prettytable import PrettyTable
 from pdb import set_trace
 from sklearn.model_selection import train_test_split
 
@@ -24,14 +25,28 @@ def get_data():
     return images, labels
 
 
-def resize_images(images, labels, input_shape=(128, 128)):
-    cropped_images = []
-    cropped_labels = []
-    for i, img in enumerate(images):
-        if img.shape[0] >= input_shape[0] and img.shape[1] >= input_shape[1]:
-            cropped_images.append(crop_center(img, input_shape[0], input_shape[1]))
-            cropped_labels.append(labels[i])
-    return cropped_images, cropped_labels
+def resize_image(img, input_shape=(128, 128)):
+    """
+    Resizes images to `input_shape` size.
+        If image is smaller it zero pads.
+        If image is bigger it crops.
+        If image has one axis bigger and one smaller it will both zero pad the smaller axis and crop the biggest one.
+    ATTENTION (TODO?):
+        If the desired shape is an even size (ex. 128x128) and the image shape is smaller, t
+        the image shape should also be even (ex. 58x58).
+    :param img: Image to be resized.
+    :param input_shape: Desired shape
+    :return: reshaped image of shape `input_shape`
+    """
+    assert img.shape[0] % 2 == input_shape[0] % 2 or img.shape[0] >= input_shape[0]
+    assert img.shape[1] % 2 == input_shape[1] % 2 or img.shape[1] >= input_shape[1]
+    if img.shape[0] < input_shape[0] or img.shape[1] < input_shape[1]:
+        img = np.pad(img,
+                     (max(0, int((input_shape[0] - img.shape[0])/2)), max(0, int((input_shape[1] - img.shape[1])/2))),
+                     mode='constant')
+    if img.shape[0] > input_shape[0] or img.shape[1] > input_shape[1]:
+        img = crop_center(img, input_shape[0], input_shape[1])
+    return img
 
 
 def crop_center(img, cropx, cropy):
@@ -68,18 +83,36 @@ def separate_by_angle():
 def separate_train_and_test_with_angle(dataset, train_angle=17, test_angle=15):
     train_set = dataset[train_angle]
     test_set = dataset[test_angle]
-    x_train = [element['image'] for element in train_set]
-    y_train = [sparse_labels[element['label']] for element in train_set]
-    x_test = [element['image'] for element in test_set]
-    y_test = [sparse_labels[element['label']] for element in test_set]
+    train_shapes = set()
+    test_shapes = set()
+    x_train = []
+    y_train = []
+    x_test = []
+    y_test = []
+    for element in train_set:
+        img = resize_image(element['image'])
+        train_shapes.add(img.shape)
+        x_train.append(img)
+        y_train.append(sparse_labels[element['label']])
+    for element in test_set:
+        img = resize_image(element['image'])
+        test_shapes.add(img.shape)
+        x_test.append(img)
+        y_test.append(sparse_labels[element['label']])
+    # First remark, shapes are not all 128x128 as the paper says.
+    print(f"train_shapes: {train_shapes}")
+    print(f"test_shapes: {test_shapes}")
     return x_train, x_test, y_train, y_test
 
 
 def get_train_and_test():
     dataset = separate_by_angle()
     x_train, x_test, y_train, y_test = separate_train_and_test_with_angle(dataset=dataset)
+    t = PrettyTable(['Class', 'Train total', 'Test total'])
     for i in range(len(classes)):
-        print(f"Class {classes[i]} ({i}) is present {y_train.count(i)} times in train and {y_test.count(i)} in test.")
+        t.add_row([classes[i], y_train.count(i), y_test.count(i)])
+        # print(f"Class {classes[i]} ({i}) is present {y_train.count(i)} times in train and {y_test.count(i)} in test.")
+    print(t)
     return np.array(x_train), np.array(x_test), np.array(y_train), np.array(y_test)
 
 
