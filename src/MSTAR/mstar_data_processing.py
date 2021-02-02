@@ -5,7 +5,7 @@ from prettytable import PrettyTable
 from pdb import set_trace
 from sklearn.model_selection import train_test_split
 
-root_path = Path('/media/barrachina/data/datasets/MSTAR/MixedTargets')
+root_path = Path('/media/barrachina/data/datasets/MSTAR/Targets')
 
 df = pd.read_pickle(root_path / 'data.pkl')
 
@@ -76,11 +76,18 @@ def separate_by_angle():
         if (depression := dataset_by_angle.get(row['DesiredDepression'])) is None:
             dataset_by_angle[row['DesiredDepression']] = depression = []
         depression.append({'image': row['data'], 'label': row['TargetType']})
-    print(dataset_by_angle.keys())
+    print(f"Data angles: {dataset_by_angle.keys()}")
     return dataset_by_angle
 
 
-def separate_train_and_test_with_angle(dataset, train_angle=17, test_angle=15):
+def separate_train_and_test_with_angle(dataset, train_angle: int = 17, test_angle: int = 15):
+    """
+    Gets train and test set based on a desired angle.
+    :param dataset: Dataset to be divided.
+    :param train_angle:
+    :param test_angle:
+    :return:
+    """
     train_set = dataset[train_angle]
     test_set = dataset[test_angle]
     train_shapes = set()
