@@ -75,6 +75,9 @@ def separate_by_angle():
     for _, row in df.iterrows():
         if (depression := dataset_by_angle.get(row['DesiredDepression'])) is None:
             dataset_by_angle[row['DesiredDepression']] = depression = []
+        if row['TargetType'] == 'bmp2_tank' or row['TargetType'] == 't72_tank':
+            # pd.set_option("display.max_rows", None, "display.max_columns", None)
+            set_trace()     # Can distinguish with the path! the end of the path is the key.
         depression.append({'image': row['data'], 'label': row['TargetType']})
     print(f"Data angles: {dataset_by_angle.keys()}")
     return dataset_by_angle
