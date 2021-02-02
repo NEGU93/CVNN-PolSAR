@@ -11,7 +11,7 @@ from pprint import pprint
 This script is used to read the MSTAR dataset and save it to be easily accesible later
 """
 
-root_path = Path('/media/barrachina/data/datasets/MSTAR/')
+root_path = Path('/media/barrachina/data/datasets/MSTAR/MixedTargets')
 stm = {     # State machine for reading file. In order!
     'init': {'next': 'reading_header'},
     'reading_header': {'next': 'end'},
@@ -109,6 +109,7 @@ def save_dataset(data, path):
 if __name__ == '__main__':
     data = get_dataset()
     df = pd.DataFrame(data)
+    set_trace()
     save_dataset(df, root_path)
     save_dataset(data, root_path)
 
