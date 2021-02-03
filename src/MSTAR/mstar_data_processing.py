@@ -5,11 +5,13 @@ from prettytable import PrettyTable
 from pdb import set_trace
 from sklearn.model_selection import train_test_split
 
+DEBUG = False
 root_path = Path('/media/barrachina/data/datasets/MSTAR/Targets')
 
 df = pd.read_pickle(root_path / 'data.pkl')
 
 classes = df.TargetType.unique()
+classes = np.delete(classes, np.argwhere(classes == 'slicey'))
 
 sparse_labels = {}
 for i, cla in enumerate(classes):
@@ -69,17 +71,20 @@ def separate_by_angle():
         }
     :return:
     """
-    #
-    #
     dataset_by_angle = {}        # Dictionary with key = Desired Depression (15, 17, 30)
     for _, row in df.iterrows():
+        # pd.set_option("display.max_rows", None, "display.max_columns", None)
         if (depression := dataset_by_angle.get(row['DesiredDepression'])) is None:
             dataset_by_angle[row['DesiredDepression']] = depression = []
-        if row['TargetType'] == 'bmp2_tank' or row['TargetType'] == 't72_tank':
-            # pd.set_option("display.max_rows", None, "display.max_columns", None)
-            set_trace()     # Can distinguish with the path! the end of the path is the key.
+        if row['TargetType'] == 'slicey':
+            continue
+        if row['TargetType'] == 'bmp2_tank' and not row['path'].endswith('SN_C21'):
+            continue    # Only use snc21 of the bmp2 tanks
+        if row['TargetType'] == 't72_tank' and not row['path'].endswith('SN_132'):
+            continue    # Only use sn132 of the t72 tanks
         depression.append({'image': row['data'], 'label': row['TargetType']})
-    print(f"Data angles: {dataset_by_angle.keys()}")
+    if DEBUG:
+        print(f"Data angles: {dataset_by_angle.keys()}")
     return dataset_by_angle
 
 
@@ -110,21 +115,23 @@ def separate_train_and_test_with_angle(dataset, train_angle: int = 17, test_angl
         x_test.append(img)
         y_test.append(sparse_labels[element['label']])
     # First remark, shapes are not all 128x128 as the paper says.
-    print(f"train_shapes: {train_shapes}")
-    print(f"test_shapes: {test_shapes}")
+    if DEBUG:
+        print(f"train_shapes: {train_shapes}")
+        print(f"test_shapes: {test_shapes}")
     return x_train, x_test, y_train, y_test
 
 
 def get_train_and_test():
     dataset = separate_by_angle()
     x_train, x_test, y_train, y_test = separate_train_and_test_with_angle(dataset=dataset)
-    t = PrettyTable(['Class', 'Train total', 'Test total'])
-    for i in range(len(classes)):
-        t.add_row([classes[i], y_train.count(i), y_test.count(i)])
-        # print(f"Class {classes[i]} ({i}) is present {y_train.count(i)} times in train and {y_test.count(i)} in test.")
-    print(t)
+    if DEBUG:
+        t = PrettyTable(['Class', 'Train total', 'Test total'])
+        for i in range(len(classes)):
+            t.add_row([classes[i], y_train.count(i), y_test.count(i)])
+        print(t)
     return np.array(x_train), np.array(x_test), np.array(y_train), np.array(y_test)
 
 
 if __name__ == '__main__':
+    DEBUG = True
     get_train_and_test()

@@ -24,6 +24,16 @@ def plot_jpg(mstar_data):
     plt.show()
 
 
+def plot_history(history):
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'validation'], loc='upper left')
+    plt.show()
+
+
 if __name__ == '__main__':
     mstar_data = np.load(root_path/'data.npy', allow_pickle=True)
     plot_data(mstar_data[0]['data'])

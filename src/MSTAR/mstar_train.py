@@ -2,19 +2,44 @@ from mstar_data_processing import get_train_and_test
 from pdb import set_trace
 import numpy as np
 import tensorflow as tf
-import cvnn.layers as complex_layers
-import tensorflow.keras.layers as layers
+import pandas as pd
+import pickle
+import cvnn
+from cvnn.utils import create_folder
+from mstar_data_processing import resize_image
+from mstar_utils import plot_history
+
+
+config = {
+    'model': 'chen',
+    'dtype': np.float32,
+    'tensorflow': True
+}
+
+if config['tensorflow']:
+    from tensorflow.keras.layers import Dense, Conv2D, MaxPooling2D, AveragePooling2D, Flatten, Input, Dropout
+else:
+    from cvnn.layers import ComplexDense as Dense
+    from cvnn.layers import ComplexConv2D as Conv2D
+    from cvnn.layers import ComplexMaxPooling2D as MaxPooling2D
+    from cvnn.layers import ComplexAvgPooling2D as AveragePooling2D
+    from cvnn.layers import ComplexFlatten as Flatten
+    from cvnn.layers import ComplexInput as Input
+    from cvnn.layers import ComplexDropout as Dropout
 
 
 def get_model(verbose: bool = False):
     model = tf.keras.models.Sequential()
-    model.add(complex_layers.ComplexInput(input_shape=(128, 128, 1)))  # Always use ComplexInput at the start
-    model.add(complex_layers.ComplexConv2D(6, (3, 3), activation='cart_relu'))
-    model.add(complex_layers.ComplexAvgPooling2D((2, 2)))
-    model.add(complex_layers.ComplexConv2D(12, (3, 3), activation='cart_relu'))
-    model.add(complex_layers.ComplexFlatten())
-    model.add(complex_layers.ComplexDense(108, activation='cart_relu'))
-    model.add(complex_layers.ComplexDense(10, activation='softmax_real'))
+    if config['tensorflow']:
+        model.add(Input(shape=(128, 128, 1)))  # Always use ComplexInput at the start
+    else:
+        model.add(Input(input_shape=(128, 128, 1)))  # Always use ComplexInput at the start
+    model.add(Conv2D(6, (3, 3), activation='cart_relu'))
+    model.add(AveragePooling2D((2, 2)))
+    model.add(Conv2D(12, (3, 3), activation='cart_relu'))
+    model.add(Flatten())
+    model.add(Dense(108, activation='cart_relu'))
+    model.add(Dense(10, activation='softmax_real'))
     model.compile(optimizer='adam',
                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                   metrics=['accuracy'])
@@ -23,43 +48,23 @@ def get_model(verbose: bool = False):
     return model
 
 
-def get_tf_ding_model(verbose: bool = False, input_shape=(128, 128)):
+def get_ding_model(verbose: bool = False, input_shape=(128, 128)):
     model = tf.keras.models.Sequential()
-    model.add(layers.Input(shape=input_shape + (1,)))  # Always use ComplexInput at the start
+    if config['tensorflow']:
+        model.add(Input(shape=input_shape + (1,)))  # Always use ComplexInput at the start
+    else:
+        model.add(Input(input_shape=input_shape + (1,), dtype=config['dtype']))  # Always use ComplexInput at the start
 
-    model.add(layers.Conv2D(96, (3, 3), activation='relu'))
-    model.add(layers.Conv2D(96, (3, 3), activation='relu'))
-    model.add(layers.MaxPooling2D((2, 2), strides=1))
+    model.add(Conv2D(96, (3, 3), activation='cart_relu', dtype=config['dtype']))
+    model.add(Conv2D(96, (3, 3), activation='cart_relu', dtype=config['dtype']))
 
-    model.add(layers.Conv2D(256, (3, 3), activation='relu'))
-    model.add(layers.MaxPooling2D((2, 2), strides=1))
+    model.add(MaxPooling2D((2, 2), strides=1, dtype=config['dtype']))
 
-    model.add(layers.Flatten())
-    model.add(layers.Dense(10, activation='softmax'))
+    model.add(Conv2D(256, (3, 3), activation='cart_relu', dtype=config['dtype']))
+    model.add(MaxPooling2D((2, 2), strides=1, dtype=config['dtype']))
 
-    model.compile(optimizer='adam',
-                  loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                  metrics=['accuracy'])
-    if verbose:
-        model.summary()
-    return model
-
-
-def get_ding_model(verbose: bool = False, input_shape=(128, 128), dtype=np.complex64):
-    model = tf.keras.models.Sequential()
-    model.add(complex_layers.ComplexInput(input_shape=input_shape + (1,),
-                                          dtype=dtype))  # Always use ComplexInput at the start
-
-    model.add(complex_layers.ComplexConv2D(96, (3, 3), activation='cart_relu', dtype=dtype))
-    model.add(complex_layers.ComplexConv2D(96, (3, 3), activation='cart_relu', dtype=dtype))
-
-    model.add(complex_layers.ComplexMaxPooling2D((2, 2), strides=1, dtype=dtype))
-
-    model.add(complex_layers.ComplexConv2D(256, (3, 3), activation='cart_relu', dtype=dtype))
-    model.add(complex_layers.ComplexMaxPooling2D((2, 2), strides=1, dtype=dtype))
-
-    model.add(complex_layers.ComplexFlatten(dtype=dtype))
-    model.add(complex_layers.ComplexDense(10, activation='softmax_real', dtype=dtype))
+    model.add(Flatten(dtype=config['dtype']))
+    model.add(Dense(10, activation='softmax_real', dtype=config['dtype']))
 
     model.compile(optimizer='adam',
                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -69,23 +74,26 @@ def get_ding_model(verbose: bool = False, input_shape=(128, 128), dtype=np.compl
     return model
 
 
-def get_chen_model(verbose: bool = False, input_shape=(128, 128), dtype=np.complex64):
+def get_chen_model(verbose: bool = False, input_shape=(128, 128)):
     model = tf.keras.models.Sequential()
-    model.add(complex_layers.ComplexInput(input_shape=input_shape + (1,), dtype=dtype))  # Always use ComplexInput at the start
+    if config['tensorflow']:
+        model.add(Input(shape=input_shape + (1,)))  # Always use ComplexInput at the start
+    else:
+        model.add(Input(input_shape=input_shape + (1,), dtype=config['dtype']))  # Always use ComplexInput at the start
 
-    model.add(complex_layers.ComplexConv2D(16, (5, 5), activation='cart_relu', dtype=dtype))
-    model.add(complex_layers.ComplexMaxPooling2D((2, 2), strides=2, dtype=dtype))
+    model.add(Conv2D(16, (5, 5), activation='cart_relu', dtype=config['dtype']))
+    model.add(MaxPooling2D((2, 2), strides=2, dtype=config['dtype']))
 
-    model.add(complex_layers.ComplexConv2D(32, (5, 5), activation='cart_relu', dtype=dtype))
-    model.add(complex_layers.ComplexMaxPooling2D((2, 2), strides=2, dtype=dtype))
+    model.add(Conv2D(32, (5, 5), activation='cart_relu', dtype=config['dtype']))
+    model.add(MaxPooling2D((2, 2), strides=2, dtype=config['dtype']))
 
-    model.add(complex_layers.ComplexConv2D(64, (6, 6), activation='cart_relu', dtype=dtype))
-    model.add(complex_layers.ComplexMaxPooling2D((2, 2), strides=2, dtype=dtype))
+    model.add(Conv2D(64, (6, 6), activation='cart_relu', dtype=config['dtype']))
+    model.add(MaxPooling2D((2, 2), strides=2, dtype=config['dtype']))
 
-    model.add(complex_layers.ComplexDropout(0.5, dtype=dtype))
-    model.add(complex_layers.ComplexConv2D(128, (5, 5), activation='cart_relu', dtype=dtype))
+    model.add(Dropout(0.5, dtype=config['dtype']))
+    model.add(Conv2D(128, (5, 5), activation='cart_relu', dtype=config['dtype']))
 
-    model.add(complex_layers.ComplexConv2D(10, (3, 3), activation='softmax_real', dtype=dtype))
+    model.add(Conv2D(10, (3, 3), activation='softmax_real', dtype=config['dtype']))
     # model.add(complex_layers.ComplexFlatten())
     # model.add(complex_layers.ComplexDense(10, activation='softmax_real'))
 
@@ -98,24 +106,36 @@ def get_chen_model(verbose: bool = False, input_shape=(128, 128), dtype=np.compl
 
 
 if __name__ == '__main__':
-    model = 'ding'
-    dtype = np.float32
-    if model == 'chen':
+    if config['dtype'] == np.complex64 and config['tensorflow']:
+        raise ValueError("Tensorflow mode does not support complex dtype")
+
+    # Get model
+    if config['model'] == 'chen':
         input_shape = (88, 88)
-        model = get_chen_model(input_shape=input_shape, verbose=True, dtype=dtype)
-    elif model == 'ding':
+        model = get_chen_model(input_shape=input_shape, verbose=True)
+    elif config['model'] == 'ding':
         input_shape = (128, 128)
-        # model = get_tf_ding_model(input_shape=input_shape, verbose=True)
-        model = get_ding_model(input_shape=input_shape, verbose=True, dtype=dtype)
+        model = get_ding_model(input_shape=input_shape, verbose=True)
     else:
         input_shape = (128, 128)
         model = get_model(True)
-    img_train, img_test, labels_train, labels_test = get_train_and_test(input_shape=input_shape)
+
+    # Get data
+    img_train, img_test, labels_train, labels_test = get_train_and_test()
+    img_train = np.array([resize_image(img, input_shape=input_shape) for img in img_train])
+    img_test = np.array([resize_image(img, input_shape=input_shape) for img in img_test])
     img_train = np.array(img_train.reshape(img_train.shape + (1,)))
     img_test = np.array(img_test.reshape(img_test.shape + (1,)))
-    if dtype == np.float32:
+    if config['dtype'] == np.float32:
         img_train == np.abs(img_train)
         img_test == np.abs(img_test)
+
+    # Train
     history = model.fit(x=img_train, y=labels_train,
                         validation_data=(img_test, labels_test),
                         epochs=10)
+    plot_history(history)
+    path = create_folder('./log/')
+    pd.DataFrame.from_dict(history.history).to_csv(path / 'history.csv', index=False)
+    # with open(path / 'history.pkl', 'wb') as file:
+    #     pickle.dump(history, file)
