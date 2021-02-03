@@ -7,13 +7,14 @@ import pickle
 import cvnn
 from cvnn.utils import create_folder
 from mstar_data_processing import resize_image
-from mstar_utils import plot_history
+from mstar_utils import plot_history, create_excel_file
 
 
 config = {
     'model': 'chen',
     'dtype': np.float32,
-    'tensorflow': True
+    'tensorflow': True,
+    'epochs': 10
 }
 
 if config['tensorflow']:
@@ -133,9 +134,18 @@ if __name__ == '__main__':
     # Train
     history = model.fit(x=img_train, y=labels_train,
                         validation_data=(img_test, labels_test),
-                        epochs=10)
+                        epochs=config['epochs'])
     plot_history(history)
     path = create_folder('./log/')
     pd.DataFrame.from_dict(history.history).to_csv(path / 'history.csv', index=False)
-    # with open(path / 'history.pkl', 'wb') as file:
-    #     pickle.dump(history, file)
+    fieldsname = []
+    values = []
+    for key, value in config.items():
+        fieldsname.append(key)
+        values.append(str(value))
+    for key, value in history.history.items():
+        fieldsname.append(key)
+        values.append(str(value[-1]))
+    fieldsname.append('path')
+    values.append(str(path))
+    create_excel_file(fieldsname, values, percentage_cols=[])
