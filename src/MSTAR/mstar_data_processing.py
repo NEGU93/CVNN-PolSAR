@@ -4,7 +4,7 @@ import numpy as np
 from pdb import set_trace
 from sklearn.model_selection import train_test_split
 
-root_path = Path('/media/barrachina/data/datasets/MSTAR/')
+root_path = Path('/home/cfren/Bureau/Documents/onera/MSTARdata')
 
 df = pd.read_pickle(root_path / 'data.pkl')
 
