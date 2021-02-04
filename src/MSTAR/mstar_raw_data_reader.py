@@ -8,10 +8,14 @@ from tqdm import tqdm
 from pprint import pprint
 
 """
-This script is used to read the MSTAR dataset and save it to be easily accesible later
+This script is used to read the MSTAR dataset downloaded from the website and save it to be easily accessible later
 """
 
+<<<<<<< HEAD:src/MSTAR/mstar_preprocessing.py
 root_path = Path('/home/cfren/Bureau/Documents/onera/MSTARdata')
+=======
+root_path = Path('/media/barrachina/data/datasets/MSTAR/Targets')
+>>>>>>> 5fc137dfe3ca242b9d3a23aa022c30c321cfca48:src/MSTAR/mstar_raw_data_reader.py
 stm = {     # State machine for reading file. In order!
     'init': {'next': 'reading_header'},
     'reading_header': {'next': 'end'},
