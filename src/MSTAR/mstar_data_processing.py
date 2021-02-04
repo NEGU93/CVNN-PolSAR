@@ -5,12 +5,8 @@ from prettytable import PrettyTable
 from pdb import set_trace
 from sklearn.model_selection import train_test_split
 
-<<<<<<< HEAD
-root_path = Path('/home/cfren/Bureau/Documents/onera/MSTARdata')
-=======
 DEBUG = False
 root_path = Path('/media/barrachina/data/datasets/MSTAR/Targets')
->>>>>>> 5fc137dfe3ca242b9d3a23aa022c30c321cfca48
 
 df = pd.read_pickle(root_path / 'data.pkl')
 

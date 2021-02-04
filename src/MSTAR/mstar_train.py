@@ -12,11 +12,11 @@ from mstar_utils import plot_history, create_excel_file
 
 
 config = {
-    'model': 'chen',
-    'dtype': np.float32,
+    'model': 'own',
+    'dtype': np.complex64,
     'tensorflow': False,
-    'epochs': 1,
-    'batch_size': 32   # TODO: change it using tf.Dataset?
+    'epochs': 2,
+    'batch_size': 100   # TODO: change it using tf.Dataset?
 }
 
 saver_config = {
@@ -98,18 +98,18 @@ def get_mlp_model():
 def get_own_model():
     assert config['model'] == 'own'
     input_shape = (128, 128)
-    model = tf.keras.models.Sequential()
+    model = tf.keras.models.Sequential(name='complex_model')
     if config['tensorflow']:
         model.add(Input(shape=input_shape + (1,)))  # Always use ComplexInput at the start
     else:
         model.add(Input(input_shape=input_shape + (1,), dtype=config['dtype']))  # Always use ComplexInput at the start
-    model.add(Conv2D(64, (3, 3), activation='cart_relu', dtype=config['dtype']))
-    model.add(AveragePooling2D((2, 2), dtype=config['dtype']))
     model.add(Conv2D(32, (3, 3), activation='cart_relu', dtype=config['dtype']))
     model.add(AveragePooling2D((2, 2), dtype=config['dtype']))
+    # model.add(Conv2D(32, (3, 3), activation='cart_relu', dtype=config['dtype']))
+    # model.add(AveragePooling2D((2, 2), dtype=config['dtype']))
     model.add(Flatten(dtype=config['dtype']))
-    model.add(Dense(128, activation='cart_relu', dtype=config['dtype']))
-    model.add(Dropout(0.5, dtype=config['dtype']))
+    # model.add(Dense(128, activation='cart_relu', dtype=config['dtype']))
+    # model.add(Dropout(0.5, dtype=config['dtype']))
     model.add(Dense(10, activation='softmax_real', dtype=config['dtype']))
     model.compile(optimizer='adam',
                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -218,8 +218,8 @@ def save_results(model, history):
             'optimizer': tf.keras.optimizers.serialize(model.optimizer),
             'layers': [tf.keras.layers.serialize(layer) for layer in model.layers]
         }
-        with open(path / 'model_arch.pkl', 'w') as fp:
-            pickle.dump(json_dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(path / 'model_arch.json', 'w') as fp:
+            json.dump(str(json_dict), fp)
 
 
 if __name__ == '__main__':
