@@ -105,11 +105,13 @@ def separate_train_and_test_with_angle(dataset, train_angle: int = 17, test_angl
     x_test = []
     y_test = []
     for element in train_set:
+        # img = element['image']
         img = resize_image(element['image'])
         train_shapes.add(img.shape)
         x_train.append(img)
         y_train.append(sparse_labels[element['label']])
     for element in test_set:
+        # img = element['image']
         img = resize_image(element['image'])
         test_shapes.add(img.shape)
         x_test.append(img)

@@ -29,14 +29,17 @@ def plot_jpg(mstar_data):
     plt.show()
 
 
-def plot_history(history):
+def plot_history(history, save_filename=None, show_fig: Optional[bool] = True):
     plt.plot(history.history['accuracy'])
     plt.plot(history.history['val_accuracy'])
     plt.title('model accuracy')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'], loc='upper left')
-    plt.show()
+    if save_filename is not None:
+        plt.savefig(save_filename)
+    if show_fig:
+        plt.show()
 
 
 def create_excel_file(fieldnames: List[str], row_data: List, filename: Optional[t_path] = None,
