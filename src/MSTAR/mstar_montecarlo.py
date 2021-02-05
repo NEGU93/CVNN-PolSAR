@@ -13,6 +13,15 @@ montecarlo_config = {
     'batch_size': 100
 }
 
+save_config = {
+            'plot_all': True,
+            'confusion_matrix': True,
+            'excel_summary': True,
+            'debug': True,
+            'summary_of_run': True,
+            'safety_checkpoints': True
+        }
+
 
 def get_own_model():
     input_shape = (128, 128)
@@ -33,6 +42,7 @@ def do_monte_carlo(complex_model):
     img_train, img_test, labels_train, labels_test = get_train_and_test()
     img_train = np.array(img_train.reshape(img_train.shape + (1,)))
     img_test = np.array(img_test.reshape(img_test.shape + (1,)))
+    montecarlo.output_config = save_config
     montecarlo.run(x=img_train, y=labels_train, validation_data=(img_test, labels_test), polar=montecarlo_config['polar'],
                    iterations=montecarlo_config['iterations'], epochs=montecarlo_config['epochs'],
                    batch_size=montecarlo_config['batch_size'],
