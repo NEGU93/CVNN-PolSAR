@@ -37,9 +37,9 @@ def do_monte_carlo(complex_model):
                    iterations=montecarlo_config['iterations'], epochs=montecarlo_config['epochs'],
                    batch_size=montecarlo_config['batch_size'],
                    data_summary="MSTAR 10 class database",
-                   debug=False, plot_all=True)
+                   debug=False)
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     complex_model = get_own_model()
     do_monte_carlo(complex_model)
