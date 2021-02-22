@@ -7,13 +7,10 @@ import matplotlib.pyplot as plt
 from itertools import compress
 from cvnn.utils import standarize, randomize
 from cvnn.dataset import Dataset
-from cvnn.montecarlo import mlp_run_real_comparison_montecarlo, run_montecarlo
-from cvnn import layers
-from cvnn.layers import Dense
-from cvnn.cvnn_model import CvnnModel
+from cvnn.montecarlo import RealVsComplex
+from cvnn import layers as complex_layers
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.losses import categorical_crossentropy
-import cvnn.optimizers
-from cvnn.optimizers import t_optimizer
 from typing import Optional
 import tikzplotlib
 import time
@@ -161,81 +158,57 @@ def get_dataset():
     return T, labels
 
 
-def run_monte(dataset, validation_data, iterations=10, epochs=200,
-              optimizer: t_optimizer = 'sgd', shape_raw=None, activation='cart_relu',
-              polar=False, dropout: Optional[float] = 0.5, checkpoints=False):
+def run_monte(dataset, validation_data, test_data, iterations=10, epochs=200, batch_size=100,
+              optimizer='sgd', shape_raw=None, activation='cart_relu',
+              polar=False, dropout: Optional[float] = 0.5):
     if shape_raw is None:
         shape_raw = [50]
 
     # Create complex network
     input_size = dataset.x.shape[1]  # Size of input
     output_size = dataset.y.shape[1]  # Size of output
-    layers.ComplexLayer.last_layer_output_dtype = None
-    layers.ComplexLayer.last_layer_output_size = None
     if len(shape_raw) == 0:
         print("No hidden layers are used. activation and dropout will be ignored")
         shape = [
-            Dense(input_size=input_size, output_size=output_size, activation='softmax_real',
-                  input_dtype=np.complex64, dropout=None)
+            complex_layers.InputLayer(input_shape=input_size, dtype=np.complex64),
+            complex_layers.ComplexDense(units=output_size, activation='softmax_real', dtype=np.complex64)
         ]
     else:  # len(shape_raw) > 0:
-        shape = [Dense(input_size=input_size, output_size=shape_raw[0], activation=activation,
-                       input_dtype=np.complex64, dropout=dropout)]
-        for i in range(1, len(shape_raw)):
-            shape.append(Dense(output_size=shape_raw[i], activation=activation, dropout=dropout))
-        shape.append(Dense(output_size=output_size, activation='softmax_real', dropout=None))
+        shape = [complex_layers.InputLayer(input_shape=input_size, dtype=np.complex64)]
+        for i in range(0, len(shape_raw)):
+            shape.append(complex_layers.ComplexDense(units=shape_raw[i], activation=activation))
+            if dropout is not None:
+                shape.append(complex_layers.ComplexDropout(rate=dropout))
+        shape.append(complex_layers.ComplexDense(units=output_size, activation='softmax_real'))
 
-    complex_network = CvnnModel(name="complex_network", shape=shape, loss_fun=categorical_crossentropy,
-                                optimizer=optimizer, verbose=False, tensorboard=False)
-    input_size = 2*dataset.x.shape[1]   # Size of input
-    output_size = dataset.y.shape[1]    # Size of output
-    layers.ComplexLayer.last_layer_output_dtype = None
-    layers.ComplexLayer.last_layer_output_size = None
-    if len(shape_raw) == 0:
-        print("No hidden layers are used. activation and dropout will be ignored")
-        shape = [
-            Dense(input_size=input_size, output_size=output_size, activation='softmax_real',
-                  input_dtype=np.float32, dropout=None)
-        ]
-    else:  # len(shape_raw) > 0:
-        shape = [Dense(input_size=input_size, output_size=shape_raw[0], activation=activation,
-                       input_dtype=np.float32, dropout=dropout)]
-        for i in range(1, len(shape_raw)):
-            shape.append(Dense(output_size=shape_raw[i], activation=activation, dropout=dropout))
-        shape.append(Dense(output_size=output_size, activation='softmax_real', dropout=None))
+    complex_network = Sequential(name="complex_network", layers=shape)
+    complex_network.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
 
-    real_network = CvnnModel(name="real_network", shape=shape, loss_fun=categorical_crossentropy,
-                             optimizer=optimizer, verbose=False, tensorboard=False)
-    # Create Models
-    models = []
-    models.append(complex_network)
-    time.sleep(1)
-    models.append(complex_network.get_real_equivalent(capacity_equivalent=True, equiv_technique='ratio', name='ratio'))
-    time.sleep(1)
-    models.append(complex_network.get_real_equivalent(capacity_equivalent=False, name='double HL'))
-    time.sleep(1)
-    models.append(real_network)
-
-    run_montecarlo(models, dataset,
-                   validation_split=0.0, validation_data=validation_data,
-                   iterations=iterations, epochs=epochs, do_conf_mat=True, polar=polar)
+    monte_carlo = RealVsComplex(complex_network)
+    for model in monte_carlo.models:
+        model.summary()
+    monte_carlo.output_config['plot_all'] = True
+    monte_carlo.output_config['confusion_matrix'] = True
+    monte_carlo.run(x=dataset.x, y=dataset.y, validation_data=validation_data, test_data=test_data,
+                    data_summary=dataset.dataset_name, iterations=iterations, epochs=epochs, batch_size=batch_size, polar=polar)
 
 
 if __name__ == '__main__':
     print("Loading Dataset")
     T, labels = get_dataset()
     T, labels = randomize(T, labels)
-    x_train, y_train, x_test, y_test = separate_train_test(T, labels, ratio=0.05)
-    x_train, y_train, x_val, y_val = separate_train_test(x_train, y_train, ratio=0.1)
+    x_train, y_train, x_test, y_test = separate_train_test(T, labels, ratio=0.1)
+    x_train, y_train, x_val, y_val = separate_train_test(x_train, y_train, ratio=0.8)
     y_train = Dataset.sparse_into_categorical(y_train)
     y_test = Dataset.sparse_into_categorical(y_test)
     y_val = Dataset.sparse_into_categorical(y_val)
     dataset = Dataset(x_train.astype(np.complex64), y_train, dataset_name='Oberpfaffenhofen')
-    # print("Training model")
-    """run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
-              iterations=5, epochs=200,
-              shape_raw=[100, 50], optimizer=cvnn.optimizers.SGD(), dropout=None, activation='cart_relu',
-              polar=False, checkpoints=False)"""
+    print("Training model")
+    run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
+              test_data=(x_test.astype(np.complex64), y_test),
+              iterations=50, epochs=300, batch_size=100,
+              shape_raw=[100, 50], dropout=0.5, activation='cart_relu',
+              polar=False)
     """
     shapes = [
         # [],
