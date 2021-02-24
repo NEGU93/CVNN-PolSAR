@@ -1,22 +1,21 @@
 import spectral.io.envi as envi
 from pathlib import Path
-from pdb import set_trace
-import numpy as np
 import scipy.io
 import matplotlib.pyplot as plt
-from itertools import compress
+import numpy as np
 from cvnn.utils import standarize, randomize
-from cvnn.dataset import Dataset
-from cvnn.montecarlo import RealVsComplex
-from cvnn import layers as complex_layers
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.losses import categorical_crossentropy
-from typing import Optional
 import tikzplotlib
-import time
+from pdb import set_trace
 
 
 def separate_dataset(data, window_size: int = 9, stride: int = 3):
+    """
+    Gets each pixel of the dataset with some surrounding pixels.
+    :param data:
+    :param window_size:
+    :param stride:
+    :return:
+    """
     assert window_size % 2 == 1, "Window size must be odd, got " + str(window_size)
     n_win = int((window_size - 1) / 2)
     rows = np.arange(n_win, data.shape[0] - n_win, stride)
@@ -31,6 +30,17 @@ def separate_dataset(data, window_size: int = 9, stride: int = 3):
 
 
 def open_dataset_t6():
+    """
+    Opens the t6 dataset of Oberpfaffenhofen with the corresponding labels.
+    :return: Tuple (T, labels)
+        - T: Image as a numpy array of size hxwxB=1300x1200x21 where h and w are the height and width of the
+            spatial dimensions respectively, B is the number of complex bands.
+        - labels: numpy array of size 1300x1200 where each pixel has value:
+            0: Unlabeled
+            1: Built-up Area
+            2: Wood Land
+            3: Open Area
+    """
     labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
     path = Path(
         '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
@@ -77,20 +87,32 @@ def open_dataset_t6():
 
     T[:, :, 20] = standarize(envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
                              1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0))
-
     return T, labels
 
 
 def remove_unlabeled(x, y):
+    """
+    Removes the unlabeled pixels from both image and labels
+    :param x: image input
+    :param y: labels inputs. all values of 0's will be eliminated and its corresponging values of x
+    :return: tuple (x, y) without the unlabeled pixels.
+    """
     mask = y != 0
     return x[mask], y[mask]
 
 
-def labels_to_ground_truth(labels):
+def labels_to_ground_truth(labels, showfig=False, savefig=False):
+    """
+    Transforms the labels to a RGB format so it can be drawn as images
+    :param labels: The labels to be transformed to rgb
+    :param showfig: boolean. If true it will show the generated ground truth image
+    :param savefig: boolean. If true it will save the generated ground truth image
+    :return: numpy array of the ground truth RGB image
+    """
     colors = np.array([
-        [1, 0.349, 0.392],
-        [0.086, 0.858, 0.576],
-        [0.937, 0.917, 0.352]
+        [1, 0.349, 0.392],      # Red; Built-up Area
+        [0.086, 0.858, 0.576],  # Green; Wood Land
+        [0.937, 0.917, 0.352]   # Yellow; Open Area
     ])
     ground_truth = np.zeros(labels.shape + (3,), dtype=float)
     for i in range(labels.shape[0]):
@@ -98,13 +120,21 @@ def labels_to_ground_truth(labels):
             if labels[i, j] != 0:
                 ground_truth[i, j] = colors[labels[i, j] - 1]
     plt.imshow(ground_truth)
-    plt.show()
-    plt.imsave("ground_truth.pdf", ground_truth)
-    tikzplotlib.save("ground_truth.tex")
+    if showfig:
+        plt.show()
+    if savefig:
+        plt.imsave("ground_truth.pdf", ground_truth)
+        tikzplotlib.save("ground_truth.tex")
     return ground_truth
 
 
 def open_dataset_s2():
+    """
+    Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
+    :return: Tuple (T, labels)
+        - [s_11, s_12, s_21, s_22]: Image as a numpy array.
+        - labels: numpy array.
+    """
     path = Path('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen')
     labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
 
@@ -122,7 +152,15 @@ def open_dataset_s2():
     return [s_11, s_12, s_21, s_22], labels
 
 
-def separate_train_test(x, y, ratio=0.1):
+def separate_train_test_pixels(x, y, ratio=0.1):
+    """
+    Separates each pixel of the dataset in train and test set.
+    The returned dataset will be randomized.
+    :param x: dataset images
+    :param y: dataset labels
+    :param ratio: ratio of the train set, example, 0.8 will generate 80% of the dataset as train set and 20% as test set
+    :return: Tuple x_train, y_train, x_test, y_test
+    """
     classes = set(y)
     x_ordered_database = []
     y_ordered_database = []
@@ -130,7 +168,7 @@ def separate_train_test(x, y, ratio=0.1):
         mask = y == cls
         x_ordered_database.append(x[mask])
         y_ordered_database.append(y[mask])
-    len_train = int(y.shape[0]*ratio/len(classes))
+    len_train = int(y.shape[0] * ratio / len(classes))
     x_train = x_ordered_database[0][:len_train]
     x_test = x_ordered_database[0][len_train:]
     y_train = y_ordered_database[0][:len_train]
@@ -148,102 +186,55 @@ def separate_train_test(x, y, ratio=0.1):
     return x_train, y_train, x_test, y_test
 
 
-def get_dataset():
+def get_dataset_for_classification():
+    """
+    Gets dataset ready to be processed for the mlp model.
+    The dataset will be 2D dimensioned where the first element will be each pixel that will have 21 complex values each.
+    :return: Tuple (T, labels)
+    """
     T, labels = open_dataset_t6()
     labels_to_ground_truth(labels)
     T, labels = remove_unlabeled(T, labels)
     labels -= 1  # map [1, 3] to [0, 2]
-    T = T.reshape(-1, T.shape[-1])
+    T = T.reshape(-1, T.shape[-1])  # Image to 1D
     labels = labels.reshape(np.prod(labels.shape))
     return T, labels
 
 
-def run_monte(dataset, validation_data, test_data, iterations=10, epochs=200, batch_size=100,
-              optimizer='sgd', shape_raw=None, activation='cart_relu',
-              polar=False, dropout: Optional[float] = 0.5):
-    if shape_raw is None:
-        shape_raw = [50]
-
-    # Create complex network
-    input_size = dataset.x.shape[1]  # Size of input
-    output_size = dataset.y.shape[1]  # Size of output
-    if len(shape_raw) == 0:
-        print("No hidden layers are used. activation and dropout will be ignored")
-        shape = [
-            complex_layers.InputLayer(input_shape=input_size, dtype=np.complex64),
-            complex_layers.ComplexDense(units=output_size, activation='softmax_real', dtype=np.complex64)
-        ]
-    else:  # len(shape_raw) > 0:
-        shape = [complex_layers.InputLayer(input_shape=input_size, dtype=np.complex64)]
-        for i in range(0, len(shape_raw)):
-            shape.append(complex_layers.ComplexDense(units=shape_raw[i], activation=activation))
-            if dropout is not None:
-                shape.append(complex_layers.ComplexDropout(rate=dropout))
-        shape.append(complex_layers.ComplexDense(units=output_size, activation='softmax_real'))
-
-    complex_network = Sequential(name="complex_network", layers=shape)
-    complex_network.compile(optimizer=optimizer, loss=categorical_crossentropy, metrics=['accuracy'])
-
-    monte_carlo = RealVsComplex(complex_network)
-    for model in monte_carlo.models:
-        model.summary()
-    monte_carlo.output_config['plot_all'] = True
-    monte_carlo.output_config['confusion_matrix'] = True
-    monte_carlo.run(x=dataset.x, y=dataset.y, validation_data=validation_data, test_data=test_data,
-                    data_summary=dataset.dataset_name, iterations=iterations, epochs=epochs, batch_size=batch_size, polar=polar)
-
-
-if __name__ == '__main__':
-    print("Loading Dataset")
-    T, labels = get_dataset()
-    T, labels = randomize(T, labels)
-    x_train, y_train, x_test, y_test = separate_train_test(T, labels, ratio=0.1)
-    x_train, y_train, x_val, y_val = separate_train_test(x_train, y_train, ratio=0.8)
-    y_train = Dataset.sparse_into_categorical(y_train)
-    y_test = Dataset.sparse_into_categorical(y_test)
-    y_val = Dataset.sparse_into_categorical(y_val)
-    dataset = Dataset(x_train.astype(np.complex64), y_train, dataset_name='Oberpfaffenhofen')
-    print("Training model")
-    run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
-              test_data=(x_test.astype(np.complex64), y_test),
-              iterations=50, epochs=300, batch_size=100,
-              shape_raw=[100, 50], dropout=0.5, activation='cart_relu',
-              polar=False)
+def split_images_into_smaller_images(im, lab, size: int = 128, stride: int = 128, pad: int = 0):
     """
-    shapes = [
-        # [],
-        # [5],
-        [10], [50],
-        [10, 10], [50, 50],
-        [100, 50], [200, 100],
-        [500], [500, 500],
-        [1000]
-        # [5000],
-        # [500, 500], [5000, 5000],
-        # [10000]
-    ]
-    for shape in shapes:
-        run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
-                  iterations=10, epochs=300,
-                  optimizer='sgd', shape_raw=shape, activation='cart_relu', polar=False, dropout=None)"""
+    Extracts many sub-images from one big image. Labels included.
+    :param im: Image dataset
+    :param lab: pixel-wise labels dataset
+    :param size: Size of the desired mini new images
+    :param stride: stride between images, use stride=size for images not to overlap
+    :param pad: Pad borders
+    :return: tuple of numpy arrays (tiles, label_tiles)
     """
-    optimizers = [# 'sgd'
-                  'rmsprop'
-                  # cvnn.optimizers.SGD(learning_rate=0.1), cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.9),
-                  # cvnn.optimizers.SGD(learning_rate=0.01, momentum=0.75),
-                  # cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.999, momentum=0.9),
-                  # cvnn.optimizers.RMSprop(learning_rate=0.001, rho=0.8, momentum=0.75)]
-                  ]
-    functions = [# 'cart_relu',
-                 'cart_tanh', 'cart_sigmoid']
-    polar_modes = [
-                   False
-                   # True
-    ]
-    for opt in optimizers:
-        for pol in polar_modes:
-            for act_fun in functions:
-                for shape in shapes:
-                    run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
-                              iterations=100, epochs=300,
-                              optimizer=opt, shape_raw=shape, activation=act_fun, polar=pol)"""
+    tiles = []
+    label_tiles = []
+    if pad:
+        im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
+        lab = np.pad(lab, ((pad, pad), (pad, pad)))
+    for x in range(0, im.shape[0] - size, stride):
+        for y in range(0, im.shape[1] - size, stride):
+            slice_x = slice(x, x + size)
+            slice_y = slice(y, y + size)
+            tiles.append(im[slice_x, slice_y])
+            label_tiles.append(lab[slice_x, slice_y])
+    assert np.all([p.shape == (size, size, 21) for p in tiles])
+    assert np.all([p.shape == (size, size) for p in label_tiles])
+    return np.array(tiles), np.array(label_tiles)
+
+
+def get_dataset_for_segmentation():
+    T, labels = open_dataset_t6()
+    labels_to_ground_truth(labels, showfig=True)
+    patches, label_patches = split_images_into_smaller_images(T, labels, pad=50)
+    labels_to_ground_truth(label_patches[0], showfig=True)
+    labels_to_ground_truth(label_patches[-1], showfig=True)
+    set_trace()
+
+
+if __name__ == "__main__":
+    get_dataset_for_segmentation()
