@@ -2,6 +2,7 @@ from pdb import set_trace
 import numpy as np
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.losses import categorical_crossentropy
+from tensorflow.keras.optimizers import SGD
 from typing import Optional
 # own modules
 from cvnn.utils import randomize
@@ -12,7 +13,7 @@ from oberpfaffenhofen_dataset import get_dataset_for_classification, separate_tr
 
 
 def run_monte(dataset, validation_data, test_data, iterations=10, epochs=200, batch_size=100,
-              optimizer='sgd', shape_raw=None, activation='cart_relu',
+              optimizer=SGD(), shape_raw=None, activation='cart_relu',
               polar=False, dropout: Optional[float] = 0.5):
     if shape_raw is None:
         shape_raw = [50]
@@ -27,7 +28,7 @@ def run_monte(dataset, validation_data, test_data, iterations=10, epochs=200, ba
             complex_layers.ComplexDense(units=output_size, activation='softmax_real', dtype=np.complex64)
         ]
     else:  # len(shape_raw) > 0:
-        shape = [complex_layers.InputLayer(input_shape=input_size, dtype=np.complex64)]
+        shape = [complex_layers.ComplexInput(input_shape=input_size, dtype=np.complex64)]
         for i in range(0, len(shape_raw)):
             shape.append(complex_layers.ComplexDense(units=shape_raw[i], activation=activation))
             if dropout is not None:
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     print("Training model")
     run_monte(dataset, validation_data=(x_val.astype(np.complex64), y_val),
               test_data=(x_test.astype(np.complex64), y_test),
-              iterations=50, epochs=300, batch_size=100,
+              iterations=40, epochs=300, batch_size=100,
               shape_raw=[100, 50], dropout=0.5, activation='cart_relu',
               polar=False)
     """

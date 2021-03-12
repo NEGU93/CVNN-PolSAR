@@ -1,11 +1,13 @@
 import spectral.io.envi as envi
 from pathlib import Path
 import scipy.io
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
-from cvnn.utils import standarize, randomize
 import tikzplotlib
 from pdb import set_trace
+from typing import Tuple
+from cvnn.utils import standarize, randomize
 
 
 def separate_dataset(data, window_size: int = 9, stride: int = 3):
@@ -101,7 +103,7 @@ def remove_unlabeled(x, y):
     return x[mask], y[mask]
 
 
-def labels_to_ground_truth(labels, showfig=False, savefig=False):
+def labels_to_ground_truth(labels, showfig=False, savefig=False) -> np.ndarray:
     """
     Transforms the labels to a RGB format so it can be drawn as images
     :param labels: The labels to be transformed to rgb
@@ -201,7 +203,8 @@ def get_dataset_for_classification():
     return T, labels
 
 
-def split_images_into_smaller_images(im, lab, size: int = 128, stride: int = 128, pad: int = 0):
+def split_images_into_smaller_images(im, lab, size: int = 128, stride: int = 128, pad: int = 0) \
+        -> Tuple[np.ndarray, np.ndarray]:
     """
     Extracts many sub-images from one big image. Labels included.
     :param im: Image dataset
@@ -227,14 +230,24 @@ def split_images_into_smaller_images(im, lab, size: int = 128, stride: int = 128
     return np.array(tiles), np.array(label_tiles)
 
 
-def get_dataset_for_segmentation():
+def load_image_train(input_image, input_mask):
+    if tf.random.uniform(()) > 0.5:
+        input_image = tf.image.flip_left_right(input_image)
+        input_mask = tf.image.flip_left_right(input_mask)
+    return input_image, input_mask
+
+
+def get_dataset_for_segmentation(debug=False) -> tf.data.Dataset:
     T, labels = open_dataset_t6()
-    labels_to_ground_truth(labels, showfig=True)
-    patches, label_patches = split_images_into_smaller_images(T, labels, pad=50)
-    labels_to_ground_truth(label_patches[0], showfig=True)
-    labels_to_ground_truth(label_patches[-1], showfig=True)
-    set_trace()
+    labels_to_ground_truth(labels, showfig=debug)
+    patches, label_patches = split_images_into_smaller_images(T, labels, pad=0)
+    del T, labels                   # Free up memory
+    labels_to_ground_truth(label_patches[0], showfig=debug)
+    labels_to_ground_truth(label_patches[-1], showfig=debug)
+    dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches))
+    del patches, label_patches      # Free up memory
+    return dataset
 
 
 if __name__ == "__main__":
-    get_dataset_for_segmentation()
+    dataset = get_dataset_for_segmentation()
