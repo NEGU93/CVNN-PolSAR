@@ -203,10 +203,12 @@ def get_dataset_for_classification():
     return T, labels
 
 
-def split_images_into_smaller_images(im, lab, size: int = 128, stride: int = 128, pad: int = 0) \
+def sliding_window_operation(im, lab, size: int = 128, stride: int = 128, pad: int = 0) \
         -> Tuple[np.ndarray, np.ndarray]:
     """
     Extracts many sub-images from one big image. Labels included.
+    Using the Sliding Window Operation defined in:
+        https://www.mdpi.com/2072-4292/10/12/1984
     :param im: Image dataset
     :param lab: pixel-wise labels dataset
     :param size: Size of the desired mini new images
@@ -227,6 +229,9 @@ def split_images_into_smaller_images(im, lab, size: int = 128, stride: int = 128
             label_tiles.append(lab[slice_x, slice_y])
     assert np.all([p.shape == (size, size, 21) for p in tiles])
     assert np.all([p.shape == (size, size) for p in label_tiles])
+    set_trace()
+    if not pad:     # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
+        assert np.shape(tiles)[0] == (np.ceil((im.shape[0]-size)/stride)+1)*(np.ceil((im.shape[1]-size)/stride)+1)
     return np.array(tiles), np.array(label_tiles)
 
 
@@ -240,10 +245,10 @@ def load_image_train(input_image, input_mask):
 def get_dataset_for_segmentation(debug=False) -> tf.data.Dataset:
     T, labels = open_dataset_t6()
     labels_to_ground_truth(labels, showfig=debug)
-    patches, label_patches = split_images_into_smaller_images(T, labels, pad=0)
+    patches, label_patches = sliding_window_operation(T, labels, pad=0)
     del T, labels                   # Free up memory
-    labels_to_ground_truth(label_patches[0], showfig=debug)
-    labels_to_ground_truth(label_patches[-1], showfig=debug)
+    # labels_to_ground_truth(label_patches[0], showfig=debug)
+    # labels_to_ground_truth(label_patches[-1], showfig=debug)
     dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches))
     del patches, label_patches      # Free up memory
     return dataset
