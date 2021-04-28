@@ -130,6 +130,15 @@ def labels_to_ground_truth(labels, showfig=False, savefig=False) -> np.ndarray:
     return ground_truth
 
 
+def sparse_to_categorical(labels) -> np.ndarray:
+    ground_truth = np.zeros(labels.shape + (3,), dtype=float)
+    for i in range(labels.shape[0]):
+        for j in range(labels.shape[1]):
+            if labels[i, j] != 0:
+                ground_truth[i, j, labels[i, j] - 1] = 1.
+    return ground_truth
+
+
 def open_dataset_s2():
     """
     Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
@@ -218,6 +227,7 @@ def sliding_window_operation(im, lab, size: int = 128, stride: int = 128, pad: i
     """
     tiles = []
     label_tiles = []
+    assert im.shape[0] > size and im.shape[1] > size
     if pad:
         im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
         lab = np.pad(lab, ((pad, pad), (pad, pad)))
@@ -227,11 +237,10 @@ def sliding_window_operation(im, lab, size: int = 128, stride: int = 128, pad: i
             slice_y = slice(y, y + size)
             tiles.append(im[slice_x, slice_y])
             label_tiles.append(lab[slice_x, slice_y])
-    assert np.all([p.shape == (size, size, 21) for p in tiles])
-    assert np.all([p.shape == (size, size) for p in label_tiles])
-    set_trace()
+    assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
+    assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
     if not pad:     # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
-        assert np.shape(tiles)[0] == (np.ceil((im.shape[0]-size)/stride)+1)*(np.ceil((im.shape[1]-size)/stride)+1)
+        assert int(np.shape(tiles)[0]) == int((np.floor((im.shape[0]-size)/stride)+1)*(np.floor((im.shape[1]-size)/stride)+1))
     return np.array(tiles), np.array(label_tiles)
 
 
@@ -242,13 +251,15 @@ def load_image_train(input_image, input_mask):
     return input_image, input_mask
 
 
-def get_dataset_for_segmentation(debug=False) -> tf.data.Dataset:
+def get_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False) -> tf.data.Dataset:
     T, labels = open_dataset_t6()
     labels_to_ground_truth(labels, showfig=debug)
-    patches, label_patches = sliding_window_operation(T, labels, pad=0)
+    labels = sparse_to_categorical(labels)
+    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
     del T, labels                   # Free up memory
     # labels_to_ground_truth(label_patches[0], showfig=debug)
     # labels_to_ground_truth(label_patches[-1], showfig=debug)
+
     dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches))
     del patches, label_patches      # Free up memory
     return dataset
