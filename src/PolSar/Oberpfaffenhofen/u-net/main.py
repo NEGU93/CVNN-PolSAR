@@ -55,8 +55,8 @@ def run_model():
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     callbacks = [tensorboard_callback]
 
-    start = start_time = time()
-    history = model.fit(x=train_dataset, epochs=2,   # cao_fit_parameters['epochs'],
+    start = time()
+    history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
                         validation_data=test_dataset, shuffle=True, callbacks=callbacks)
     stop = time()
     return secondsToStr(stop - start)
