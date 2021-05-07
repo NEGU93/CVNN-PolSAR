@@ -7,7 +7,12 @@ import numpy as np
 import tikzplotlib
 from pdb import set_trace
 from typing import Tuple
+from sklearn.model_selection import train_test_split
 from cvnn.utils import standarize, randomize
+
+cao_dataset_parameters = {
+    'validation_split': 0.1    # Section 3.3.2
+}
 
 
 def separate_dataset(data, window_size: int = 9, stride: int = 3):
@@ -251,7 +256,13 @@ def load_image_train(input_image, input_mask):
     return input_image, input_mask
 
 
-def get_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False) -> tf.data.Dataset:
+def check_no_coincidence(train_dataset, test_dataset):
+    for data, label in test_dataset:
+        for train_data, train_label in train_dataset:
+            assert not np.array_equal(data.numpy(), train_data.numpy())
+
+
+def get_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False) -> (tf.data.Dataset, tf.data.Dataset):
     T, labels = open_dataset_t6()
     labels_to_ground_truth(labels, showfig=debug)
     labels = sparse_to_categorical(labels)
@@ -259,10 +270,20 @@ def get_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False)
     del T, labels                   # Free up memory
     # labels_to_ground_truth(label_patches[0], showfig=debug)
     # labels_to_ground_truth(label_patches[-1], showfig=debug)
+    x_train, x_test, y_train, y_test = train_test_split(patches, label_patches,
+                                                        test_size=cao_dataset_parameters['validation_split'],
+                                                        shuffle=True)
 
-    dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches))
-    del patches, label_patches      # Free up memory
-    return dataset
+    del patches, label_patches  # Free up memory
+    # dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches)).shuffle(buffer_size=2500,
+    #                                                                                reshuffle_each_iteration=False)
+    # https://stackoverflow.com/questions/51125266/how-do-i-split-tensorflow-datasets
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    del x_train, y_train, x_test, y_test
+    # set_trace()
+    # check_no_coincidence(train_dataset, test_dataset)
+    return train_dataset, test_dataset
 
 
 if __name__ == "__main__":

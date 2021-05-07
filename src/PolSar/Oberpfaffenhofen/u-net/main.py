@@ -1,12 +1,15 @@
 import sys
+import os
+from time import time, strftime, localtime
+from datetime import timedelta
 import tensorflow as tf
 from pdb import set_trace
 sys.path.insert(1, '/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen')
 from oberpfaffenhofen_dataset import get_dataset_for_segmentation
 from oberpfaffenhofen_unet import get_cao_cvfcn_model
+from cvnn.utils import create_folder
 
 cao_fit_parameters = {
-    'validation_split': 0.1,    # Section 3.3.2
     'epochs': 200               # Section 3.3.2
 }
 cao_dataset_parameters = {
@@ -29,15 +32,31 @@ def flip(data, labels):
     return data, labels
 
 
+def secondsToStr(elapsed=None):
+    if elapsed is None:
+        return strftime("%Y-%m-%d %H:%M:%S", localtime())
+    else:
+        return str(timedelta(seconds=elapsed))
+
+
 if __name__ == "__main__":
-    dataset = get_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
-                                           stride=cao_dataset_parameters['sliding_window_stride']).batch(
-        cao_dataset_parameters['batch_size']).map(flip)
+    train_dataset, test_dataset = get_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
+                                                               stride=cao_dataset_parameters['sliding_window_stride'])
+    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
+    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
     # data, label = next(iter(dataset))
     # set_trace()
     model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
                                              cao_dataset_parameters['sliding_window_size'], 21))
-    set_trace()
-    model.fit(x=dataset, epochs=cao_fit_parameters['epochs'],
-              validation_split=cao_fit_parameters['validation_split'], shuffle=True)
+    temp_path = create_folder("./log/")
+    os.makedirs(temp_path, exist_ok=True)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
+    callbacks = [tensorboard_callback]
+
+    start = start_time = time()
+    history = model.fit(x=train_dataset, epochs=2,   # cao_fit_parameters['epochs'],
+                        validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+    stop = time()
+    print(f'Time: {secondsToStr(stop - start)}')
+
 
