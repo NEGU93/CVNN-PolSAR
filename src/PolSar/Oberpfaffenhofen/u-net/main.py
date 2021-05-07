@@ -6,7 +6,8 @@ import tensorflow as tf
 from notify_run import Notify
 import traceback
 from pdb import set_trace
-sys.path.insert(1, '/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen')
+# sys.path.insert(1, '/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen')
+sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/src/PolSar/Oberpfaffenhofen')
 from oberpfaffenhofen_dataset import get_dataset_for_segmentation
 from oberpfaffenhofen_unet import get_cao_cvfcn_model
 from cvnn.utils import create_folder

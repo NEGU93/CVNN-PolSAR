@@ -48,9 +48,12 @@ def open_dataset_t6():
             2: Wood Land
             3: Open Area
     """
-    labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
+    # labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
+    # path = Path(
+    #     '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
+    labels = scipy.io.loadmat('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat')['label']
     path = Path(
-        '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
+        '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
     T = np.zeros(labels.shape + (21,), dtype=complex)
 
     T[:, :, 0] = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
