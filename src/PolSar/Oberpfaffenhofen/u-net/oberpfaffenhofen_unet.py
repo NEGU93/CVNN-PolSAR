@@ -22,7 +22,7 @@ cao_params_model = {
     'kernels': [12, 24, 48, 96, 192],           # Table 1
     'num_classes': 3,
     'dropout': 0.5,                             # TODO: Not found yet
-    'output_function': softmax_real_with_avg,   # Section 2.3.2 at the end and section 2.4 (TODO: Not the same)
+    'output_function': softmax_real_with_avg,   # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),                  # Section 2.2
     'loss': categorical_crossentropy,           # Section 2.4
     'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)

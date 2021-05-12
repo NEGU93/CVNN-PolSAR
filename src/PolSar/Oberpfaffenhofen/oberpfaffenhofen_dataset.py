@@ -9,6 +9,7 @@ from pdb import set_trace
 from typing import Tuple
 from sklearn.model_selection import train_test_split
 from cvnn.utils import standarize, randomize
+import os
 
 cao_dataset_parameters = {
     'validation_split': 0.1    # Section 3.3.2
@@ -48,12 +49,15 @@ def open_dataset_t6():
             2: Wood Land
             3: Open Area
     """
-    # labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
-    # path = Path(
-    #     '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
-    labels = scipy.io.loadmat('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat')['label']
-    path = Path(
-        '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
+    if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
+        labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
+        path = Path('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
+    elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat'):
+        labels = scipy.io.loadmat('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat')['label']
+        path = Path(
+            '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6')
+    else:
+        set_trace()
     T = np.zeros(labels.shape + (21,), dtype=complex)
 
     T[:, :, 0] = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
