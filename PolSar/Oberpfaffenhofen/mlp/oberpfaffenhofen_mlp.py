@@ -44,7 +44,8 @@ def run_monte(dataset, validation_data, test_data, iterations=10, epochs=200, ba
     monte_carlo.output_config['plot_all'] = True
     monte_carlo.output_config['confusion_matrix'] = True
     monte_carlo.run(x=dataset.x, y=dataset.y, validation_data=validation_data, test_data=test_data,
-                    data_summary=dataset.dataset_name, iterations=iterations, epochs=epochs, batch_size=batch_size, polar=polar)
+                    data_summary=dataset.dataset_name, iterations=iterations, epochs=epochs, batch_size=batch_size,
+                    polar=polar)
 
 
 if __name__ == '__main__':
