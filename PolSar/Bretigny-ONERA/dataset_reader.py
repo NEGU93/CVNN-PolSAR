@@ -1,4 +1,5 @@
 import scipy.io
+import os
 import numpy as np
 import tensorflow as tf
 from pdb import set_trace
@@ -35,6 +36,12 @@ def sparse_to_categorical_1D(labels):
 
 
 def get_data(path: str = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
+    if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
+        path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
+    elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Bretigny-ONERA/data'):
+        path = '/usr/users/gpu-prof/gpu_barrachina/Bretigny-ONERA/data'
+    else:
+        set_trace()
     mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
     seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
     # mat = scipy.io.loadmat(path + '/bretigny.mat')
