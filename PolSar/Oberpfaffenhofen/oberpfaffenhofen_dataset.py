@@ -142,7 +142,7 @@ def labels_to_ground_truth(labels, showfig=False, savefig=False) -> np.ndarray:
     return ground_truth
 
 
-def sparse_to_categorical(labels) -> np.ndarray:
+def sparse_to_categorical_2D(labels) -> np.ndarray:
     ground_truth = np.zeros(labels.shape + (3,), dtype=float)
     for i in range(labels.shape[0]):
         for j in range(labels.shape[1]):
@@ -272,7 +272,7 @@ def check_no_coincidence(train_dataset, test_dataset):
 def get_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False) -> (tf.data.Dataset, tf.data.Dataset):
     T, labels = open_dataset_t6()
     labels_to_ground_truth(labels, showfig=debug)
-    labels = sparse_to_categorical(labels)
+    labels = sparse_to_categorical_2D(labels)
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
     del T, labels                   # Free up memory
     # labels_to_ground_truth(label_patches[0], showfig=debug)
