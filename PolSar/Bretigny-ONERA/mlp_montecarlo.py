@@ -1,14 +1,9 @@
-import tensorflow as tf
-import numpy as np
-from pdb import set_trace
 from cvnn.montecarlo import mlp_run_real_comparison_montecarlo, get_mlp, run_montecarlo
 from cvnn.dataset import Dataset
 from dataset_reader import get_coh_data
 from notify_run import Notify
 import traceback
-
-import cvnn.layers as layers
-from cvnn.layers import ComplexDense, ComplexDropout
+from pdb import set_trace
 
 
 def test_activations():
