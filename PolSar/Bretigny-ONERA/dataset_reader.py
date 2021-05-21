@@ -56,30 +56,33 @@ def sparse_to_categorical_1D(labels):
     return cat_labels
 
 
-def sliding_window_operation(im, size: int = 3, stride: int = 1, pad: int = 0):
+def use_neighbors(im, size: int = 3, stride: int = 1, pad: int = 0):
     """
     Extracts many sub-images from one big image.
-    :param im: Image dataset
+    :param im: Image dataset of shape (H, W, channels)
     :param size: Size of the desired mini new images
     :param stride: stride between images, use stride=size for images not to overlap
     :param pad: Pad borders
     :return: tuple of numpy arrays (tiles, label_tiles)
     """
-    tiles = []
     assert im.shape[0] > size and im.shape[1] > size
+    output_shape = (
+        int(np.floor((im.shape[0] + 2 * pad - size) / stride) + 1),
+        int(np.floor((im.shape[1] + 2 * pad - size) / stride) + 1),
+        size * size * im.shape[2]
+    )
+    tiles = np.zeros(shape=output_shape, dtype=im.dtype.as_numpy_dtype)
     if pad:
         im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
-    for x in range(0, im.shape[0] - size, stride):
-        for y in range(0, im.shape[1] - size, stride):
-            slice_x = slice(x, x + size)
-            slice_y = slice(y, y + size)
-            tiles.append(tf.reshape(im[slice_x, slice_y], -1))
-    # assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
-    set_trace()
-    return np.array(tiles)
+    for x in range(0, output_shape[0]):
+        for y in range(0, output_shape[1]):
+            slice_x = slice(x*stride, x*stride + size)
+            slice_y = slice(y*stride, y*stride + size)
+            tiles[x, y] = np.reshape(im[slice_x, slice_y], -1)
+    return tiles
 
 
-def get_data():
+def open_data():
     if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
         path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
     elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Bretigny-ONERA/data'):
@@ -91,24 +94,17 @@ def get_data():
     return mat, seg
 
 
-def get_k_data():
-    mat, seg = get_data()
-    HH = mat['HH']
-    VV = mat['VV']
-    HV = mat['HV']
+def get_k_vector(HH, VV, HV):
     k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-    sliding_window_operation(tf.transpose(k, perm=[1, 2, 0]), pad=2)
+    data = use_neighbors(tf.transpose(k, perm=[1, 2, 0]), pad=1)
+    return tf.reshape(data, shape=(data.shape[0] * data.shape[1], data.shape[2]))
 
 
-def get_coh_data():
-    mat, seg = get_data()
-
-    T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
-    labels = seg['image']
-    labels = np.reshape(labels, -1)     # Flatten labels
-    assert T.shape[0] == labels.shape[0]
+def format_data_for_mlp(data, labels):
+    labels = np.reshape(labels, -1)  # Flatten labels
+    assert data.shape[0] == labels.shape[0]
     # Remove unlabeled data
-    T, labels = remove_unlabeled(T, labels)
+    T, labels = remove_unlabeled(data, labels)
     assert T.shape[0] == labels.shape[0]
 
     # Split train and test
@@ -119,11 +115,23 @@ def get_coh_data():
     y_test = sparse_to_categorical_1D(y_test)
     y_train = sparse_to_categorical_1D(y_train)
     y_val = sparse_to_categorical_1D(y_val)
-
-    class_names = [c[0] for c in seg['name'].reshape(-1)]
-    assert T.shape[1] == 9 and len(T.shape) == 2
+    # assert T.shape[1] == 9
+    assert len(T.shape) == 2
 
     return x_train, y_train, x_val, y_val
+
+
+def get_k_data():
+    mat, seg = open_data()
+    k = get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    return format_data_for_mlp(k, seg['image'])
+
+
+def get_coh_data():
+    mat, seg = open_data()
+
+    T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    return format_data_for_mlp(T, seg['image'])
 
 
 if __name__ == "__main__":
