@@ -4,6 +4,8 @@ from pdb import set_trace
 from cvnn.montecarlo import mlp_run_real_comparison_montecarlo, get_mlp, run_montecarlo
 from cvnn.dataset import Dataset
 from dataset_reader import get_coh_data
+from notify_run import Notify
+import traceback
 
 import cvnn.layers as layers
 from cvnn.layers import ComplexDense, ComplexDropout
@@ -48,11 +50,20 @@ if __name__ == "__main__":
     x_train, y_train, x_val, y_val = get_coh_data()
     dataset = Dataset(x=x_train, y=y_train)
 
-    mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=30,
-                                       epochs=150, batch_size=100, display_freq=1,
-                                       optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
-                                       polar=None,      # output_activation='softmax_real_with_avg',
-                                       debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
-                                       validation_data=(x_val, y_val),
-                                       capacity_equivalent=True, equiv_technique='ratio'
-                                       )
+    # https://notify.run/c/PGqsOzNQ1cSGdWM7
+    notify = Notify()
+    notify.send('New simulation started')
+    try:
+        mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=30,
+                                           epochs=150, batch_size=100, display_freq=1,
+                                           optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
+                                           polar=None,  # output_activation='softmax_real_with_avg',
+                                           debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
+                                           validation_data=(x_val, y_val),
+                                           capacity_equivalent=True, equiv_technique='ratio'
+                                           )
+        notify.send(f"Simulations done")
+    except Exception as e:
+        notify.send("Error occurred")
+        print(e)
+        traceback.print_exc()
