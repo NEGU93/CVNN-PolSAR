@@ -3,14 +3,14 @@ import numpy as np
 from pdb import set_trace
 from cvnn.montecarlo import mlp_run_real_comparison_montecarlo, get_mlp, run_montecarlo
 from cvnn.dataset import Dataset
-from dataset_reader import get_data
+from dataset_reader import get_coh_data
 
 import cvnn.layers as layers
 from cvnn.layers import ComplexDense, ComplexDropout
 
 
 def test_activations():
-    x_train, y_train, x_val, y_val = get_data()
+    x_train, y_train, x_val, y_val = get_coh_data()
     dataset = Dataset(x=x_train, y=y_train)
     input_size = dataset.x.shape[1]  # Size of input
     output_size = dataset.y.shape[1]  # Size of output
@@ -27,7 +27,7 @@ def test_activations():
 
 
 def test_output_act():
-    x_train, y_train, x_val, y_val = get_data()
+    x_train, y_train, x_val, y_val = get_coh_data()
     dataset = Dataset(x=x_train, y=y_train)
     input_size = dataset.x.shape[1]  # Size of input
     output_size = dataset.y.shape[1]  # Size of output
@@ -45,31 +45,13 @@ def test_output_act():
 
 
 if __name__ == "__main__":
-    test_output_act()
-
-    x_train, y_train, x_val, y_val = get_data()
+    x_train, y_train, x_val, y_val = get_coh_data()
     dataset = Dataset(x=x_train, y=y_train)
 
     mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=30,
                                        epochs=150, batch_size=100, display_freq=1,
                                        optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
                                        polar=None,      # output_activation='softmax_real_with_avg',
-                                       debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
-                                       validation_data=(x_val, y_val),
-                                       capacity_equivalent=True, equiv_technique='ratio'
-                                       )
-    mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=30,
-                                       epochs=150, batch_size=100, display_freq=1,
-                                       optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
-                                       polar=None, output_activation='softmax_real_with_avg',
-                                       debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
-                                       validation_data=(x_val, y_val),
-                                       capacity_equivalent=True, equiv_technique='ratio'
-                                       )
-    mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=30,
-                                       epochs=150, batch_size=100, display_freq=1,
-                                       optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
-                                       polar=None, output_activation='softmax_of_softmax_real_with_mult',
                                        debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
                                        validation_data=(x_val, y_val),
                                        capacity_equivalent=True, equiv_technique='ratio'

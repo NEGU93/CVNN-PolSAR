@@ -224,7 +224,7 @@ def get_dataset_for_classification():
     return T, labels
 
 
-def sliding_window_operation(im, lab, size: int = 128, stride: int = 128, pad: int = 0) \
+def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: int = 0) \
         -> Tuple[np.ndarray, np.ndarray]:
     """
     Extracts many sub-images from one big image. Labels included.
