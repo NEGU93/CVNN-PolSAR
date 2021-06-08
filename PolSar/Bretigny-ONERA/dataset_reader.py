@@ -5,6 +5,13 @@ import tensorflow as tf
 from pdb import set_trace
 from sklearn.model_selection import train_test_split
 
+COLORS = [
+    [1, 0.349, 0.392],      # Red; Built-up Area
+    [0.086, 0.858, 0.576],  # Green; Wood Land
+    [0.937, 0.917, 0.352],   # Yellow; Open Area
+    [0, 0.486, 0.745]
+]
+
 
 def mean_filter(input, filter_size=3):
     """
@@ -13,7 +20,7 @@ def mean_filter(input, filter_size=3):
     :param filter_size:
     :return:
     """
-    input_transposed = tf.transpose(input, perm=[2, 0, 1])     # Get channels to the start
+    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start
 
     filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype) / (filter_size * filter_size)
     filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
@@ -21,15 +28,15 @@ def mean_filter(input, filter_size=3):
     filtered_T_imag = tf.nn.convolution(input=tf.expand_dims(tf.math.imag(input_transposed), axis=-1),
                                         filters=filter, padding="SAME")
     filtered_T = tf.complex(filtered_T_real, filtered_T_imag)
-    return tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])     # Get channels to the end again
+    return tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
 
 
 def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
     k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-    tf_k = tf.expand_dims(tf.transpose(k, perm=[1, 2, 0]), axis=-1)     # From shape 3xhxw to hxwx3x1
+    tf_k = tf.expand_dims(tf.transpose(k, perm=[1, 2, 0]), axis=-1)  # From shape 3xhxw to hxwx3x1
 
-    T = tf.linalg.matmul(tf_k, tf.transpose(tf_k, perm=[0, 1, 3, 2], conjugate=True))       # T = k * k^H
+    T = tf.linalg.matmul(tf_k, tf.transpose(tf_k, perm=[0, 1, 3, 2], conjugate=True))  # T = k * k^H
     one_channel_T = tf.reshape(T, shape=(T.shape[0], T.shape[1], T.shape[2] * T.shape[3]))  # hxwx3x3 to hxwx9
     filtered_T = mean_filter(one_channel_T, kernel_shape)
     # filtered_T = tfa.image.mean_filter2d(tf.math.real(one_channel_T), kernel_shape)     # Filter the image
@@ -76,8 +83,8 @@ def use_neighbors(im, size: int = 3, stride: int = 1, pad: int = 0):
         im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
     for x in range(0, output_shape[0]):
         for y in range(0, output_shape[1]):
-            slice_x = slice(x*stride, x*stride + size)
-            slice_y = slice(y*stride, y*stride + size)
+            slice_x = slice(x * stride, x * stride + size)
+            slice_y = slice(y * stride, y * stride + size)
             tiles[x, y] = np.reshape(im[slice_x, slice_y], -1)
     return tiles
 
@@ -134,8 +141,45 @@ def get_coh_data():
     return format_data_for_mlp(T, seg['image'])
 
 
-if __name__ == "__main__":
-    get_k_data()
-    # x_train, y_train, x_val, y_val = get_coh_data()
-    set_trace()
+def to_rgb_colors(labels):
+    assert len(labels.shape) == 2
+    output = np.zeros(shape=labels.shape + (4,))
+    for i in range(0, labels.shape[0]):
+        for j in range(0, labels.shape[1]):
+            if labels[i, j] == 0:
+                output[i][j] = [0, 0, 0, 0]
+            elif labels[i][j] == 1:     # Forest
+                output[i][j] = COLORS[1] + [0.8]
+            elif labels[i][j] == 2:     # Piste
+                output[i][j] = COLORS[3] + [0.8]
+            elif labels[i][j] == 3:     # Piste
+                output[i][j] = COLORS[0] + [0.8]
+            elif labels[i][j] == 4:     # Forest
+                output[i][j] = COLORS[2] + [0.8]
+    return (output * 255).astype(np.uint8)
 
+
+def print_image_with_labels():
+    try:
+        from PIL import Image
+    except ImportError:
+        import Image
+
+    path = "img3.png"
+    background = Image.open(path)
+    _, labels = open_data()
+    labels = labels['image']
+    labels = to_rgb_colors(labels)
+
+    overlay = Image.fromarray(labels, mode="RGBA")
+    background = background.convert("RGBA")
+
+    background.paste(overlay.convert('RGB'), (0, 0), overlay)
+    background.save("overlapped.png", "PNG")
+    # background.show()
+
+
+if __name__ == "__main__":
+    print_image_with_labels()
+    # get_k_data()
+    # x_train, y_train, x_val, y_val = get_coh_data()

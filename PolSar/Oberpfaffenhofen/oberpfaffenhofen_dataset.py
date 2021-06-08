@@ -126,7 +126,8 @@ def labels_to_ground_truth(labels, showfig=False, savefig=False) -> np.ndarray:
     colors = np.array([
         [1, 0.349, 0.392],      # Red; Built-up Area
         [0.086, 0.858, 0.576],  # Green; Wood Land
-        [0.937, 0.917, 0.352]   # Yellow; Open Area
+        [0.937, 0.917, 0.352],   # Yellow; Open Area
+        [0, 0.486, 0.745]
     ])
     ground_truth = np.zeros(labels.shape + (3,), dtype=float)
     for i in range(labels.shape[0]):
