@@ -59,11 +59,12 @@ if __name__ == "__main__":
     notify = Notify()
     notify.send('New simulation started')
     try:
-        notify.send('Simulating k data')
-        x_train, y_train, x_val, y_val = get_coh_data()
-        train(x_train, y_train, x_val, y_val)
-        # x_train, y_train, x_val, y_val = get_k_data()
+        # notify.send('Simulating coh data')
+        # x_train, y_train, x_val, y_val = get_coh_data()
         # train(x_train, y_train, x_val, y_val)
+        notify.send('Simulating k data')
+        x_train, y_train, x_val, y_val = get_k_data()
+        train(x_train, y_train, x_val, y_val)
     except Exception as e:
         notify.send("Error occurred")
         print(e)
