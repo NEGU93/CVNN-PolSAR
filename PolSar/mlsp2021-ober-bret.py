@@ -14,10 +14,15 @@ def find_max_epoch(path):
     return int(data.loc[maxim]['epoch'])
 
 
-several = SeveralMonteCarloComparison('Dataset', x=['Oberpfaffenhofen', 'Bretigny'], paths=paths)
+def plot_several_montecarlo():
+    several = SeveralMonteCarloComparison('Dataset', x=['Oberpfaffenhofen', 'Bretigny'], paths=paths)
+    epoch = find_max_epoch(paths[1])
+    several.box_plot(showfig=False, savefile="./mlsp2021/results/acc_box_plot", library='seaborn', epoch=[-1, epoch])
+    several.box_plot(key="val_accuracy", showfig=False, savefile="./mlsp2021/results/val_acc_box_plot",
+                     library='seaborn', epoch=[-1, epoch])
+
+
 epoch = find_max_epoch(paths[1])
-several.box_plot(showfig=False, savefile="./mlsp2021/results/acc_box_plot", library='seaborn', epoch=[-1, epoch])
-several.box_plot(key="val_accuracy", showfig=False, savefile="./mlsp2021/results/val_acc_box_plot",
-                 library='seaborn', epoch=[-1, epoch])
+print(epoch)
 monte = MonteCarloAnalyzer(path=paths[1])
-monte.box_plot(epoch=epoch, )
+monte.box_plot(epoch=epoch, key="val_accuracy", library='seaborn')
