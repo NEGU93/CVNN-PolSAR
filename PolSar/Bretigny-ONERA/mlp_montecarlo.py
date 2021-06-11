@@ -43,8 +43,8 @@ def test_output_act():
 
 def train(x_train, y_train, x_val, y_val):
     dataset = Dataset(x=x_train, y=y_train)
-    mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=100,
-                                       epochs=100, batch_size=100, display_freq=1,
+    mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=10,
+                                       epochs=300, batch_size=100, display_freq=1,
                                        optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
                                        polar='real_imag',    # 'amplitude_phase',
                                        debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
