@@ -1,6 +1,7 @@
 import numpy as np
 from tensorflow.keras.layers import concatenate, Add, Activation
 from tensorflow.keras import Model
+from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import categorical_crossentropy
@@ -8,6 +9,7 @@ from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization
 from cvnn.activations import softmax_real_with_avg, cart_relu
 from cvnn.initializers import ComplexHeNormal
+from custom_accuracy import CustomCategoricalAccuracy
 
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
@@ -92,7 +94,8 @@ def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
                                cao_params_model['num_classes'], activation=cao_params_model['output_function'])
 
     model = Model(inputs=[in1], outputs=[out])
-    model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'], metrics=['accuracy'])
+    model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
+                  metrics=[CustomCategoricalAccuracy(name='accuracy')])
 
     # https://github.com/tensorflow/tensorflow/issues/38988
     model._layers = [layer for layer in model._layers if not isinstance(layer, dict)]

@@ -7,10 +7,14 @@ from notify_run import Notify
 import traceback
 from os import path
 from pdb import set_trace
-if path.exists('/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen'):
-    sys.path.insert(1, '/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen')
-elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/src/PolSar/Oberpfaffenhofen'):
-    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/src/PolSar/Oberpfaffenhofen')
+if path.exists('/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen'):
+    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen')
+    NOTIFY = False
+elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/Oberpfaffenhofen'):
+    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/Oberpfaffenhofen')
+    NOTIFY = True
+else:
+    raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from oberpfaffenhofen_dataset import get_dataset_for_segmentation
 from oberpfaffenhofen_unet import get_cao_cvfcn_model
 from cvnn.utils import create_folder
@@ -61,7 +65,6 @@ def run_model():
     train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
     test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
     # data, label = next(iter(dataset))
-    # set_trace()
     model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
                                              cao_dataset_parameters['sliding_window_size'], 21))
     # Checkpoints
@@ -89,13 +92,16 @@ def open_saved_models(checkpoint_path):
 
 def train_model():
     # https://notify.run/c/PGqsOzNQ1cSGdWM7
-    notify = Notify()
-    notify.send('New simulation started')
+    if NOTIFY:
+        notify = Notify()
+        notify.send('New simulation started')
     try:
         time = run_model()
-        notify.send(f"Simulations done in {time}")
+        if NOTIFY:
+            notify.send(f"Simulations done in {time}")
     except Exception as e:
-        notify.send("Error occurred")
+        if NOTIFY:
+            notify.send("Error occurred")
         print(e)
         traceback.print_exc()
 
