@@ -43,15 +43,25 @@ def test_output_act():
 
 def train(x_train, y_train, x_val, y_val):
     dataset = Dataset(x=x_train, y=y_train)
-    mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=10,
-                                       epochs=300, batch_size=100, display_freq=1,
-                                       optimizer='sgd', dropout=0.5, shape_raw=[100, 50], activation='cart_relu',
-                                       polar='real_imag',    # 'amplitude_phase',
-                                       debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
-                                       do_conf_mat=True,
-                                       validation_data=(x_val, y_val),
-                                       capacity_equivalent=True, equiv_technique='ratio'
-                                       )
+    shapes = [
+        [64, 32],
+        [32, 16],
+        [16, 8],
+        [32],
+        [64]
+    ]
+    for sh in shapes:
+        notify.send(f'Simulating shape {sh}')
+        mlp_run_real_comparison_montecarlo(dataset=dataset, iterations=10,
+                                           epochs=300, batch_size=100, display_freq=1,
+                                           optimizer='sgd', dropout=0.5, shape_raw=sh,
+                                           activation='cart_relu', output_activation='softmax_real_with_abs',
+                                           polar='real_imag',    # 'amplitude_phase',
+                                           debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
+                                           do_conf_mat=True,
+                                           validation_data=(x_val, y_val),
+                                           capacity_equivalent=True, equiv_technique='ratio'
+                                           )
 
 
 if __name__ == "__main__":
@@ -62,7 +72,7 @@ if __name__ == "__main__":
         # notify.send('Simulating coh data')
         # x_train, y_train, x_val, y_val = get_coh_data()
         # train(x_train, y_train, x_val, y_val)
-        notify.send('Simulating k data')
+        # notify.send('Simulating k data')
         x_train, y_train, x_val, y_val = get_k_data()
         train(x_train, y_train, x_val, y_val)
     except Exception as e:
