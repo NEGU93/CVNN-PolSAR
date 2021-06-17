@@ -20,7 +20,7 @@ from oberpfaffenhofen_unet import get_cao_cvfcn_model
 from cvnn.utils import create_folder
 
 cao_fit_parameters = {
-    'epochs': 2               # Section 3.3.2
+    'epochs': 200                   # Section 3.3.2
 }
 cao_dataset_parameters = {
     'batch_size': 30,               # Section 3.3.2
