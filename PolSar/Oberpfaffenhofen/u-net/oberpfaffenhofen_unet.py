@@ -98,7 +98,7 @@ def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
                   metrics=[CustomCategoricalAccuracy(name='accuracy')])
 
     # https://github.com/tensorflow/tensorflow/issues/38988
-    model._layers = [layer for layer in model._layers if not isinstance(layer, dict)]
+    # model._layers = [layer for layer in model._layers if not isinstance(layer, dict)]
 
     return model
 
