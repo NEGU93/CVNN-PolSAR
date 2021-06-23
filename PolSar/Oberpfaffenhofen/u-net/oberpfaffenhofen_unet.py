@@ -23,7 +23,7 @@ cao_params_model = {
     'activation': cart_relu,                    # Equation 11 & 12
     'kernels': [12, 24, 48, 96, 192],           # Table 1
     'num_classes': 3,
-    'dropout': 0.5,                             # TODO: Not found yet
+    'dropout': 0.5,                             # TODO: Not found yet where
     'output_function': softmax_real_with_avg,   # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),                  # Section 2.2
     'loss': categorical_crossentropy,           # Section 2.4
@@ -46,7 +46,7 @@ def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
         return pool, pool_argmax
 
     def get_upsampling_block(input_to_block, pool_argmax, desired_shape, kernels,
-                             activation=cao_params_model['activation']):
+                             activation=cao_params_model['activation'], dropout=True):
         # TODO: Shall I use dropout here too?
         unpool = ComplexUnPooling2D(desired_shape)([input_to_block, pool_argmax])
         conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
@@ -54,7 +54,8 @@ def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
                              kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
         conv = ComplexBatchNormalization()(conv)
         conv = Activation(activation)(conv)
-        conv = ComplexDropout(cao_params_model['dropout'])(conv)
+        if dropout:
+            conv = ComplexDropout(cao_params_model['dropout'])(conv)
         return conv
 
     in1 = complex_input(shape=input_shape)
@@ -90,8 +91,8 @@ def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
                                   cao_params_model['kernels'][0])
     # Block 11
     add11 = Add()([conv10, pool1])
-    out = get_upsampling_block(add11, pool1_argmax, in1.shape[1:-1] + conv10.shape[-1],
-                               cao_params_model['num_classes'], activation=cao_params_model['output_function'])
+    out = get_upsampling_block(add11, pool1_argmax, in1.shape[1:-1] + conv10.shape[-1], dropout=False,
+                               kernels=cao_params_model['num_classes'], activation=cao_params_model['output_function'])
 
     model = Model(inputs=[in1], outputs=[out])
     model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],

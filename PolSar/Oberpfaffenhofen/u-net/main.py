@@ -15,7 +15,7 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/Oberpfaffenhof
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
-from oberpfaffenhofen_dataset import get_dataset_for_segmentation
+from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
 from oberpfaffenhofen_unet import get_cao_cvfcn_model
 from cvnn.utils import create_folder
 
@@ -60,8 +60,8 @@ def get_checkpoints_list():
 
 
 def run_model():
-    train_dataset, test_dataset = get_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
-                                                               stride=cao_dataset_parameters['sliding_window_stride'])
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
+                                                                    stride=cao_dataset_parameters['sliding_window_stride'])
     train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
     test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
     # data, label = next(iter(dataset))
@@ -78,8 +78,8 @@ def run_model():
 
 
 def open_saved_models(checkpoint_path):
-    train_dataset, test_dataset = get_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
-                                                               stride=cao_dataset_parameters['sliding_window_stride'])
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
+                                                                    stride=cao_dataset_parameters['sliding_window_stride'])
     test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
     model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
                                              cao_dataset_parameters['sliding_window_size'], 21))
