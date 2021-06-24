@@ -6,21 +6,105 @@ import scipy.io
 import tikzplotlib
 import tensorflow as tf
 from cvnn.utils import standarize, randomize
-from typing import Tuple
+from typing import Tuple, Optional
 from sklearn.model_selection import train_test_split
 
 cao_dataset_parameters = {
-    'validation_split': 0.1    # Section 3.3.2
+    'validation_split': 0.1  # Section 3.3.2
 }
 
+OBER_COLORS = np.array([
+    [1, 0.349, 0.392],  # Red; Built-up Area
+    [0.086, 0.858, 0.576],  # Green; Wood Land
+    [0.937, 0.917, 0.352],  # Yellow; Open Area
+    [0, 0.486, 0.745]
+])
 
-def get_dataset_for_segmentation(path: str, labels: str, size: int = 128, stride: int = 25, debug=False) -> \
-        (tf.data.Dataset, tf.data.Dataset):
+# https://imagecolorpicker.com/en
+FLEVOLAND = np.array([
+    [255, 0, 0],        # Red; Steambeans
+    [90, 11, 226],      # Purple; Peas
+    [0, 131, 74],       # Green; Forest
+    [0, 252, 255],      # Teal; Lucerne
+    [255, 182, 228],    # Pink; Wheat
+    [184, 0, 255],      # Magenta; Beet
+    [254, 254, 0],      # Yellow; Potatoes
+    [170, 138, 79],     # Brown; Bare Soil
+    [1, 254, 3],        # Light green; Grass
+    [255, 127, 0],      # Orange; Rapeseed
+    [146, 0, 1],        # Bordeaux; Barley
+    [191, 191, 255],    # Lila; Wheat 2
+    [191, 255, 192],    # Marine Green; Wheat 3
+    [0, 0, 254],        # Blue; Water
+    [255, 217, 160]     # Beige; Buildings
+])
+FLEVOLAND = np.divide(FLEVOLAND, 255.0).astype(np.float32)
+
+FLEVOLAND_2 = np.array([
+    [255, 128, 0],      # Orange; Potatoes
+    [138, 42, 116],      # Dark Purple; Fruit
+    [0, 0, 255],        # Blue; Oats
+    [255, 0, 0],        # Red; Beet
+    [120, 178, 215],    # Light Blue; Barley
+    [0, 102, 255],      # Middle Blue; Onions
+    [251, 232, 45],     # Yellow; Wheat
+    [1, 255, 3],        # Light green; Beans
+    [204, 102, 225],    # Magenta; Peas
+    [0, 204, 102],      # Green; Maize
+    [204, 255, 204],    # Palid Green; Flax
+    [204, 1, 102],      # Bordeaux; Rapeseed
+    [255, 204, 204],    # Beige; Gress
+    [102, 0, 204],      # Purple; Bare Soil
+
+])
+FLEVOLAND_2 = np.divide(FLEVOLAND_2, 255.0).astype(np.float32)
+
+DEFAULT_PLOTLY_COLORS = [
+    [31, 119, 180],  # Blue
+    [255, 127, 14],  # Orange
+    [44, 160, 44],  # Green
+    [214, 39, 40],
+    [148, 103, 189], [140, 86, 75],
+    [227, 119, 194], [127, 127, 127],
+    [188, 189, 34], [23, 190, 207]
+]
+DEFAULT_PLOTLY_COLORS = np.divide(DEFAULT_PLOTLY_COLORS, 255.0).astype(np.float32)
+
+
+def get_dataset_with_labels_t6(path: str, labels: str, debug=False):
     T, labels = open_dataset_t6(path, labels)
-    labels_to_ground_truth(labels, showfig=debug)
+    if debug:
+        labels_to_ground_truth(labels, showfig=True)
     labels = sparse_to_categorical_2D(labels)
+    return T, labels
+
+
+def get_dataset_with_labels_t3(dataset_path: str, labels: str):
+    """
+    Returns the t3 data with it's labels. It also checks matrices sizes agrees.
+    :param dataset_path: The path with the .bin t3 files of the form T11_imag.bin, T11_real.bin, etc.
+        with also .hdr files
+    :param labels: A np 2D matrix of the labels in sparse mode. Where 0 is unlabeled
+    :return: t3 matrix and labels in categorical mode (3D with the 3rd dimension size of number of classes)
+    """
+    labels_flev = sparse_to_categorical_2D(labels)
+    t3 = open_dataset_t3(dataset_path)
+    assert check_dataset_and_lebels(t3, labels_flev)
+    return t3, labels_flev
+
+
+def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25) -> \
+        (tf.data.Dataset, tf.data.Dataset):
+    """
+
+    :param T:
+    :param labels:
+    :param size:
+    :param stride:
+    :return:
+    """
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
-    del T, labels                   # Free up memory
+    del T, labels  # Free up memory
     # labels_to_ground_truth(label_patches[0], showfig=debug)
     # labels_to_ground_truth(label_patches[-1], showfig=debug)
     x_train, x_test, y_train, y_test = train_test_split(patches, label_patches,
@@ -52,6 +136,30 @@ def get_dataset_for_classification(path: str, labels: str):
     T = T.reshape(-1, T.shape[-1])  # Image to 1D
     labels = labels.reshape(np.prod(labels.shape))
     return T, labels
+
+
+def open_dataset_t3(path: str):
+    path = Path(path)
+    first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
+    T = np.zeros(first_read.shape + (6,), dtype=complex)
+
+    # Diagonal
+    T[:, :, 0] = first_read
+    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
+    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
+
+    # Upper part
+    T[:, :, 3] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
+    T[:, :, 4] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
+    T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
+    return T
+
+
+def check_dataset_and_lebels(dataset, labels):
+    return dataset.shape[:2] == labels.shape[:2]
 
 
 def open_dataset_t6(path: str, labels: str):
@@ -135,21 +243,29 @@ def remove_unlabeled(x, y):
     return x[mask], y[mask]
 
 
-def labels_to_ground_truth(labels, showfig=False, savefig=False) -> np.ndarray:
+def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None) -> np.ndarray:
     """
     Transforms the labels to a RGB format so it can be drawn as images
     :param labels: The labels to be transformed to rgb
     :param showfig: boolean. If true it will show the generated ground truth image
     :param savefig: boolean. If true it will save the generated ground truth image
+    :param colors: Color palette to be used. Must be at least size of the labels. TODO: Some kind of check for this?
     :return: numpy array of the ground truth RGB image
     """
-    colors = np.array([
-        [1, 0.349, 0.392],      # Red; Built-up Area
-        [0.086, 0.858, 0.576],  # Green; Wood Land
-        [0.937, 0.917, 0.352],   # Yellow; Open Area
-        [0, 0.486, 0.745]
-    ])
-    ground_truth = np.zeros(labels.shape + (3,), dtype=float)
+    if colors is None:
+        if np.max(labels) == 3 or np.max(labels) == 4:
+            print("Using Oberpfaffenhofen dataset colors")
+            colors = OBER_COLORS
+        elif np.max(labels) == 15:
+            print("Using Flevoland dataset colors")
+            colors = FLEVOLAND
+        elif np.max(labels) == 14:
+            print("Using Flevoland 2 dataset colors")
+            colors = FLEVOLAND_2
+        else:
+            print("Using Plotly dataset colors")
+            colors = DEFAULT_PLOTLY_COLORS
+    ground_truth = np.zeros(labels.shape + (3,), dtype=float)  # 3 channels for RGB
     for i in range(labels.shape[0]):
         for j in range(labels.shape[1]):
             if labels[i, j] != 0:
@@ -157,14 +273,16 @@ def labels_to_ground_truth(labels, showfig=False, savefig=False) -> np.ndarray:
     plt.imshow(ground_truth)
     if showfig:
         plt.show()
-    if savefig:
-        plt.imsave("ground_truth.pdf", ground_truth)
-        tikzplotlib.save("ground_truth.tex")
+    if savefig is not None:
+        assert isinstance(savefig, str)
+        plt.imsave(savefig + ".pdf", ground_truth)
+        tikzplotlib.save(savefig + ".tex")
     return ground_truth
 
 
 def sparse_to_categorical_2D(labels) -> np.ndarray:
-    ground_truth = np.zeros(labels.shape + (3,), dtype=float)
+    classes = np.max(labels)
+    ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
     for i in range(labels.shape[0]):
         for j in range(labels.shape[1]):
             if labels[i, j] != 0:
@@ -233,8 +351,9 @@ def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: in
             label_tiles.append(lab[slice_x, slice_y])
     assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
     assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
-    if not pad:     # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
-        assert int(np.shape(tiles)[0]) == int((np.floor((im.shape[0]-size)/stride)+1)*(np.floor((im.shape[1]-size)/stride)+1))
+    if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
+        assert int(np.shape(tiles)[0]) == int(
+            (np.floor((im.shape[0] - size) / stride) + 1) * (np.floor((im.shape[1] - size) / stride) + 1))
     return np.array(tiles), np.array(label_tiles)
 
 

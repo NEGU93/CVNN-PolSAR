@@ -14,20 +14,21 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the dataset reader not found")
-from dataset_reader import open_dataset_t6, get_dataset_for_segmentation, get_dataset_for_classification
+from dataset_reader import open_dataset_t6, get_dataset_for_segmentation, get_dataset_for_classification, get_dataset_with_labels_t6
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
-    labels = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
+    labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
 elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat'):
-    labels = '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat'
+    labels_path = '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat'
     path = '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
 else:
     raise FileNotFoundError("No path found for the requested dataset")
 
 
 def get_ober_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False):
-    return get_dataset_for_segmentation(path, labels, size, stride, debug)
+    T, labels = get_dataset_with_labels_t6(path, labels_path)
+    return get_dataset_for_segmentation(T, labels, size, stride, debug)
 
 
 def get_ober_dataset_for_classification():
