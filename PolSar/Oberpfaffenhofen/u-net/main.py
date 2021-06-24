@@ -6,6 +6,7 @@ import tensorflow as tf
 from notify_run import Notify
 import traceback
 from os import path
+import numpy as np
 from pdb import set_trace
 if path.exists('/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen')
@@ -16,7 +17,7 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/Oberpfaffenhof
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
-from oberpfaffenhofen_unet import get_cao_cvfcn_model
+from oberpfaffenhofen_unet import get_cao_cvfcn_model, get_tf_real_cao_model
 from cvnn.utils import create_folder
 
 cao_fit_parameters = {
@@ -42,6 +43,12 @@ def flip(data, labels):
     return data, labels
 
 
+def to_real(data, labels):
+    stacked = tf.stack([tf.math.real(data), tf.math.imag(data)], axis=-1)
+    reshaped = tf.reshape(stacked, shape=tf.concat([tf.shape(data)[:-1], tf.convert_to_tensor([-1])], axis=-1))
+    return reshaped, labels
+
+
 def secondsToStr(elapsed=None):
     if elapsed is None:
         return strftime("%Y-%m-%d %H:%M:%S", localtime())
@@ -59,14 +66,26 @@ def get_checkpoints_list():
     return [tensorboard_callback, cp_callback]
 
 
-def run_model():
+def run_model(complex_mode=True, tensorflow=False):
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
                                                                     stride=cao_dataset_parameters['sliding_window_stride'])
     train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
     test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
+    if not complex_mode:
+        train_dataset = train_dataset.map(to_real)
+        test_dataset = test_dataset.map(to_real)
     # data, label = next(iter(dataset))
-    model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
-                                             cao_dataset_parameters['sliding_window_size'], 21))
+    if not tensorflow:
+        if complex_mode:
+            model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
+                                                     cao_dataset_parameters['sliding_window_size'], 21))
+        else:
+            model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
+                                                     cao_dataset_parameters['sliding_window_size'], 42),
+                                        dtype=np.float32)
+    else:
+        model = get_tf_real_cao_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
+                                                   cao_dataset_parameters['sliding_window_size'], 42))
     # Checkpoints
     callbacks = get_checkpoints_list()
 
@@ -96,7 +115,7 @@ def train_model():
         notify = Notify()
         notify.send('New simulation started')
     try:
-        time = run_model()
+        time = run_model(complex_mode=False, tensorflow=True)
         if NOTIFY:
             notify.send(f"Simulations done in {time}")
     except Exception as e:

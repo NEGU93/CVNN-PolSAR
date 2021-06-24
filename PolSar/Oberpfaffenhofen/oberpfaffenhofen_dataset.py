@@ -25,6 +25,7 @@ elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_G
 else:
     raise FileNotFoundError("No path found for the requested dataset")
 
+
 def get_ober_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False):
     return get_dataset_for_segmentation(path, labels, size, stride, debug)
 
