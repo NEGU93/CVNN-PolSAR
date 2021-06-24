@@ -10,7 +10,10 @@ from typing import Tuple, Optional
 from sklearn.model_selection import train_test_split
 
 cao_dataset_parameters = {
-    'validation_split': 0.1  # Section 3.3.2
+    'validation_split': 0.1,  # Section 3.3.2
+    'batch_size': 30,               # Section 3.3.2
+    'sliding_window_size': 128,     # Section 3.3.2
+    'sliding_window_stride': 25     # Section 3.3.2
 }
 
 OBER_COLORS = np.array([
@@ -70,6 +73,24 @@ DEFAULT_PLOTLY_COLORS = [
 ]
 DEFAULT_PLOTLY_COLORS = np.divide(DEFAULT_PLOTLY_COLORS, 255.0).astype(np.float32)
 
+def flip(data, labels):
+    """
+    Flip augmentation
+    :param data: Image to flip
+    :param labels: Image labels
+    :return: Augmented image
+    """
+    data = tf.image.random_flip_left_right(data)
+    data = tf.image.random_flip_up_down(data)
+
+    return data, labels
+
+
+def to_real(data, labels):
+    stacked = tf.stack([tf.math.real(data), tf.math.imag(data)], axis=-1)
+    reshaped = tf.reshape(stacked, shape=tf.concat([tf.shape(data)[:-1], tf.convert_to_tensor([-1])], axis=-1))
+    return reshaped, labels
+
 
 def get_dataset_with_labels_t6(path: str, labels: str, debug=False):
     T, labels = open_dataset_t6(path, labels)
@@ -93,7 +114,20 @@ def get_dataset_with_labels_t3(dataset_path: str, labels: str):
     return t3, labels_flev
 
 
-def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25) -> \
+def get_dataset_for_cao_segmentation(T, labels, complex_mode=True):
+    train_dataset, test_dataset = get_dataset_for_segmentation(T=T, labels=labels,
+                                                               size=cao_dataset_parameters['sliding_window_size'],
+                                                               stride=cao_dataset_parameters['sliding_window_stride'],
+                                                               test_size=cao_dataset_parameters['validation_split'])
+    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
+    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
+    if not complex_mode:
+        train_dataset = train_dataset.map(to_real)
+        test_dataset = test_dataset.map(to_real)
+    return train_dataset, test_dataset
+
+
+def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2) -> \
         (tf.data.Dataset, tf.data.Dataset):
     """
 
@@ -101,6 +135,7 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25) -
     :param labels:
     :param size:
     :param stride:
+    :param test_size:
     :return:
     """
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
@@ -108,7 +143,7 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25) -
     # labels_to_ground_truth(label_patches[0], showfig=debug)
     # labels_to_ground_truth(label_patches[-1], showfig=debug)
     x_train, x_test, y_train, y_test = train_test_split(patches, label_patches,
-                                                        test_size=cao_dataset_parameters['validation_split'],
+                                                        test_size=test_size,
                                                         shuffle=True)
 
     del patches, label_patches  # Free up memory

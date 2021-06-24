@@ -23,30 +23,6 @@ from cvnn.utils import create_folder
 cao_fit_parameters = {
     'epochs': 200                   # Section 3.3.2
 }
-cao_dataset_parameters = {
-    'batch_size': 30,               # Section 3.3.2
-    'sliding_window_size': 128,     # Section 3.3.2
-    'sliding_window_stride': 25     # Section 3.3.2
-}
-
-
-def flip(data, labels):
-    """
-    Flip augmentation
-    :param data: Image to flip
-    :param labels: Image labels
-    :return: Augmented image
-    """
-    data = tf.image.random_flip_left_right(data)
-    data = tf.image.random_flip_up_down(data)
-
-    return data, labels
-
-
-def to_real(data, labels):
-    stacked = tf.stack([tf.math.real(data), tf.math.imag(data)], axis=-1)
-    reshaped = tf.reshape(stacked, shape=tf.concat([tf.shape(data)[:-1], tf.convert_to_tensor([-1])], axis=-1))
-    return reshaped, labels
 
 
 def secondsToStr(elapsed=None):
@@ -67,28 +43,19 @@ def get_checkpoints_list():
 
 
 def run_model(complex_mode=True, tensorflow=False):
-    train_dataset, test_dataset = get_ober_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
-                                                                    stride=cao_dataset_parameters['sliding_window_stride'])
-    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
-    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
-    if not complex_mode:
-        train_dataset = train_dataset.map(to_real)
-        test_dataset = test_dataset.map(to_real)
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode)
     # data, label = next(iter(dataset))
     if not tensorflow:
         if complex_mode:
-            model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
-                                                     cao_dataset_parameters['sliding_window_size'], 21))
+            model = get_cao_cvfcn_model(input_shape=(128, 128, 21))
         else:
-            model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
-                                                     cao_dataset_parameters['sliding_window_size'], 42),
+            model = get_cao_cvfcn_model(input_shape=(128, 128, 42),
                                         dtype=np.float32)
     else:
         if complex_mode:
             raise ValueError("Tensorflow does not support complex model. "
                              "Do not use tensorflow and complex_mode both as True")
-        model = get_tf_real_cao_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
-                                                   cao_dataset_parameters['sliding_window_size'], 42))
+        model = get_tf_real_cao_model(input_shape=(128, 128, 42))
     # Checkpoints
     callbacks = get_checkpoints_list()
 

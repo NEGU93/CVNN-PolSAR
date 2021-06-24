@@ -14,7 +14,7 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the dataset reader not found")
-from dataset_reader import open_dataset_t6, get_dataset_for_segmentation, get_dataset_for_classification, get_dataset_with_labels_t6
+from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_labels_t6, get_dataset_for_classification
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
@@ -26,28 +26,24 @@ else:
     raise FileNotFoundError("No path found for the requested dataset")
 
 
-def get_ober_dataset_for_segmentation(size: int = 128, stride: int = 25, debug=False):
+def get_ober_dataset_for_segmentation(complex_mode=True):
+    """
+    Opens the t6 dataset of Oberpfaffenhofen with the corresponding labels with cao's configuration scheme.
+    """
     T, labels = get_dataset_with_labels_t6(path, labels_path)
-    return get_dataset_for_segmentation(T, labels, size, stride, debug)
+    # :return: Tuple (T, labels)
+    #     - T: Image as a numpy array of size hxwxB=1300x1200x21 where h and w are the height and width of the
+    #         spatial dimensions respectively, B is the number of complex bands.
+    #     - labels: numpy array of size 1300x1200 where each pixel has value:
+    #         0: Unlabeled
+    #         1: Built-up Area
+    #         2: Wood Land
+    #         3: Open Area
+    return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode)
 
 
 def get_ober_dataset_for_classification():
-    return get_dataset_for_classification(path, labels)
-
-
-def open_dataset_ober():
-    """
-    Opens the t6 dataset of Oberpfaffenhofen with the corresponding labels.
-    :return: Tuple (T, labels)
-        - T: Image as a numpy array of size hxwxB=1300x1200x21 where h and w are the height and width of the
-            spatial dimensions respectively, B is the number of complex bands.
-        - labels: numpy array of size 1300x1200 where each pixel has value:
-            0: Unlabeled
-            1: Built-up Area
-            2: Wood Land
-            3: Open Area
-    """
-    return open_dataset_t6(path, labels)
+    return get_dataset_for_classification(path, labels_path)
 
 
 def open_dataset_s2():
