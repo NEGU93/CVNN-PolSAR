@@ -19,9 +19,9 @@ from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_la
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
-elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat'):
-    labels_path = '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/Label_Germany.mat'
-    path = '/usr/users/gpu-prof/gpu_barrachina/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'):
+    labels_path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
+    path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
 else:
     raise FileNotFoundError("No path found for the requested dataset")
 
