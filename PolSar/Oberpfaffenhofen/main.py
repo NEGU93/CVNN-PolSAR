@@ -8,16 +8,16 @@ import traceback
 from os import path
 import numpy as np
 from pdb import set_trace
-if path.exists('/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen'):
-    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen')
+if path.exists('/home/barrachina/Documents/onera/PolSar'):
+    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
     NOTIFY = False
-elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/Oberpfaffenhofen'):
-    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/Oberpfaffenhofen')
+elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
+    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
-from oberpfaffenhofen_unet import get_cao_cvfcn_model, get_tf_real_cao_model
+from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from cvnn.utils import create_folder
 
 cao_fit_parameters = {
