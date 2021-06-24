@@ -84,6 +84,9 @@ def run_model(complex_mode=True, tensorflow=False):
                                                      cao_dataset_parameters['sliding_window_size'], 42),
                                         dtype=np.float32)
     else:
+        if complex_mode:
+            raise ValueError("Tensorflow does not support complex model. "
+                             "Do not use tensorflow and complex_mode both as True")
         model = get_tf_real_cao_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
                                                    cao_dataset_parameters['sliding_window_size'], 42))
     # Checkpoints
