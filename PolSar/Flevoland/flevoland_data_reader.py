@@ -45,7 +45,8 @@ def train_mlp_models_montecarlo():
     montecarlo = MonteCarlo()
     for model in models:
         montecarlo.add_model(model)
-    montecarlo.run(x=x_train, y=y_train, validation_data=(x_test, y_test), iterations=20, epochs=200, batch_size=30)
+    montecarlo.run(x=x_train, y=y_train, validation_data=(x_test, y_test), iterations=10, epochs=200, batch_size=30,
+                   debug=True)
 
 
 def train_mlp_model():

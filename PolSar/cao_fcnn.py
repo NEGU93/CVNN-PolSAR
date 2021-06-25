@@ -132,7 +132,7 @@ def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
         conv = BatchNormalization()(conv)
         conv = Activation(activation)(conv)
         if dropout:
-            conv = ComplexDropout(cao_params_model['dropout'])(conv)
+            conv = Dropout(cao_params_model['dropout'])(conv)
         return conv
 
     in1 = Input(shape=input_shape)
