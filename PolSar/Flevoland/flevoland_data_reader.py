@@ -6,10 +6,12 @@ from cvnn.montecarlo import MonteCarlo
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
     dataset_path = "/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3"
+    labels_path = '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat'
     NOTIFY = False
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
     dataset_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3"
+    labels_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat"
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
@@ -21,8 +23,7 @@ from cao_fcnn import get_cao_mlp_models
 def get_dataset_for_segmentation_cao():
     # flev_14 = scipy.io.loadmat(
     # '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_14cls.mat')
-    flev_15 = scipy.io.loadmat(
-        '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat')
+    flev_15 = scipy.io.loadmat(labels_path)
     # labels_to_ground_truth(flev_15['label'], showfig=True)
     # labels_to_ground_truth(flev_14['label'], savefig="Flevoland_2")
 
@@ -31,9 +32,7 @@ def get_dataset_for_segmentation_cao():
 
 
 def get_dataset_for_mlp():
-    flev_15 = scipy.io.loadmat(
-        '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat'
-    )
+    flev_15 = scipy.io.loadmat(labels_path)
     t3, labels = get_dataset_with_labels_t3(dataset_path=dataset_path, labels=flev_15['label'])
     return get_dataset_for_cao_classification(t3, flev_15['label'])
 
