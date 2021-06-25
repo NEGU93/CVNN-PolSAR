@@ -1,6 +1,8 @@
 import scipy.io
 import sys
 from os import path
+from notify_run import Notify
+import traceback
 from pdb import set_trace
 from cvnn.montecarlo import MonteCarlo
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
@@ -37,13 +39,33 @@ def get_dataset_for_mlp():
     return get_dataset_for_cao_classification(t3, flev_15['label'])
 
 
-if __name__ == "__main__":
+def train_mlp_models_montecarlo():
     x_train, x_test, y_train, y_test = get_dataset_for_mlp()
     models = get_cao_mlp_models(output_size=15)
     montecarlo = MonteCarlo()
     for model in models:
         montecarlo.add_model(model)
     montecarlo.run(x=x_train, y=y_train, validation_data=(x_test, y_test), iterations=20, epochs=200, batch_size=30)
+
+
+def train_mlp_model():
+    # https://notify.run/c/PGqsOzNQ1cSGdWM7
+    if NOTIFY:
+        notify = Notify()
+        notify.send('Simulating Flevoland MLP models')
+    try:
+        time = train_mlp_models_montecarlo()
+        if NOTIFY:
+            notify.send(f"Simulations done in {time}")
+    except Exception as e:
+        if NOTIFY:
+            notify.send("Error occurred")
+        print(e)
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    train_mlp_model()
 
 
 
