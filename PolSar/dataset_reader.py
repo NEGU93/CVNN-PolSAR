@@ -73,6 +73,7 @@ DEFAULT_PLOTLY_COLORS = [
 ]
 DEFAULT_PLOTLY_COLORS = np.divide(DEFAULT_PLOTLY_COLORS, 255.0).astype(np.float32)
 
+
 def flip(data, labels):
     """
     Flip augmentation
@@ -92,158 +93,8 @@ def to_real(data, labels):
     return reshaped, labels
 
 
-def get_dataset_with_labels_t6(path: str, labels: str, debug=False):
-    T, labels = open_dataset_t6(path, labels)
-    if debug:
-        labels_to_ground_truth(labels, showfig=True)
-    labels = sparse_to_categorical_2D(labels)
-    return T, labels
-
-
-def get_dataset_with_labels_t3(dataset_path: str, labels: str):
-    """
-    Returns the t3 data with it's labels. It also checks matrices sizes agrees.
-    :param dataset_path: The path with the .bin t3 files of the form T11_imag.bin, T11_real.bin, etc.
-        with also .hdr files
-    :param labels: A np 2D matrix of the labels in sparse mode. Where 0 is unlabeled
-    :return: t3 matrix and labels in categorical mode (3D with the 3rd dimension size of number of classes)
-    """
-    labels_flev = sparse_to_categorical_2D(labels)
-    t3 = open_dataset_t3(dataset_path)
-    assert check_dataset_and_lebels(t3, labels_flev)
-    return t3, labels_flev
-
-
-def get_dataset_for_cao_segmentation(T, labels, complex_mode=True):
-    train_dataset, test_dataset = get_dataset_for_segmentation(T=T, labels=labels,
-                                                               size=cao_dataset_parameters['sliding_window_size'],
-                                                               stride=cao_dataset_parameters['sliding_window_stride'],
-                                                               test_size=cao_dataset_parameters['validation_split'])
-    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
-    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
-    if not complex_mode:
-        train_dataset = train_dataset.map(to_real)
-        test_dataset = test_dataset.map(to_real)
-    return train_dataset, test_dataset
-
-
-def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2) -> \
-        (tf.data.Dataset, tf.data.Dataset):
-    """
-
-    :param T:
-    :param labels:
-    :param size:
-    :param stride:
-    :param test_size:
-    :return:
-    """
-    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
-    del T, labels  # Free up memory
-    # labels_to_ground_truth(label_patches[0], showfig=debug)
-    # labels_to_ground_truth(label_patches[-1], showfig=debug)
-    x_train, x_test, y_train, y_test = train_test_split(patches, label_patches,
-                                                        test_size=test_size,
-                                                        shuffle=True)
-
-    del patches, label_patches  # Free up memory
-    # dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches)).shuffle(buffer_size=2500,
-    #                                                                                reshuffle_each_iteration=False)
-    # https://stackoverflow.com/questions/51125266/how-do-i-split-tensorflow-datasets
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-    del x_train, y_train, x_test, y_test
-    # set_trace()
-    # check_no_coincidence(train_dataset, test_dataset)
-    return train_dataset, test_dataset
-
-
-def get_dataset_for_classification(path: str, labels: str):
-    """
-    Gets dataset ready to be processed for the mlp model.
-    The dataset will be 2D dimensioned where the first element will be each pixel that will have 21 complex values each.
-    :return: Tuple (T, labels)
-    """
-    T, labels = open_dataset_t6(path, labels)
-    labels_to_ground_truth(labels)
-    T, labels = remove_unlabeled(T, labels)
-    labels -= 1  # map [1, 3] to [0, 2]
-    T = T.reshape(-1, T.shape[-1])  # Image to 1D
-    labels = labels.reshape(np.prod(labels.shape))
-    return T, labels
-
-
-def open_dataset_t3(path: str):
-    path = Path(path)
-    first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
-    T = np.zeros(first_read.shape + (6,), dtype=complex)
-
-    # Diagonal
-    T[:, :, 0] = first_read
-    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
-    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
-
-    # Upper part
-    T[:, :, 3] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
-    T[:, :, 4] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
-    T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
-    return T
-
-
 def check_dataset_and_lebels(dataset, labels):
     return dataset.shape[:2] == labels.shape[:2]
-
-
-def open_dataset_t6(path: str, labels: str):
-    labels = scipy.io.loadmat(labels)['label']
-    path = Path(path)
-    T = np.zeros(labels.shape + (21,), dtype=complex)
-
-    T[:, :, 0] = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
-    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
-    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
-    T[:, :, 3] = standarize(envi.open(path / 'T44.bin.hdr', path / 'T44.bin').read_band(0))
-    T[:, :, 4] = standarize(envi.open(path / 'T55.bin.hdr', path / 'T55.bin').read_band(0))
-    T[:, :, 5] = standarize(envi.open(path / 'T66.bin.hdr', path / 'T66.bin').read_band(0))
-
-    T[:, :, 6] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
-    T[:, :, 7] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
-    T[:, :, 8] = standarize(envi.open(path / 'T14_real.bin.hdr', path / 'T14_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T14_imag.bin.hdr', path / 'T14_imag.bin').read_band(0))
-    T[:, :, 9] = standarize(envi.open(path / 'T15_real.bin.hdr', path / 'T15_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T15_imag.bin.hdr', path / 'T15_imag.bin').read_band(0))
-    T[:, :, 10] = standarize(envi.open(path / 'T16_real.bin.hdr', path / 'T16_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T16_imag.bin.hdr', path / 'T16_imag.bin').read_band(0))
-
-    T[:, :, 11] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
-    T[:, :, 12] = standarize(envi.open(path / 'T24_real.bin.hdr', path / 'T24_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T24_imag.bin.hdr', path / 'T24_imag.bin').read_band(0))
-    T[:, :, 13] = standarize(envi.open(path / 'T25_real.bin.hdr', path / 'T25_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T25_imag.bin.hdr', path / 'T25_imag.bin').read_band(0))
-    T[:, :, 14] = standarize(envi.open(path / 'T26_real.bin.hdr', path / 'T26_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T26_imag.bin.hdr', path / 'T26_imag.bin').read_band(0))
-
-    T[:, :, 15] = standarize(envi.open(path / 'T34_real.bin.hdr', path / 'T34_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T34_imag.bin.hdr', path / 'T34_imag.bin').read_band(0))
-    T[:, :, 16] = standarize(envi.open(path / 'T35_real.bin.hdr', path / 'T35_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T35_imag.bin.hdr', path / 'T35_imag.bin').read_band(0))
-    T[:, :, 17] = standarize(envi.open(path / 'T36_real.bin.hdr', path / 'T36_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T36_imag.bin.hdr', path / 'T36_imag.bin').read_band(0))
-
-    T[:, :, 18] = standarize(envi.open(path / 'T45_real.bin.hdr', path / 'T45_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T45_imag.bin.hdr', path / 'T45_imag.bin').read_band(0))
-    T[:, :, 19] = standarize(envi.open(path / 'T46_real.bin.hdr', path / 'T46_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T46_imag.bin.hdr', path / 'T46_imag.bin').read_band(0))
-
-    T[:, :, 20] = standarize(envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0))
-    return T, labels
 
 
 def separate_dataset(data, window_size: int = 9, stride: int = 3):
@@ -325,6 +176,15 @@ def sparse_to_categorical_2D(labels) -> np.ndarray:
     return ground_truth
 
 
+def sparse_to_categorical_1D(labels) -> np.ndarray:
+    classes = np.max(labels)
+    ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
+    for i in range(labels.shape[0]):
+        if labels[i] != 0:
+            ground_truth[i, labels[i] - 1] = 1.
+    return ground_truth
+
+
 def separate_train_test_pixels(x, y, ratio=0.1):
     """
     Separates each pixel of the dataset in train and test set.
@@ -403,6 +263,193 @@ def check_no_coincidence(train_dataset, test_dataset):
     for data, label in test_dataset:
         for train_data, train_label in train_dataset:
             assert not np.array_equal(data.numpy(), train_data.numpy())
+
+
+def remove_unlabeled_and_flatten(T, labels, shift_map=True):
+    T, labels = remove_unlabeled(T, labels)
+    if shift_map:
+        labels -= 1  # map [1, 3] to [0, 2]
+    T = T.reshape(-1, T.shape[-1])  # Image to 1D
+    labels = labels.reshape(np.prod(labels.shape))
+    return T, labels
+
+
+"""----------
+-   Public  -
+----------"""
+
+
+# To open dataset .bin/hdr using the path
+def open_dataset_t6(path: str, labels: str):
+    labels = scipy.io.loadmat(labels)['label']
+    path = Path(path)
+    T = np.zeros(labels.shape + (21,), dtype=complex)
+
+    T[:, :, 0] = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
+    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
+    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
+    T[:, :, 3] = standarize(envi.open(path / 'T44.bin.hdr', path / 'T44.bin').read_band(0))
+    T[:, :, 4] = standarize(envi.open(path / 'T55.bin.hdr', path / 'T55.bin').read_band(0))
+    T[:, :, 5] = standarize(envi.open(path / 'T66.bin.hdr', path / 'T66.bin').read_band(0))
+
+    T[:, :, 6] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
+    T[:, :, 7] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
+    T[:, :, 8] = standarize(envi.open(path / 'T14_real.bin.hdr', path / 'T14_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T14_imag.bin.hdr', path / 'T14_imag.bin').read_band(0))
+    T[:, :, 9] = standarize(envi.open(path / 'T15_real.bin.hdr', path / 'T15_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T15_imag.bin.hdr', path / 'T15_imag.bin').read_band(0))
+    T[:, :, 10] = standarize(envi.open(path / 'T16_real.bin.hdr', path / 'T16_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T16_imag.bin.hdr', path / 'T16_imag.bin').read_band(0))
+
+    T[:, :, 11] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
+    T[:, :, 12] = standarize(envi.open(path / 'T24_real.bin.hdr', path / 'T24_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T24_imag.bin.hdr', path / 'T24_imag.bin').read_band(0))
+    T[:, :, 13] = standarize(envi.open(path / 'T25_real.bin.hdr', path / 'T25_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T25_imag.bin.hdr', path / 'T25_imag.bin').read_band(0))
+    T[:, :, 14] = standarize(envi.open(path / 'T26_real.bin.hdr', path / 'T26_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T26_imag.bin.hdr', path / 'T26_imag.bin').read_band(0))
+
+    T[:, :, 15] = standarize(envi.open(path / 'T34_real.bin.hdr', path / 'T34_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T34_imag.bin.hdr', path / 'T34_imag.bin').read_band(0))
+    T[:, :, 16] = standarize(envi.open(path / 'T35_real.bin.hdr', path / 'T35_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T35_imag.bin.hdr', path / 'T35_imag.bin').read_band(0))
+    T[:, :, 17] = standarize(envi.open(path / 'T36_real.bin.hdr', path / 'T36_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T36_imag.bin.hdr', path / 'T36_imag.bin').read_band(0))
+
+    T[:, :, 18] = standarize(envi.open(path / 'T45_real.bin.hdr', path / 'T45_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T45_imag.bin.hdr', path / 'T45_imag.bin').read_band(0))
+    T[:, :, 19] = standarize(envi.open(path / 'T46_real.bin.hdr', path / 'T46_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T46_imag.bin.hdr', path / 'T46_imag.bin').read_band(0))
+
+    T[:, :, 20] = standarize(envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
+                             1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0))
+    return T, labels
+
+
+def open_dataset_t3(path: str):
+    path = Path(path)
+    first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
+    T = np.zeros(first_read.shape + (6,), dtype=complex)
+
+    # Diagonal
+    T[:, :, 0] = first_read
+    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
+    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
+
+    # Upper part
+    T[:, :, 3] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
+    T[:, :, 4] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
+    T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
+                            1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
+    return T
+
+
+def get_dataset_with_labels_t6(path: str, labels: str, debug=False):
+    T, labels = open_dataset_t6(path, labels)
+    if debug:
+        labels_to_ground_truth(labels, showfig=True)
+    labels = sparse_to_categorical_2D(labels)
+    return T, labels
+
+
+# Opens dataset .bin/hdr using the path and change sparse labels to categorical
+def get_dataset_with_labels_t3(dataset_path: str, labels: str):
+    """
+    Returns the t3 data with it's labels. It also checks matrices sizes agrees.
+    :param dataset_path: The path with the .bin t3 files of the form T11_imag.bin, T11_real.bin, etc.
+        with also .hdr files
+    :param labels: A np 2D matrix of the labels in sparse mode. Where 0 is unlabeled
+    :return: t3 matrix and labels in categorical mode (3D with the 3rd dimension size of number of classes)
+    """
+    labels_flev = sparse_to_categorical_2D(labels)
+    t3 = open_dataset_t3(dataset_path)
+    assert check_dataset_and_lebels(t3, labels_flev)
+    return t3, labels_flev
+
+
+# Returns a dataset T with labels in the correct form
+def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2) -> \
+        (tf.data.Dataset, tf.data.Dataset):
+    """
+    Applies the sliding window operations getting smaller images of a big image T.
+    Splits dataset into train and test.
+    :param T: Big image T (3D)
+    :param labels: labels for T
+    :param size: Size of the window to be used on the sliding window operation.
+    :param stride:
+    :param test_size: float. Percentage of examples to be used for the test set [0, 1]
+    :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
+    """
+    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
+    del T, labels  # Free up memory
+    # labels_to_ground_truth(label_patches[0], showfig=debug)
+    # labels_to_ground_truth(label_patches[-1], showfig=debug)
+    x_train, x_test, y_train, y_test = train_test_split(patches, label_patches, test_size=test_size, shuffle=True)
+
+    del patches, label_patches  # Free up memory
+    # dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches)).shuffle(buffer_size=2500,
+    #                                                                                reshuffle_each_iteration=False)
+    # https://stackoverflow.com/questions/51125266/how-do-i-split-tensorflow-datasets
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    del x_train, y_train, x_test, y_test
+    # set_trace()
+    # check_no_coincidence(train_dataset, test_dataset)
+    return train_dataset, test_dataset
+
+
+def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8, validation_size=0.2):
+    """
+    Gets dataset ready to be processed for the mlp model.
+    The dataset will be 2D dimensioned where the first element will be each pixel that will have 21 complex values each.
+    :return: Tuple (T, labels)
+    """
+    T, labels = remove_unlabeled_and_flatten(T, labels, shift_map)
+    labels = sparse_to_categorical_1D(labels)
+    x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=test_size, shuffle=True)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=validation_size, shuffle=True)
+    del T, labels
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
+    del x_train, y_train, x_test, y_test, x_val, y_val
+    return train_dataset, test_dataset, val_dataset
+
+
+"""----------
+-   CAO     -
+----------"""
+
+
+def get_dataset_for_cao_segmentation(T, labels, complex_mode=True):
+    train_dataset, test_dataset = get_dataset_for_segmentation(T=T, labels=labels,
+                                                               size=cao_dataset_parameters['sliding_window_size'],
+                                                               stride=cao_dataset_parameters['sliding_window_stride'],
+                                                               test_size=cao_dataset_parameters['validation_split'])
+    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
+    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
+    if not complex_mode:
+        train_dataset = train_dataset.map(to_real)
+        test_dataset = test_dataset.map(to_real)
+    return train_dataset, test_dataset
+
+
+def get_dataset_for_cao_classification(T, labels, complex_mode=True):
+    train_dataset, test_dataset, val_dataset = get_dataset_for_classification(T=T, labels=labels, shift_map=False,
+                                                                              test_size=0.8, validation_size=0.2)
+    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size'])
+    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
+    val_dataset = val_dataset.batch(cao_dataset_parameters['batch_size'])
+    if not complex_mode:
+        train_dataset = train_dataset.map(to_real)
+        test_dataset = test_dataset.map(to_real)
+        val_dataset = val_dataset.map(to_real)
+    return train_dataset, test_dataset, val_dataset
 
 
 if __name__ == "__main__":
