@@ -13,7 +13,8 @@ cao_dataset_parameters = {
     'validation_split': 0.1,  # Section 3.3.2
     'batch_size': 30,               # Section 3.3.2
     'sliding_window_size': 128,     # Section 3.3.2
-    'sliding_window_stride': 25     # Section 3.3.2
+    'sliding_window_stride': 25,    # Section 3.3.2
+    'window_for_mlp': 32            # Section 3.4
 }
 
 OBER_COLORS = np.array([
@@ -129,43 +130,6 @@ def remove_unlabeled(x, y):
     return x[mask], y[mask]
 
 
-def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None) -> np.ndarray:
-    """
-    Transforms the labels to a RGB format so it can be drawn as images
-    :param labels: The labels to be transformed to rgb
-    :param showfig: boolean. If true it will show the generated ground truth image
-    :param savefig: boolean. If true it will save the generated ground truth image
-    :param colors: Color palette to be used. Must be at least size of the labels. TODO: Some kind of check for this?
-    :return: numpy array of the ground truth RGB image
-    """
-    if colors is None:
-        if np.max(labels) == 3 or np.max(labels) == 4:
-            print("Using Oberpfaffenhofen dataset colors")
-            colors = OBER_COLORS
-        elif np.max(labels) == 15:
-            print("Using Flevoland dataset colors")
-            colors = FLEVOLAND
-        elif np.max(labels) == 14:
-            print("Using Flevoland 2 dataset colors")
-            colors = FLEVOLAND_2
-        else:
-            print("Using Plotly dataset colors")
-            colors = DEFAULT_PLOTLY_COLORS
-    ground_truth = np.zeros(labels.shape + (3,), dtype=float)  # 3 channels for RGB
-    for i in range(labels.shape[0]):
-        for j in range(labels.shape[1]):
-            if labels[i, j] != 0:
-                ground_truth[i, j] = colors[labels[i, j] - 1]
-    plt.imshow(ground_truth)
-    if showfig:
-        plt.show()
-    if savefig is not None:
-        assert isinstance(savefig, str)
-        plt.imsave(savefig + ".pdf", ground_truth)
-        tikzplotlib.save(savefig + ".tex")
-    return ground_truth
-
-
 def sparse_to_categorical_2D(labels) -> np.ndarray:
     classes = np.max(labels)
     ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
@@ -274,9 +238,66 @@ def remove_unlabeled_and_flatten(T, labels, shift_map=True):
     return T, labels
 
 
+def remove_unlabeled_with_window(T, labels, window_size=32):
+    """
+    Returns a flatten dataset of only labeled pixels with surrounded pixels according to window_size
+    :param T:
+    :param labels: ATTENTION: Must be sparse!
+    :param window_size:
+    :return:
+    """
+    results = []
+    results_labels = []
+    pad = int(window_size / 2)
+    T = np.pad(T, ((pad, pad), (pad, pad), (0, 0)))
+    for i in range(0, labels.shape[0]):
+        for j in range(0, labels.shape[1]):
+            if labels[i, j] != 0:
+                results.append(T[i:i+window_size, i:i+window_size].flatten())
+                results_labels.append(labels[i, j])
+    return np.array(results), np.array(results_labels)
+
+
 """----------
 -   Public  -
 ----------"""
+
+
+def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None) -> np.ndarray:
+    """
+    Transforms the labels to a RGB format so it can be drawn as images
+    :param labels: The labels to be transformed to rgb
+    :param showfig: boolean. If true it will show the generated ground truth image
+    :param savefig: boolean. If true it will save the generated ground truth image
+    :param colors: Color palette to be used. Must be at least size of the labels. TODO: Some kind of check for this?
+    :return: numpy array of the ground truth RGB image
+    """
+    if colors is None:
+        if np.max(labels) == 3 or np.max(labels) == 4:
+            print("Using Oberpfaffenhofen dataset colors")
+            colors = OBER_COLORS
+        elif np.max(labels) == 15:
+            print("Using Flevoland dataset colors")
+            colors = FLEVOLAND
+        elif np.max(labels) == 14:
+            print("Using Flevoland 2 dataset colors")
+            colors = FLEVOLAND_2
+        else:
+            print("Using Plotly dataset colors")
+            colors = DEFAULT_PLOTLY_COLORS
+    ground_truth = np.zeros(labels.shape + (3,), dtype=float)  # 3 channels for RGB
+    for i in range(labels.shape[0]):
+        for j in range(labels.shape[1]):
+            if labels[i, j] != 0:
+                ground_truth[i, j] = colors[labels[i, j] - 1]
+    plt.imshow(ground_truth)
+    if showfig:
+        plt.show()
+    if savefig is not None:
+        assert isinstance(savefig, str)
+        plt.imsave(savefig + ".pdf", ground_truth)
+        tikzplotlib.save(savefig + ".tex")
+    return ground_truth
 
 
 # To open dataset .bin/hdr using the path
@@ -387,38 +408,27 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, t
     """
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
     del T, labels  # Free up memory
-    # labels_to_ground_truth(label_patches[0], showfig=debug)
-    # labels_to_ground_truth(label_patches[-1], showfig=debug)
-    x_train, x_test, y_train, y_test = train_test_split(patches, label_patches, test_size=test_size, shuffle=True)
-
-    del patches, label_patches  # Free up memory
-    # dataset = tf.data.Dataset.from_tensor_slices((patches, label_patches)).shuffle(buffer_size=2500,
-    #                                                                                reshuffle_each_iteration=False)
-    # https://stackoverflow.com/questions/51125266/how-do-i-split-tensorflow-datasets
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-    del x_train, y_train, x_test, y_test
-    # set_trace()
-    # check_no_coincidence(train_dataset, test_dataset)
-    return train_dataset, test_dataset
+    return get_tf_dataset_split(patches, label_patches, test_size=test_size)
 
 
-def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8, validation_size=0.2):
+def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8):
     """
     Gets dataset ready to be processed for the mlp model.
     The dataset will be 2D dimensioned where the first element will be each pixel that will have 21 complex values each.
-    :return: Tuple (T, labels)
+    :return: Tuple (train_dataset, test_dataset, val_dataset).
     """
     T, labels = remove_unlabeled_and_flatten(T, labels, shift_map)
     labels = sparse_to_categorical_1D(labels)
+    return get_tf_dataset_split(T, labels, test_size=test_size)
+
+
+def get_tf_dataset_split(T, labels, test_size=0.1):
     x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=test_size, shuffle=True)
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=validation_size, shuffle=True)
     del T, labels
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
     test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-    val_dataset = tf.data.Dataset.from_tensor_slices((x_val, y_val))
-    del x_train, y_train, x_test, y_test, x_val, y_val
-    return train_dataset, test_dataset, val_dataset
+    del x_train, y_train, x_test, y_test
+    return train_dataset, test_dataset
 
 
 """----------
@@ -440,17 +450,18 @@ def get_dataset_for_cao_segmentation(T, labels, complex_mode=True):
 
 
 def get_dataset_for_cao_classification(T, labels, complex_mode=True):
-    train_dataset, test_dataset, val_dataset = get_dataset_for_classification(T=T, labels=labels, shift_map=False,
-                                                                              test_size=0.8, validation_size=0.2)
+    T, labels = remove_unlabeled_with_window(T, labels, window_size=cao_dataset_parameters['window_for_mlp'])
+    labels = sparse_to_categorical_1D(labels)
+    """
+    train_dataset, test_dataset = get_tf_dataset_split(T=T, labels=labels,
+                                                       test_size=cao_dataset_parameters['validation_split'])
     train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size'])
     test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
-    val_dataset = val_dataset.batch(cao_dataset_parameters['batch_size'])
     if not complex_mode:
         train_dataset = train_dataset.map(to_real)
         test_dataset = test_dataset.map(to_real)
-        val_dataset = val_dataset.map(to_real)
-    return train_dataset, test_dataset, val_dataset
-
-
-if __name__ == "__main__":
-    dataset = get_dataset_for_segmentation()
+    return train_dataset, test_dataset
+    """
+    x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=cao_dataset_parameters['validation_split'],
+                                                        shuffle=True)
+    return x_train, x_test, y_train, y_test

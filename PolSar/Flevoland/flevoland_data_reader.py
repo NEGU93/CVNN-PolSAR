@@ -2,6 +2,7 @@ import scipy.io
 import sys
 from os import path
 from pdb import set_trace
+from cvnn.montecarlo import MonteCarlo
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
     dataset_path = "/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3"
@@ -14,6 +15,7 @@ else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from dataset_reader import get_dataset_with_labels_t3, get_dataset_for_cao_segmentation, \
     get_dataset_for_cao_classification
+from cao_fcnn import get_cao_mlp_models
 
 
 def get_dataset_for_segmentation_cao():
@@ -30,13 +32,20 @@ def get_dataset_for_segmentation_cao():
 
 def get_dataset_for_mlp():
     flev_15 = scipy.io.loadmat(
-        '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat')
+        '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat'
+    )
     t3, labels = get_dataset_with_labels_t3(dataset_path=dataset_path, labels=flev_15['label'])
     return get_dataset_for_cao_classification(t3, flev_15['label'])
 
 
 if __name__ == "__main__":
-    train_dataset, test_dataset, val_dataset = get_dataset_for_mlp()
+    x_train, x_test, y_train, y_test = get_dataset_for_mlp()
+    models = get_cao_mlp_models(output_size=15)
+    montecarlo = MonteCarlo()
+    for model in models:
+        montecarlo.add_model(model)
+    montecarlo.run(x=x_train, y=y_train, validation_data=(x_test, y_test), iterations=20, epochs=200, batch_size=30)
+
 
 
 

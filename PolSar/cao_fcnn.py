@@ -1,12 +1,12 @@
 import numpy as np
 from tensorflow.keras.layers import concatenate, Add, Activation
-from tensorflow.keras import Model
+from tensorflow.keras import Model, Sequential
 from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import categorical_crossentropy
 from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
-    ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization
+    ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense
 from cvnn.activations import softmax_real_with_avg, cart_relu
 from cvnn.initializers import ComplexHeNormal
 from custom_accuracy import CustomCategoricalAccuracy
@@ -28,6 +28,11 @@ cao_params_model = {
     'init': ComplexHeNormal(),                  # Section 2.2
     'loss': categorical_crossentropy,           # Section 2.4
     'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
+}
+cao_mlp_params = {
+    'input_window': 32,
+    'real_shape': [128, 256],
+    'complex_shape': [96, 180]
 }
 
 
@@ -173,6 +178,32 @@ def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
     # model._layers = [layer for layer in model._layers if not isinstance(layer, dict)]
 
     return model
+
+
+def get_cao_mlp_models(output_size, input_size=None):
+    if input_size is None:
+        input_size = cao_mlp_params['input_window']*cao_mlp_params['input_window']*6
+    # Complex model
+    shape = [ComplexInput(input_shape=input_size, dtype=np.complex64)]
+    for i in range(0, len(cao_mlp_params['complex_shape'])):
+        shape.append(ComplexDense(units=cao_mlp_params['complex_shape'][i], activation=cao_params_model['activation']))
+        shape.append(ComplexDropout(rate=cao_params_model['dropout']))
+    shape.append(ComplexDense(units=output_size, activation=cao_params_model['output_function']))
+    complex_network = Sequential(name='cv-mlp', layers=shape)
+    complex_network.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
+                            metrics=['accuracy'])
+    # Real model
+    shape = [ComplexInput(input_shape=input_size*2, dtype=np.float32)]
+    for i in range(0, len(cao_mlp_params['real_shape'])):
+        shape.append(ComplexDense(units=cao_mlp_params['real_shape'][i], activation=cao_params_model['activation'],
+                                  dtype=np.float32))
+        shape.append(ComplexDropout(rate=cao_params_model['dropout'], dtype=np.float32))
+    shape.append(ComplexDense(units=output_size, activation=cao_params_model['output_function'], dtype=np.float32))
+    real_network = Sequential(name='cv-mlp', layers=shape)
+    real_network.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'], metrics=['accuracy'])
+
+    return [complex_network, real_network]
+
 
 
 if __name__ == '__main__':
