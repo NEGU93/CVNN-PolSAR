@@ -110,7 +110,7 @@ if __name__ == "__main__":
         # train(x_train, y_train, x_val, y_val)
         # notify.send('Simulating k data')
         x_train, y_train, x_val, y_val = get_k_data()
-        train(x_train, y_train, x_val, y_val)
+        test_shapes(x_train, y_train, x_val, y_val)
     except Exception as e:
         notify.send("Error occurred")
         print(e)
