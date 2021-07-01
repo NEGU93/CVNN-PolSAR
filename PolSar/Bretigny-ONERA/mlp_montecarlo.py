@@ -1,9 +1,45 @@
 from cvnn.montecarlo import mlp_run_real_comparison_montecarlo, get_mlp, run_montecarlo
 from cvnn.dataset import Dataset
+from cvnn.real_equiv_tools import get_real_equivalent
 from dataset_reader import get_coh_data, get_k_data
 from notify_run import Notify
 import traceback
 from pdb import set_trace
+
+def test_shapes(x_train, y_train, x_val, y_val):
+    dataset = Dataset(x=x_train, y=y_train)
+    shapes = [
+        [256, 128],
+        [128, 64],
+        [100, 50],
+        [64, 32],
+        [32, 16],
+        [16, 8],
+        [32],
+        [64]
+    ]
+    input_size = dataset.x.shape[1]  # Size of input
+    output_size = dataset.y.shape[1]  # Size of output
+    models = []
+    for sh in shapes:
+        notify.send(f'Simulating shape {sh}')
+        complex_model = get_mlp(input_size=input_size, output_size=output_size, shape_raw=sh)
+        models.append(complex_model)
+        models.append(get_real_equivalent(complex_model, capacity_equivalent=True,
+                                          equiv_technique='ratio', name="real_ratio_network"))
+        models.append(get_real_equivalent(complex_model, capacity_equivalent=True,
+                                          equiv_technique='alternate', name="real_alternate_network"))
+        models.append(get_real_equivalent(complex_model, capacity_equivalent=False,
+                                          name="real_double_network"))
+        run_montecarlo(models=models, dataset=dataset, 
+                       iterations=10, epochs=300, batch_size=100, display_freq=1,
+                       polar='real_imag',    # 'amplitude_phase',
+                       debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
+                       do_conf_mat=True,
+                       validation_data=(x_val, y_val),
+                       capacity_equivalent=True, equiv_technique='ratio'
+        )
+    
 
 
 def test_activations():
