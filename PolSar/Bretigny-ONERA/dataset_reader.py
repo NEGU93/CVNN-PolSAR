@@ -92,8 +92,8 @@ def use_neighbors(im, size: int = 3, stride: int = 1, pad: int = 0):
 def open_data():
     if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
         path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
-    elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/Bretigny-ONERA/data'):
-        path = '/usr/users/gpu-prof/gpu_barrachina/Bretigny-ONERA/data'
+    elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
+        path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
     else:
         raise FileNotFoundError("Dataset path not found")
     mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
