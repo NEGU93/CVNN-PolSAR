@@ -34,7 +34,7 @@ def test_shapes(x_train, y_train, x_val, y_val):
         run_montecarlo(models=models, dataset=dataset, 
                        iterations=10, epochs=300, batch_size=100, display_freq=1,
                        polar='real_imag',    # 'amplitude_phase',
-                       debug=False, do_all=True, shuffle=False, tensorboard=False, plot_data=False,
+                       debug=False, do_all=True, tensorboard=False, plot_data=False,
                        do_conf_mat=True,
                        validation_data=(x_val, y_val),
                        capacity_equivalent=True, equiv_technique='ratio'
