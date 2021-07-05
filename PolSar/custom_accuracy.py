@@ -2,7 +2,7 @@ from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy
 from tensorflow import cast, bool
 from tensorflow.python.ops import math_ops
 from tensorflow.python.keras import backend
-import tensorflow.math as math
+from tensorflow import math
 from pdb import set_trace
 
 

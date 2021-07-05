@@ -9,7 +9,7 @@ from pdb import set_trace
 def test_shapes(x_train, y_train, x_val, y_val):
     dataset = Dataset(x=x_train, y=y_train)
     shapes = [
-        [256, 128],
+        # [256, 128],
         [128, 64],
         [100, 50],
         [64, 32],
@@ -20,9 +20,9 @@ def test_shapes(x_train, y_train, x_val, y_val):
     ]
     input_size = dataset.x.shape[1]  # Size of input
     output_size = dataset.y.shape[1]  # Size of output
-    models = []
     for sh in shapes:
         notify.send(f'Simulating shape {sh}')
+        models = []
         complex_model = get_mlp(input_size=input_size, output_size=output_size, shape_raw=sh)
         models.append(complex_model)
         models.append(get_real_equivalent(complex_model, capacity_equivalent=True,

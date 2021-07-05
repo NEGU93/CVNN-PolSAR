@@ -272,6 +272,9 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
     :param colors: Color palette to be used. Must be at least size of the labels. TODO: Some kind of check for this?
     :return: numpy array of the ground truth RGB image
     """
+    if len(labels.shape) == 3:
+        labels = np.argmax(labels, axis=-1) + 1
+    # import pdb; pdb.set_trace()
     if colors is None:
         if np.max(labels) == 3 or np.max(labels) == 4:
             print("Using Oberpfaffenhofen dataset colors")

@@ -9,6 +9,9 @@ import sys
 if path.exists('/home/barrachina/Documents/onera/PolSar/'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/')
     NOTIFY = False
+elif path.exists('W:\HardDiskDrive\Documentos\GitHub\onera\PolSar'):
+    sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\onera\PolSar')
+    NOTIFY = False
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/')
     NOTIFY = True
@@ -19,11 +22,18 @@ from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_la
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar\Oberpfaffenhofen'):
+    labels_path = 'W:\HardDiskDrive\Documentos\GitHub\/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
+    path = 'W:\HardDiskDrive\Documentos\GitHub\datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
 elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'):
     labels_path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
 else:
     raise FileNotFoundError("No path found for the requested dataset")
+
+
+def get_ober_dataset_with_labels_t6():
+    return get_dataset_with_labels_t6(path, labels_path)
 
 
 def get_ober_dataset_for_segmentation(complex_mode=True):
