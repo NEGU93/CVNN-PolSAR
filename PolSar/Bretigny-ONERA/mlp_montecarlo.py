@@ -9,7 +9,6 @@ from pdb import set_trace
 def test_shapes(x_train, y_train, x_val, y_val):
     dataset = Dataset(x=x_train, y=y_train)
     shapes = [
-        # [256, 128],
         [128, 64],
         [100, 50],
         [64, 32],
