@@ -28,12 +28,20 @@ if __name__ == "__main__":
     size = 128
     T, labels = get_ober_dataset_with_labels_t6()
     predicted = np.zeros(T.shape[:2] + (3,))
+    slices = []
+    slices_labels = []
     
     for i in range(0, int(T.shape[0]/size)):
         for j in range(0, int(T.shape[1]/size)):
             slice_x = slice(i*size, (i+1)*size)
             slice_y = slice(j*size, (j+1)*size)
-            sliced_matrix = T[slice_x, slice_y].astype(np.complex64).reshape(1, size, size, 21)
-            predicted[slice_x, slice_y] = model(sliced_matrix, training=False)[0].numpy()
+            slices.append(T[slice_x, slice_y].astype(np.complex64))
+            slices_labels.append(labels[slice_x, slice_y])
+            sliced_matrix = slices[-1].reshape(1, size, size, 21)
+            predicted_slice = model(sliced_matrix, training=False)[0].numpy()
+            predicted[slice_x, slice_y] = predicted_slice     
+    slices = np.array(slices)
+    slices_labels = np.array(slices_labels)
+    # print(f"Evaluate {model.evaluate(x=slices, y=slices_labels)}")            
     # set_trace()
     labels_to_ground_truth(predicted, showfig=True, savefig="W:\HardDiskDrive\Documentos\GitHub\onera\PolSar\Oberpfaffenhofen\log\\2021\\06June\\18Friday\\run-11h38m05\prediction")
