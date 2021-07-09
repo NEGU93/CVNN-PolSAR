@@ -47,15 +47,15 @@ def run_model(complex_mode=True, tensorflow=False):
     # data, label = next(iter(dataset))
     if not tensorflow:
         if complex_mode:
-            model = get_cao_cvfcn_model(input_shape=(128, 128, 21))
+            model = get_cao_cvfcn_model(input_shape=(None, None, 21))
         else:
-            model = get_cao_cvfcn_model(input_shape=(128, 128, 42),
+            model = get_cao_cvfcn_model(input_shape=(None, None, 42),
                                         dtype=np.float32)
     else:
         if complex_mode:
             raise ValueError("Tensorflow does not support complex model. "
                              "Do not use tensorflow and complex_mode both as True")
-        model = get_tf_real_cao_model(input_shape=(128, 128, 42))
+        model = get_tf_real_cao_model(input_shape=(None, None, 42))
     # Checkpoints
     callbacks = get_checkpoints_list()
 
@@ -67,11 +67,9 @@ def run_model(complex_mode=True, tensorflow=False):
 
 
 def open_saved_models(checkpoint_path):
-    train_dataset, test_dataset = get_ober_dataset_for_segmentation(size=cao_dataset_parameters['sliding_window_size'],
-                                                                    stride=cao_dataset_parameters['sliding_window_stride'])
-    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
-    model = get_cao_cvfcn_model(input_shape=(cao_dataset_parameters['sliding_window_size'],
-                                             cao_dataset_parameters['sliding_window_size'], 21))
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation()
+    test_dataset = test_dataset.batch(100)
+    model = get_cao_cvfcn_model(input_shape=(None, None, 21))
     loss, acc = model.evaluate(test_dataset, verbose=2)
     print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
     model.load_weights(checkpoint_path)
