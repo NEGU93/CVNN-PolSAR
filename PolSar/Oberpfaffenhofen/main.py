@@ -14,6 +14,9 @@ if path.exists('/home/barrachina/Documents/onera/PolSar'):
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
     NOTIFY = True
+elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
+    sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar')
+    NOTIFY = False
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
@@ -21,7 +24,7 @@ from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from cvnn.utils import create_folder
 
 cao_fit_parameters = {
-    'epochs': 200                   # Section 3.3.2
+    'epochs': 2                   # Section 3.3.2
 }
 
 

@@ -8,7 +8,7 @@ from pdb import set_trace
 
 def test_shapes(x_train, y_train, x_val, y_val):
     dataset = Dataset(x=x_train, y=y_train)
-    shapes = [
+    """shapes = [
         [128, 64],
         [100, 50],
         [64, 32],
@@ -16,6 +16,11 @@ def test_shapes(x_train, y_train, x_val, y_val):
         [16, 8],
         [32],
         [64]
+    ]"""
+    shapes = [
+        [90, 40],
+        [80, 30],
+        [70, 20],
     ]
     input_size = dataset.x.shape[1]  # Size of input
     output_size = dataset.y.shape[1]  # Size of output
