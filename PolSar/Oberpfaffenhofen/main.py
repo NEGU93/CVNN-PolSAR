@@ -86,12 +86,12 @@ def train_model():
         notify = Notify()
         notify.send('New simulation started')
     try:
-        time = run_model(complex_mode=True, tensorflow=False)
+        """time = run_model(complex_mode=True, tensorflow=False)
         if NOTIFY:
             notify.send(f"CV-FCNN Simulations done in {time}")
         time = run_model(complex_mode=True, tensorflow=False)
         if NOTIFY:
-            notify.send(f"RV-FCNN Simulations done in {time}")
+            notify.send(f"RV-FCNN Simulations done in {time}")"""
         time = run_model(complex_mode=False, tensorflow=True)
         if NOTIFY:
             notify.send(f"RV-tf-FCNN Simulations done in {time}")

@@ -147,23 +147,19 @@ def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
 
     # Upsampling
     # Block7
-    conv7 = get_upsampling_block(conv6, pool5_argmax, pool4.shape[1:-1] + conv6.shape[-1],
-                                 cao_params_model['kernels'][3])
+    conv7 = get_upsampling_block(conv6, pool5_argmax, cao_params_model['kernels'][3])
     # Block 8
     add8 = Add()([conv7, pool4])
-    conv8 = get_upsampling_block(add8, pool4_argmax, pool3.shape[1:-1] + conv7.shape[-1],
-                                 cao_params_model['kernels'][2])
+    conv8 = get_upsampling_block(add8, pool4_argmax, cao_params_model['kernels'][2])
     # Block 9
     add9 = Add()([conv8, pool3])
-    conv9 = get_upsampling_block(add9, pool3_argmax, pool2.shape[1:-1] + conv8.shape[-1],
-                                 cao_params_model['kernels'][1])
+    conv9 = get_upsampling_block(add9, pool3_argmax, cao_params_model['kernels'][1])
     # Block 10
     add10 = Add()([conv9, pool2])
-    conv10 = get_upsampling_block(add10, pool2_argmax, pool1.shape[1:-1] + conv9.shape[-1],
-                                  cao_params_model['kernels'][0])
+    conv10 = get_upsampling_block(add10, pool2_argmax, cao_params_model['kernels'][0])
     # Block 11
     add11 = Add()([conv10, pool1])
-    out = get_upsampling_block(add11, pool1_argmax, in1.shape[1:-1] + conv10.shape[-1], dropout=False,
+    out = get_upsampling_block(add11, pool1_argmax, dropout=False,
                                kernels=cao_params_model['num_classes'], activation="softmax")
 
     model = Model(inputs=[in1], outputs=[out])
@@ -205,5 +201,5 @@ def get_cao_mlp_models(output_size, input_size=None):
 if __name__ == '__main__':
     model_c = get_tf_real_cao_model()
     plot_model(model_c, to_file="tf_model.png", show_shapes=True)
-    model_c = get_cao_cvfcn_model()
-    plot_model(model_c, to_file="cvnn_model.png", show_shapes=True)
+    # model_c = get_cao_cvfcn_model()
+    # plot_model(model_c, to_file="cvnn_model.png", show_shapes=True)
