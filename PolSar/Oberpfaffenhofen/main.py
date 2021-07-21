@@ -24,7 +24,7 @@ from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from cvnn.utils import create_folder
 
 cao_fit_parameters = {
-    'epochs': 2                   # Section 3.3.2
+    'epochs': 200                   # Section 3.3.2
 }
 
 
@@ -86,12 +86,12 @@ def train_model():
         notify = Notify()
         notify.send('New simulation started')
     try:
-        """time = run_model(complex_mode=True, tensorflow=False)
+        time = run_model(complex_mode=True, tensorflow=False)
         if NOTIFY:
             notify.send(f"CV-FCNN Simulations done in {time}")
         time = run_model(complex_mode=True, tensorflow=False)
         if NOTIFY:
-            notify.send(f"RV-FCNN Simulations done in {time}")"""
+            notify.send(f"RV-FCNN Simulations done in {time}")
         time = run_model(complex_mode=False, tensorflow=True)
         if NOTIFY:
             notify.send(f"RV-tf-FCNN Simulations done in {time}")
