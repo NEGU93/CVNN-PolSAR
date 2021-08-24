@@ -42,7 +42,7 @@ def get_checkpoints_list():
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt',
                                                      save_weights_only=True,
-                                                     verbose=1)
+                                                     verbose=0, save_best_only=True)
     return [tensorboard_callback, cp_callback]
 
 
