@@ -1,5 +1,6 @@
 import sys
 import os
+import pickle
 from time import time, strftime, localtime
 from datetime import timedelta
 import tensorflow as tf
@@ -65,6 +66,8 @@ def run_model(complex_mode=True, tensorflow=False):
     start = time()
     history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
                         validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+    with open(temp_path / 'history_dict', 'wb') as file_pi:
+        pickle.dump(history.history, file_pi)
     stop = time()
     return secondsToStr(stop - start)
 
