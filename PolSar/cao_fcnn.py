@@ -10,6 +10,8 @@ from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
 from cvnn.activations import softmax_real_with_avg, cart_relu
 from cvnn.initializers import ComplexHeNormal
 from custom_accuracy import CustomCategoricalAccuracy
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, Input
+import tensorflow as tf
 
 IMG_HEIGHT = None   # 128
 IMG_WIDTH = None    # 128
@@ -36,13 +38,90 @@ cao_mlp_params = {
 }
 
 
-def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.complex64):
+def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
+    models_list = []
+    in1 = Input(shape=input_shape)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
+                                      dtype=tf.float32, name="tf_model"))
+    in1 = Input(shape=input_shape)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
+                                      dtype=tf.float32, name="cvnn_down_tf_up"))
+    in1 = Input(shape=input_shape)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
+                                      dtype=tf.float32, name="tf_down_cvnn_up"))
+    in1 = complex_input(shape=input_shape, dtype=tf.float32)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
+                                      dtype=tf.float32, name="cvnn_input"))
+    in1 = complex_input(shape=input_shape, dtype=tf.float32)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
+                                      dtype=tf.float32, name="cvnn_in_cvnn_down_tf_up"))
+    in1 = complex_input(shape=input_shape, dtype=tf.float32)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
+                                      dtype=tf.float32, name="tf_in_tf_down_cvnn_up"))
+    in1 = complex_input(shape=input_shape, dtype=tf.float32)
+    models_list.append(_get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
+                                      dtype=tf.float32, name="cvnn_model"))
+    return models_list
+
+
+def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64):
+    conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
+                         activation='linear', padding=cao_params_model['padding'],
+                         kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
+    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = Activation(cao_params_model['activation'])(conv)
+    conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
+                                                      strides=cao_params_model['stride'])(conv)
+    return pool, pool_argmax
+
+
+def _get_upsampling_block(input_to_block, pool_argmax, kernels,
+                         activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
+    # TODO: Shall I use dropout here too?
+    unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
+    conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
+                         activation='linear', padding=cao_params_model['padding'],
+                         kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
+    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = Activation(activation)(conv)
+    if dropout:
+        conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    return conv
+
+
+def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
+    conv = Conv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
+                  activation='linear', padding=cao_params_model['padding'],
+                  kernel_initializer="he_normal")(input_to_block)
+    conv = BatchNormalization()(conv)
+    conv = Activation('relu')(conv)
+    conv = Dropout(cao_params_model['dropout'])(conv)
+    pool, pool_argmax = tf.nn.max_pool_with_argmax(conv, cao_params_model['max_pool_kernel'],
+                                                   strides=cao_params_model['stride'], padding='VALID')
+    return pool, pool_argmax
+
+
+def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
+                            activation="relu", dropout=True, **kwargs):
+    # TODO: Shall I use dropout here too?
+    unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
+    conv = Conv2D(kernels, cao_params_model['kernel_shape'],
+                  activation='linear', padding=cao_params_model['padding'], kernel_initializer="he_normal")(unpool)
+    conv = BatchNormalization()(conv)
+    conv = Activation(activation)(conv)
+    if dropout:
+        conv = Dropout(cao_params_model['dropout'])(conv)
+    return conv
+
+
+def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.complex64, name="cao_model"):
     # Downsampling
-    pool1, pool1_argmax = get_downsampling_block(in1, 0)  # Block 1
-    pool2, pool2_argmax = get_downsampling_block(pool1, 1)  # Block 2
-    pool3, pool3_argmax = get_downsampling_block(pool2, 2)  # Block 3
-    pool4, pool4_argmax = get_downsampling_block(pool3, 3)  # Block 4
-    pool5, pool5_argmax = get_downsampling_block(pool4, 4)  # Block 5
+    pool1, pool1_argmax = get_downsampling_block(in1, 0, dtype=dtype)  # Block 1
+    pool2, pool2_argmax = get_downsampling_block(pool1, 1, dtype=dtype)  # Block 2
+    pool3, pool3_argmax = get_downsampling_block(pool2, 2, dtype=dtype)  # Block 3
+    pool4, pool4_argmax = get_downsampling_block(pool3, 3, dtype=dtype)  # Block 4
+    pool5, pool5_argmax = get_downsampling_block(pool4, 4, dtype=dtype)  # Block 5
 
     # Bottleneck
     # Block 6
@@ -52,22 +131,23 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
 
     # Upsampling
     # Block7
-    conv7 = get_upsampling_block(conv6, pool5_argmax, cao_params_model['kernels'][3])
+    conv7 = get_upsampling_block(conv6, pool5_argmax, cao_params_model['kernels'][3], dtype=dtype)
     # Block 8
     add8 = Add()([conv7, pool4])
-    conv8 = get_upsampling_block(add8, pool4_argmax, cao_params_model['kernels'][2])
+    conv8 = get_upsampling_block(add8, pool4_argmax, cao_params_model['kernels'][2], dtype=dtype)
     # Block 9
     add9 = Add()([conv8, pool3])
-    conv9 = get_upsampling_block(add9, pool3_argmax, cao_params_model['kernels'][1])
+    conv9 = get_upsampling_block(add9, pool3_argmax, cao_params_model['kernels'][1], dtype=dtype)
     # Block 10
     add10 = Add()([conv9, pool2])
-    conv10 = get_upsampling_block(add10, pool2_argmax, cao_params_model['kernels'][0])
+    conv10 = get_upsampling_block(add10, pool2_argmax, cao_params_model['kernels'][0], dtype=dtype)
     # Block 11
     add11 = Add()([conv10, pool1])
     out = get_upsampling_block(add11, pool1_argmax, dropout=False,
-                               kernels=cao_params_model['num_classes'], activation=cao_params_model['output_function'])
+                               kernels=cao_params_model['num_classes'], activation=cao_params_model['output_function'],
+                               dtype=dtype)
 
-    model = Model(inputs=[in1], outputs=[out])
+    model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
                   metrics=[CustomCategoricalAccuracy(name='accuracy')])
 
@@ -78,65 +158,13 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
 
 
 def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex64):
-
-    def get_downsampling_block(input_to_block, num: int):
-        conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
-                             activation='linear', padding=cao_params_model['padding'],
-                             kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
-        conv = ComplexBatchNormalization(dtype=dtype)(conv)
-        conv = Activation(cao_params_model['activation'])(conv)
-        conv = ComplexDropout(cao_params_model['dropout'])(conv)
-        pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
-                                                          strides=cao_params_model['stride'])(conv)
-        return pool, pool_argmax
-
-    def get_upsampling_block(input_to_block, pool_argmax, kernels,
-                             activation=cao_params_model['activation'], dropout=True):
-        # TODO: Shall I use dropout here too?
-        unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
-        conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
-                             activation='linear', padding=cao_params_model['padding'],
-                             kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
-        conv = ComplexBatchNormalization(dtype=dtype)(conv)
-        conv = Activation(activation)(conv)
-        if dropout:
-            conv = ComplexDropout(cao_params_model['dropout'])(conv)
-        return conv
-
     in1 = complex_input(shape=input_shape, dtype=dtype)
-
-    return _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=dtype)
+    return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype)
 
 
 def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
-    from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, Input
-    import tensorflow as tf
-
-    def get_downsampling_block(input_to_block, num: int):
-        conv = Conv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
-                      activation='linear', padding=cao_params_model['padding'],
-                      kernel_initializer="he_normal")(input_to_block)
-        conv = BatchNormalization()(conv)
-        conv = Activation('relu')(conv)
-        conv = Dropout(cao_params_model['dropout'])(conv)
-        pool, pool_argmax = tf.nn.max_pool_with_argmax(conv, cao_params_model['max_pool_kernel'],
-                                                       strides=cao_params_model['stride'], padding='VALID')
-        return pool, pool_argmax
-
-    def get_upsampling_block(input_to_block, pool_argmax, kernels,
-                             activation="relu", dropout=True):
-        # TODO: Shall I use dropout here too?
-        unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
-        conv = Conv2D(kernels, cao_params_model['kernel_shape'],
-                      activation='linear', padding=cao_params_model['padding'], kernel_initializer="he_normal")(unpool)
-        conv = BatchNormalization()(conv)
-        conv = Activation(activation)(conv)
-        if dropout:
-            conv = Dropout(cao_params_model['dropout'])(conv)
-        return conv
-
     in1 = Input(shape=input_shape)
-    return _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=tf.float32)
+    return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32)
 
 
 def get_cao_mlp_models(output_size, input_size=None):

@@ -21,12 +21,19 @@ elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
-from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
+from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
 from cvnn.utils import create_folder
+from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 200                   # Section 3.3.2
+    'epochs': 20              # Section 3.3.2
 }
+
+
+class TensorboardGradientsCallback(tf.keras.callbacks.Callback):
+    def on_batch_begin(self, batch, logs=None):
+        grads = self.model.optimizer.get_gradients(self.model.loss, self.model.get_weights())
+        tf.summary.histogram("gradients", grads)
 
 
 def secondsToStr(elapsed=None):
@@ -43,7 +50,7 @@ def get_checkpoints_list():
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt',
                                                      save_weights_only=True,
                                                      verbose=0, save_best_only=True)
-    return [tensorboard_callback, cp_callback]
+    return [tensorboard_callback, cp_callback], temp_path
 
 
 def run_model(complex_mode=True, tensorflow=False):
@@ -53,16 +60,16 @@ def run_model(complex_mode=True, tensorflow=False):
         if complex_mode:
             model = get_cao_cvfcn_model(input_shape=(None, None, 21))
         else:
-            model = get_cao_cvfcn_model(input_shape=(None, None, 42),
-                                        dtype=np.float32)
+            model = get_cao_cvfcn_model(input_shape=(None, None, 42), dtype=np.float32)
     else:
         if complex_mode:
             raise ValueError("Tensorflow does not support complex model. "
                              "Do not use tensorflow and complex_mode both as True")
         model = get_tf_real_cao_model(input_shape=(None, None, 42))
     # Checkpoints
-    callbacks = get_checkpoints_list()
-
+    callbacks, temp_path = get_checkpoints_list()
+    # elem, label = next(iter(test_dataset))
+    # input_out = model.layers[0](elem)
     start = time()
     history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
                         validation_data=test_dataset, shuffle=True, callbacks=callbacks)
@@ -105,7 +112,21 @@ def train_model():
         traceback.print_exc()
 
 
+def debug_models():
+    notify = Notify()
+    models_list = get_debug_tf_models(input_shape=(None, None, 42))
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
+    for model in models_list:
+        notify.send(f"Testing model")
+        callbacks, temp_path = get_checkpoints_list()
+        plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
+        history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        with open(temp_path / 'history_dict', 'wb') as file_pi:
+            pickle.dump(history.history, file_pi)
+
+
 if __name__ == "__main__":
-    # run_model()
-    train_model()
+    # run_model(complex_mode=False, tensorflow=True, )
+    debug_models()
+    # train_model()
     # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")
