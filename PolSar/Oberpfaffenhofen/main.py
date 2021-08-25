@@ -118,11 +118,16 @@ def debug_models():
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
     for model in models_list:
         notify.send(f"Testing model {model.name}")
-        callbacks, temp_path = get_checkpoints_list()
-        plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
-        history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
-        with open(temp_path / 'history_dict', 'wb') as file_pi:
-            pickle.dump(history.history, file_pi)
+        try:
+            callbacks, temp_path = get_checkpoints_list()
+            # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
+            history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+            with open(temp_path / 'history_dict', 'wb') as file_pi:
+                pickle.dump(history.history, file_pi)
+        except Exception as e:
+            notify.send("Error occurred")
+            print(e)
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
