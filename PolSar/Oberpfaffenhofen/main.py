@@ -114,25 +114,26 @@ def train_model():
 
 def debug_models(indx):
     notify = Notify()
-    models_list = get_debug_tf_models(input_shape=(None, None, 42), indx=indx)
+    model = get_debug_tf_models(input_shape=(None, None, 42), indx=indx)
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
-    for model in models_list:
-        notify.send(f"Testing model {indx}: {model.name}")
-        try:
-            callbacks, temp_path = get_checkpoints_list()
-            # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
-            history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
-            with open(temp_path / 'history_dict', 'wb') as file_pi:
-                pickle.dump(history.history, file_pi)
-        except Exception as e:
-            notify.send("Error occurred")
-            print(e)
-            traceback.print_exc()
+    # for model in models_list:
+    notify.send(f"Testing model {indx}: {model.name}")
+    try:
+        callbacks, temp_path = get_checkpoints_list()
+        # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
+        history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        with open(temp_path / 'history_dict', 'wb') as file_pi:
+            pickle.dump(history.history, file_pi)
+    except Exception as e:
+        notify.send("Error occurred")
+        print(e)
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
     # run_model(complex_mode=False, tensorflow=True, )
     args = sys.argv
-    debug_models(int(args[1]))
+    indx = int(args[1])
+    debug_models(indx)
     # train_model()
     # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")
