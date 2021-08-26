@@ -26,7 +26,7 @@ from cvnn.utils import create_folder
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 20              # Section 3.3.2
+    'epochs': 200              # Section 3.3.2
 }
 
 
