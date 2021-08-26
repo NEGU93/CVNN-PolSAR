@@ -40,35 +40,41 @@ cao_mlp_params = {
 
 def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
     indx = int(indx)
-    assert 0 <= indx <= 6
-    if indx == 0:
+    assert 0 <= indx <= 7
+    if indx == 0:   # Full tf
         in1 = Input(shape=input_shape)
         model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="tf_model")
-    if indx == 1:
+    elif indx == 1:
         in1 = Input(shape=input_shape)
         model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
                                dtype=tf.float32, name="cvnn_down_tf_up")
-    if indx == 2:
+    elif indx == 2:
         in1 = Input(shape=input_shape)
         model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
                                dtype=tf.float32, name="tf_down_cvnn_up")
-    if indx == 3:
+    elif indx == 3:
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
         model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="cvnn_input")
-    if indx == 4:
+    elif indx == 4:
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
         model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
                                dtype=tf.float32, name="cvnn_in_cvnn_down_tf_up")
-    if indx == 5:
+    elif indx == 5:
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
         model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
-                               dtype=tf.float32, name="tf_in_tf_down_cvnn_up")
-    if indx == 6:
+                               dtype=tf.float32, name="cvnn_in_tf_down_cvnn_up")
+    elif indx == 6:
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
         model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
                                dtype=tf.float32, name="cvnn_model")
+    elif indx == 7:
+        in1 = Input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
+                               dtype=tf.float32, name="tf_in_cvnn_model")
+    else:
+        raise ValueError(f"indx {indx} out of range")
     return model
 
 
