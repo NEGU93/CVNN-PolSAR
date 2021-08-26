@@ -114,8 +114,8 @@ def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
     conv = BatchNormalization()(conv)
     conv = Activation(cao_params_model['activation'])(conv)
     conv = Dropout(cao_params_model['dropout'])(conv)
-    pool, pool_argmax = tf.nn.max_pool_with_argmax(conv, cao_params_model['max_pool_kernel'],
-                                                   strides=cao_params_model['stride'], padding='VALID')
+    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
+                                                      strides=cao_params_model['stride'])(conv)
     return pool, pool_argmax
 
 
