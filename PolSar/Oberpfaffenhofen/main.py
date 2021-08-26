@@ -131,6 +131,6 @@ def debug_models(indx):
 
 
 if __name__ == "__main__":
-    run_model(complex_mode=False, tensorflow=True)
-    # train_model()
+    # run_model(complex_mode=False, tensorflow=True)
+    train_model()
     # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")
