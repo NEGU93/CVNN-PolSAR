@@ -40,7 +40,6 @@ cao_mlp_params = {
 
 def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
     indx = int(indx)
-    assert 0 <= indx <= 7
     if indx == 0:   # Full tf
         in1 = Input(shape=input_shape)
         model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
