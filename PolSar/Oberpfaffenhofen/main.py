@@ -112,12 +112,12 @@ def train_model():
         traceback.print_exc()
 
 
-def debug_models():
+def debug_models(indx):
     notify = Notify()
-    models_list = get_debug_tf_models(input_shape=(None, None, 42))
+    models_list = get_debug_tf_models(input_shape=(None, None, 42), indx=indx)
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
     for model in models_list:
-        notify.send(f"Testing model {model.name}")
+        notify.send(f"Testing model {indx}: {model.name}")
         try:
             callbacks, temp_path = get_checkpoints_list()
             # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
@@ -132,6 +132,7 @@ def debug_models():
 
 if __name__ == "__main__":
     # run_model(complex_mode=False, tensorflow=True, )
-    debug_models()
+    args = sys.argv
+    debug_models(int(args[1]))
     # train_model()
     # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")

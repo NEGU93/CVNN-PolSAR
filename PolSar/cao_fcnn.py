@@ -13,22 +13,22 @@ from custom_accuracy import CustomCategoricalAccuracy
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, Input
 import tensorflow as tf
 
-IMG_HEIGHT = None   # 128
-IMG_WIDTH = None    # 128
+IMG_HEIGHT = None  # 128
+IMG_WIDTH = None  # 128
 
 cao_params_model = {
     'padding': 'same',
-    'kernel_shape': (3, 3),                     # Table 1
-    'block6_kernel_shape': (1, 1),              # Table 1 and paragraph after equation 12.
-    'max_pool_kernel': (2, 2),                  # Table 1 and section 2.3.2 at 2nd paragraph
-    'stride': 2,                                # Section 2.3.2 at 2nd paragraph
-    'activation': cart_relu,                    # Equation 11 & 12
-    'kernels': [12, 24, 48, 96, 192],           # Table 1
+    'kernel_shape': (3, 3),  # Table 1
+    'block6_kernel_shape': (1, 1),  # Table 1 and paragraph after equation 12.
+    'max_pool_kernel': (2, 2),  # Table 1 and section 2.3.2 at 2nd paragraph
+    'stride': 2,  # Section 2.3.2 at 2nd paragraph
+    'activation': cart_relu,  # Equation 11 & 12
+    'kernels': [12, 24, 48, 96, 192],  # Table 1
     'num_classes': 3,
-    'dropout': 0.5,                             # TODO: Not found yet where
-    'output_function': softmax_real_with_avg,   # Section 2.3.2 at the end and section 2.4
-    'init': ComplexHeNormal(),                  # Section 2.2
-    'loss': categorical_crossentropy,           # Section 2.4
+    'dropout': 0.5,  # TODO: Not found yet where
+    'output_function': softmax_real_with_avg,  # Section 2.3.2 at the end and section 2.4
+    'init': ComplexHeNormal(),  # Section 2.2
+    'loss': categorical_crossentropy,  # Section 2.4
     'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
 }
 cao_mlp_params = {
@@ -38,30 +38,38 @@ cao_mlp_params = {
 }
 
 
-def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
-    models_list = []
-    in1 = Input(shape=input_shape)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
-                                      dtype=tf.float32, name="tf_model"))
-    in1 = Input(shape=input_shape)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
-                                      dtype=tf.float32, name="cvnn_down_tf_up"))
-    in1 = Input(shape=input_shape)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
-                                      dtype=tf.float32, name="tf_down_cvnn_up"))
-    in1 = complex_input(shape=input_shape, dtype=tf.float32)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
-                                      dtype=tf.float32, name="cvnn_input"))
-    in1 = complex_input(shape=input_shape, dtype=tf.float32)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
-                                      dtype=tf.float32, name="cvnn_in_cvnn_down_tf_up"))
-    in1 = complex_input(shape=input_shape, dtype=tf.float32)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
-                                      dtype=tf.float32, name="tf_in_tf_down_cvnn_up"))
-    in1 = complex_input(shape=input_shape, dtype=tf.float32)
-    models_list.append(_get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
-                                      dtype=tf.float32, name="cvnn_model"))
-    return models_list
+def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
+    indx = int(indx)
+    assert 0 <= indx <= 6
+    if indx == 0:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="tf_model")
+    if indx == 1:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="cvnn_down_tf_up")
+    if indx == 2:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
+                               dtype=tf.float32, name="tf_down_cvnn_up")
+    if indx == 3:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="cvnn_input")
+    if indx == 4:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="cvnn_in_cvnn_down_tf_up")
+    if indx == 5:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
+                               dtype=tf.float32, name="tf_in_tf_down_cvnn_up")
+    if indx == 6:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
+                               dtype=tf.float32, name="cvnn_model")
+    return model
 
 
 def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64):
@@ -77,7 +85,7 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64):
 
 
 def _get_upsampling_block(input_to_block, pool_argmax, kernels,
-                         activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
+                          activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
     # TODO: Shall I use dropout here too?
     unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
@@ -103,7 +111,7 @@ def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
 
 
 def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
-                            activation="relu", dropout=True, **kwargs):
+                             activation="relu", dropout=True, **kwargs):
     # TODO: Shall I use dropout here too?
     unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     conv = Conv2D(kernels, cao_params_model['kernel_shape'],
@@ -169,7 +177,7 @@ def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
 
 def get_cao_mlp_models(output_size, input_size=None):
     if input_size is None:
-        input_size = cao_mlp_params['input_window']*cao_mlp_params['input_window']*6
+        input_size = cao_mlp_params['input_window'] * cao_mlp_params['input_window'] * 6
     # Complex model
     shape = [ComplexInput(input_shape=input_size, dtype=np.complex64)]
     for i in range(0, len(cao_mlp_params['complex_shape'])):
@@ -180,7 +188,7 @@ def get_cao_mlp_models(output_size, input_size=None):
     complex_network.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
                             metrics=['accuracy'])
     # Real model
-    shape = [ComplexInput(input_shape=input_size*2, dtype=np.float32)]
+    shape = [ComplexInput(input_shape=input_size * 2, dtype=np.float32)]
     for i in range(0, len(cao_mlp_params['real_shape'])):
         shape.append(ComplexDense(units=cao_mlp_params['real_shape'][i], activation=cao_params_model['activation'],
                                   dtype=np.float32))
