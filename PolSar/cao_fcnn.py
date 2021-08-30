@@ -38,57 +38,6 @@ cao_mlp_params = {
 }
 
 
-def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
-    indx = int(indx)
-    if indx == 0:   # Full tf
-        in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
-                               dtype=tf.float32, name="tf_model")
-    elif indx == 1:
-        in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
-                               dtype=tf.float32, name="cvnn_down_tf_up")
-    elif indx == 2:
-        in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
-                               dtype=tf.float32, name="tf_down_cvnn_up")
-    elif indx == 3:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
-                               dtype=tf.float32, name="cvnn_input")
-    elif indx == 4:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
-                               dtype=tf.float32, name="cvnn_in_cvnn_down_tf_up")
-    elif indx == 5:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
-                               dtype=tf.float32, name="cvnn_in_tf_down_cvnn_up")
-    elif indx == 6:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
-                               dtype=tf.float32, name="cvnn_model")
-    elif indx == 7:
-        in1 = Input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
-                               dtype=tf.float32, name="tf_in_cvnn_model")
-    elif indx == 8:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_mixed_down, _get_upsampling_block,
-                               dtype=tf.float32, name="mixed_downsampling")
-    elif indx == 9:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
-                               dtype=tf.float32, name="mixed_ipsampling")
-    elif indx == 10:
-        in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
-                               dtype=tf.float32, name="mixed_full")
-    else:
-        raise ValueError(f"indx {indx} out of range")
-    return model
-
-
 def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64):
     conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
@@ -122,31 +71,6 @@ def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
     conv = BatchNormalization()(conv)
     conv = Activation(cao_params_model['activation'])(conv)
     conv = Dropout(cao_params_model['dropout'])(conv)
-    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
-                                                      strides=cao_params_model['stride'])(conv)
-    return pool, pool_argmax
-
-
-def _get_mixed_up(input_to_block, pool_argmax, kernels,
-                  activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
-    unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
-    conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
-                         activation='linear', padding=cao_params_model['padding'],
-                         kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
-    conv = BatchNormalization()(conv)
-    conv = Activation(activation)(conv)
-    if dropout:
-        conv = ComplexDropout(cao_params_model['dropout'])(conv)
-    return conv
-
-
-def _get_mixed_down(input_to_block, num: int, dtype=np.complex64):
-    conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
-                         activation='linear', padding=cao_params_model['padding'],
-                         kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
-    conv = BatchNormalization()(conv)
-    conv = Activation(cao_params_model['activation'])(conv)
-    conv = ComplexDropout(cao_params_model['dropout'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
     return pool, pool_argmax
@@ -240,6 +164,119 @@ def get_cao_mlp_models(output_size, input_size=None):
     real_network.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'], metrics=['accuracy'])
 
     return [complex_network, real_network]
+
+
+"""
+    DEBUG MODE
+"""
+
+
+def _get_mixed_up(input_to_block, pool_argmax, kernels,
+                  activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
+    unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
+    conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
+                         activation='linear', padding=cao_params_model['padding'],
+                         kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
+    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = Activation(activation)(conv)
+    if dropout:
+        conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    return conv
+
+
+def _get_mixed_down(input_to_block, num: int, dtype=np.complex64):
+    conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
+                         activation='linear', padding=cao_params_model['padding'],
+                         kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
+    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = Activation(cao_params_model['activation'])(conv)
+    conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
+                                                      strides=cao_params_model['stride'])(conv)
+    return pool, pool_argmax
+
+
+def _get_mixed_down_conv(input_to_block, num: int, dtype=np.complex64):
+    conv = Conv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
+                  activation='linear', padding=cao_params_model['padding'],
+                  kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
+    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = Activation(cao_params_model['activation'])(conv)
+    conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
+                                                      strides=cao_params_model['stride'])(conv)
+    return pool, pool_argmax
+
+
+def _get_mixed_down_dropout(input_to_block, num: int, dtype=np.complex64):
+    conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
+                         activation='linear', padding=cao_params_model['padding'],
+                         kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
+    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = Activation(cao_params_model['activation'])(conv)
+    conv = Dropout(cao_params_model['dropout'])(conv)
+    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
+                                                      strides=cao_params_model['stride'])(conv)
+    return pool, pool_argmax
+
+
+def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
+    indx = int(indx)
+    if indx == 0:   # Full tf
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="tf_model")
+    elif indx == 1:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="cvnn_down_tf_up")
+    elif indx == 2:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
+                               dtype=tf.float32, name="tf_down_cvnn_up")
+    elif indx == 3:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="cvnn_input")
+    elif indx == 4:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="cvnn_in_cvnn_down_tf_up")
+    elif indx == 5:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block,
+                               dtype=tf.float32, name="cvnn_in_tf_down_cvnn_up")
+    elif indx == 6:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
+                               dtype=tf.float32, name="cvnn_model")
+    elif indx == 7:
+        in1 = Input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block,
+                               dtype=tf.float32, name="tf_in_cvnn_model")
+    elif indx == 8:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down, _get_upsampling_block,
+                               dtype=tf.float32, name="mixed_downsampling")
+    elif indx == 9:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
+                               dtype=tf.float32, name="mixed_ipsampling")
+    elif indx == 10:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
+                               dtype=tf.float32, name="mixed_full")
+    elif indx == 11:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down_conv, _get_upsampling_block,
+                               dtype=tf.float32, name="mixed_down_conv")
+    elif indx == 12:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down_dropout, _get_upsampling_block,
+                               dtype=tf.float32, name="mixed_down_dropout")
+    else:
+        raise ValueError(f"indx {indx} out of range")
+    return model
 
 
 if __name__ == '__main__':
