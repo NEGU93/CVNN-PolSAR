@@ -1,6 +1,5 @@
-python3 main.py 1
-python3 main.py 2
-python3 main.py 3
-python3 main.py 4
-python3 main.py 5
-python3 main.py 6
+python3 main.py 8
+python3 main.py 9
+python3 main.py 10
+
+

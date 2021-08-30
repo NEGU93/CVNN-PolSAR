@@ -76,6 +76,14 @@ def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
         model = _get_cao_model(in1, _get_mixed_down, _get_upsampling_block,
                                dtype=tf.float32, name="mixed_downsampling")
+    elif indx == 9:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
+                               dtype=tf.float32, name="mixed_ipsampling")
+    elif indx == 10:
+        in1 = complex_input(shape=input_shape, dtype=tf.float32)
+        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
+                               dtype=tf.float32, name="mixed_full")
     else:
         raise ValueError(f"indx {indx} out of range")
     return model
@@ -119,15 +127,28 @@ def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
     return pool, pool_argmax
 
 
+def _get_mixed_up(input_to_block, pool_argmax, kernels,
+                  activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
+    unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
+    conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
+                         activation='linear', padding=cao_params_model['padding'],
+                         kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
+    conv = BatchNormalization()(conv)
+    conv = Activation(activation)(conv)
+    if dropout:
+        conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    return conv
+
+
 def _get_mixed_down(input_to_block, num: int, dtype=np.complex64):
     conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
-    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = BatchNormalization()(conv)
     conv = Activation(cao_params_model['activation'])(conv)
     conv = ComplexDropout(cao_params_model['dropout'])(conv)
-    pool, pool_argmax = tf.nn.max_pool_with_argmax(conv, cao_params_model['max_pool_kernel'],
-                                                   strides=cao_params_model['stride'], padding='VALID')
+    pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
+                                                      strides=cao_params_model['stride'])(conv)
     return pool, pool_argmax
 
 
