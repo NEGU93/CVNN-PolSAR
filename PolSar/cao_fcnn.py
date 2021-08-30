@@ -44,7 +44,7 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64):
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(cao_params_model['activation'])(conv)
-    conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    # conv = ComplexDropout(cao_params_model['dropout'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
     return pool, pool_argmax
@@ -59,8 +59,8 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels,
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(activation)(conv)
-    if dropout:
-        conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    # if dropout:
+    #     conv = ComplexDropout(cao_params_model['dropout'])(conv)
     return conv
 
 
@@ -70,7 +70,7 @@ def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
                   kernel_initializer="he_normal")(input_to_block)
     conv = BatchNormalization()(conv)
     conv = Activation(cao_params_model['activation'])(conv)
-    conv = Dropout(cao_params_model['dropout'])(conv)
+    # conv = Dropout(cao_params_model['dropout'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
     return pool, pool_argmax
@@ -84,8 +84,8 @@ def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
                   activation='linear', padding=cao_params_model['padding'], kernel_initializer="he_normal")(unpool)
     conv = BatchNormalization()(conv)
     conv = Activation(activation)(conv)
-    if dropout:
-        conv = Dropout(cao_params_model['dropout'])(conv)
+    # if dropout:
+    #     conv = Dropout(cao_params_model['dropout'])(conv)
     return conv
 
 
