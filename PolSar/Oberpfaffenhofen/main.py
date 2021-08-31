@@ -73,9 +73,9 @@ def run_model(complex_mode=True, tensorflow=False):
     start = time()
     history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
                         validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+    stop = time()
     with open(temp_path / 'history_dict', 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
-    stop = time()
     return secondsToStr(stop - start)
 
 
@@ -121,7 +121,7 @@ def debug_models(indx):
     try:
         callbacks, temp_path = get_checkpoints_list()
         # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
-        history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        history = model.fit(x=train_dataset, epochs=200, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
     except Exception as e:
@@ -132,7 +132,7 @@ def debug_models(indx):
 
 if __name__ == "__main__":
     # run_model(complex_mode=False, tensorflow=True)
-    train_model()
-    # args = sys.argv
-    # debug_models(int(args[1]))
+    # train_model()
+    args = sys.argv
+    debug_models(int(args[1]))
     # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")

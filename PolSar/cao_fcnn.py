@@ -177,10 +177,8 @@ def _get_mixed_up(input_to_block, pool_argmax, kernels,
     conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
-    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = BatchNormalization()(conv)
     conv = Activation(activation)(conv)
-    if dropout:
-        conv = ComplexDropout(cao_params_model['dropout'])(conv)
     return conv
 
 
@@ -188,9 +186,8 @@ def _get_mixed_down(input_to_block, num: int, dtype=np.complex64):
     conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
-    conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    conv = BatchNormalization()(conv)
     conv = Activation(cao_params_model['activation'])(conv)
-    conv = ComplexDropout(cao_params_model['dropout'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
     return pool, pool_argmax
@@ -260,8 +257,8 @@ def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
                                dtype=tf.float32, name="mixed_downsampling")
     elif indx == 9:
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
-        model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
-                               dtype=tf.float32, name="mixed_ipsampling")
+        model = _get_cao_model(in1, _get_downsampling_block, _get_mixed_up,
+                               dtype=tf.float32, name="mixed_upsampling")
     elif indx == 10:
         in1 = complex_input(shape=input_shape, dtype=tf.float32)
         model = _get_cao_model(in1, _get_mixed_down, _get_mixed_up,
