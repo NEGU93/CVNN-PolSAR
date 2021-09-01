@@ -23,17 +23,12 @@ else:
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
 from cvnn.utils import create_folder
+from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
     'epochs': 200              # Section 3.3.2
 }
-
-
-class TensorboardGradientsCallback(tf.keras.callbacks.Callback):
-    def on_batch_begin(self, batch, logs=None):
-        grads = self.model.optimizer.get_gradients(self.model.loss, self.model.get_weights())
-        tf.summary.histogram("gradients", grads)
 
 
 def secondsToStr(elapsed=None):
@@ -43,7 +38,7 @@ def secondsToStr(elapsed=None):
         return str(timedelta(seconds=elapsed))
 
 
-def get_checkpoints_list():
+def get_callbacks_list():
     temp_path = create_folder("./log/")
     os.makedirs(temp_path, exist_ok=True)
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
@@ -67,7 +62,7 @@ def run_model(complex_mode=True, tensorflow=False):
                              "Do not use tensorflow and complex_mode both as True")
         model = get_tf_real_cao_model(input_shape=(None, None, 42))
     # Checkpoints
-    callbacks, temp_path = get_checkpoints_list()
+    callbacks, temp_path = get_callbacks_list()
     # elem, label = next(iter(test_dataset))
     # input_out = model.layers[0](elem)
     start = time()
@@ -119,7 +114,7 @@ def debug_models(indx):
     # for model in models_list:
     notify.send(f"Testing model {indx}: {model.name}")
     try:
-        callbacks, temp_path = get_checkpoints_list()
+        callbacks, temp_path = get_callbacks_list()
         # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
         history = model.fit(x=train_dataset, epochs=200, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         with open(temp_path / 'history_dict', 'wb') as file_pi:
@@ -130,9 +125,20 @@ def debug_models(indx):
         traceback.print_exc()
 
 
+def run_montecarlo():
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
+    montecarlo = MonteCarlo()
+    montecarlo.add_model(get_cao_cvfcn_model(input_shape=(None, None, 42), dtype=np.float32))
+    montecarlo.add_model(get_tf_real_cao_model(input_shape=(None, None, 42)))
+    montecarlo.run(x=train_dataset, y=None, data_summary="Oberpfaffenhofen_PolInSAR",
+                   validation_data=test_dataset, validation_split=0.0,
+                   iterations=5, epochs=200, shuffle=True)
+
+
 if __name__ == "__main__":
     # run_model(complex_mode=False, tensorflow=True)
     # train_model()
-    args = sys.argv
-    debug_models(int(args[1]))
+    # args = sys.argv
+    # debug_models(int(args[1]))
+    run_montecarlo()
     # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")
