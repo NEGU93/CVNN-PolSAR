@@ -58,6 +58,8 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels,
                          activation='linear', padding=cao_params_model['padding'],
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
+    if dropout:
+        conv = ComplexDropout(rate=cao_params_model["dropout"], dtype=dtype)(conv)
     conv = Activation(activation)(conv)
     # if dropout:
     #     conv = ComplexDropout(cao_params_model['dropout'])(conv)
@@ -83,6 +85,8 @@ def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
     conv = Conv2D(kernels, cao_params_model['kernel_shape'],
                   activation='linear', padding=cao_params_model['padding'], kernel_initializer="he_normal")(unpool)
     conv = BatchNormalization()(conv)
+    if dropout:
+        conv = Dropout(rate=cao_params_model["dropout"])(conv)
     conv = Activation(activation)(conv)
     # if dropout:
     #     conv = Dropout(cao_params_model['dropout'])(conv)
@@ -136,9 +140,9 @@ def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex
     return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name)
 
 
-def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
+def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), name="tf_cao_model"):
     in1 = Input(shape=input_shape)
-    return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32)
+    return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32, name=name)
 
 
 def get_cao_mlp_models(output_size, input_size=None):

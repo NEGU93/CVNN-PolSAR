@@ -151,12 +151,12 @@ def run_montecarlo():
 
 
 if __name__ == "__main__":
-    # tf.random.set_seed(116)
-    # run_model(complex_mode=False, tensorflow=True)
-    # tf.random.set_seed(116)
-    # run_model(complex_mode=False, tensorflow=True)
+    tf.random.set_seed(116)
+    run_model(complex_mode=False, tensorflow=True)
+    tf.random.set_seed(116)
+    run_model(complex_mode=False, tensorflow=True)
     # train_model()
     # args = sys.argv
     # debug_models(int(args[1]))
-    run_montecarlo()
+    # run_montecarlo()
     # open_saved_models("/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen/first_results/no_dropout/cvnn")
