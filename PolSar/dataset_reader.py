@@ -11,10 +11,10 @@ from sklearn.model_selection import train_test_split
 
 cao_dataset_parameters = {
     'validation_split': 0.1,  # Section 3.3.2
-    'batch_size': 30,               # Section 3.3.2
-    'sliding_window_size': 128,     # Section 3.3.2
-    'sliding_window_stride': 25,    # Section 3.3.2
-    'window_for_mlp': 32            # Section 3.4
+    'batch_size': 30,  # Section 3.3.2
+    'sliding_window_size': 128,  # Section 3.3.2
+    'sliding_window_stride': 25,  # Section 3.3.2
+    'window_for_mlp': 32  # Section 3.4
 }
 
 OBER_COLORS = np.array([
@@ -26,39 +26,39 @@ OBER_COLORS = np.array([
 
 # https://imagecolorpicker.com/en
 FLEVOLAND = np.array([
-    [255, 0, 0],        # Red; Steambeans
-    [90, 11, 226],      # Purple; Peas
-    [0, 131, 74],       # Green; Forest
-    [0, 252, 255],      # Teal; Lucerne
-    [255, 182, 228],    # Pink; Wheat
-    [184, 0, 255],      # Magenta; Beet
-    [254, 254, 0],      # Yellow; Potatoes
-    [170, 138, 79],     # Brown; Bare Soil
-    [1, 254, 3],        # Light green; Grass
-    [255, 127, 0],      # Orange; Rapeseed
-    [146, 0, 1],        # Bordeaux; Barley
-    [191, 191, 255],    # Lila; Wheat 2
-    [191, 255, 192],    # Marine Green; Wheat 3
-    [0, 0, 254],        # Blue; Water
-    [255, 217, 160]     # Beige; Buildings
+    [255, 0, 0],  # Red; Steambeans
+    [90, 11, 226],  # Purple; Peas
+    [0, 131, 74],  # Green; Forest
+    [0, 252, 255],  # Teal; Lucerne
+    [255, 182, 228],  # Pink; Wheat
+    [184, 0, 255],  # Magenta; Beet
+    [254, 254, 0],  # Yellow; Potatoes
+    [170, 138, 79],  # Brown; Bare Soil
+    [1, 254, 3],  # Light green; Grass
+    [255, 127, 0],  # Orange; Rapeseed
+    [146, 0, 1],  # Bordeaux; Barley
+    [191, 191, 255],  # Lila; Wheat 2
+    [191, 255, 192],  # Marine Green; Wheat 3
+    [0, 0, 254],  # Blue; Water
+    [255, 217, 160]  # Beige; Buildings
 ])
 FLEVOLAND = np.divide(FLEVOLAND, 255.0).astype(np.float32)
 
 FLEVOLAND_2 = np.array([
-    [255, 128, 0],      # Orange; Potatoes
-    [138, 42, 116],      # Dark Purple; Fruit
-    [0, 0, 255],        # Blue; Oats
-    [255, 0, 0],        # Red; Beet
-    [120, 178, 215],    # Light Blue; Barley
-    [0, 102, 255],      # Middle Blue; Onions
-    [251, 232, 45],     # Yellow; Wheat
-    [1, 255, 3],        # Light green; Beans
-    [204, 102, 225],    # Magenta; Peas
-    [0, 204, 102],      # Green; Maize
-    [204, 255, 204],    # Palid Green; Flax
-    [204, 1, 102],      # Bordeaux; Rapeseed
-    [255, 204, 204],    # Beige; Gress
-    [102, 0, 204],      # Purple; Bare Soil
+    [255, 128, 0],  # Orange; Potatoes
+    [138, 42, 116],  # Dark Purple; Fruit
+    [0, 0, 255],  # Blue; Oats
+    [255, 0, 0],  # Red; Beet
+    [120, 178, 215],  # Light Blue; Barley
+    [0, 102, 255],  # Middle Blue; Onions
+    [251, 232, 45],  # Yellow; Wheat
+    [1, 255, 3],  # Light green; Beans
+    [204, 102, 225],  # Magenta; Peas
+    [0, 204, 102],  # Green; Maize
+    [204, 255, 204],  # Palid Green; Flax
+    [204, 1, 102],  # Bordeaux; Rapeseed
+    [255, 204, 204],  # Beige; Gress
+    [102, 0, 204],  # Purple; Bare Soil
 
 ])
 FLEVOLAND_2 = np.divide(FLEVOLAND_2, 255.0).astype(np.float32)
@@ -253,7 +253,7 @@ def remove_unlabeled_with_window(T, labels, window_size=32):
     for i in range(0, labels.shape[0]):
         for j in range(0, labels.shape[1]):
             if labels[i, j] != 0:
-                results.append(T[i:i+window_size, i:i+window_size].flatten())
+                results.append(T[i:i + window_size, i:i + window_size].flatten())
                 results_labels.append(labels[i, j])
     return np.array(results), np.array(results_labels)
 
@@ -268,12 +268,14 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
     Transforms the labels to a RGB format so it can be drawn as images
     :param labels: The labels to be transformed to rgb
     :param showfig: boolean. If true it will show the generated ground truth image
-    :param savefig: boolean. If true it will save the generated ground truth image
+    :param savefig: Atring. String with the file to be saved of the generated ground truth image
     :param colors: Color palette to be used. Must be at least size of the labels. TODO: Some kind of check for this?
     :return: numpy array of the ground truth RGB image
     """
     if len(labels.shape) == 3:
         labels = np.argmax(labels, axis=-1) + 1
+    elif len(labels.shape) != 2:
+        raise ValueError(f"Expected labels to be rank 3 or 2, received rank {len(labels.shape)}.")
     # import pdb; pdb.set_trace()
     if colors is None:
         if np.max(labels) == 3 or np.max(labels) == 4:
@@ -301,6 +303,11 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
         plt.imsave(savefig + ".pdf", ground_truth)
         tikzplotlib.save(savefig + ".tex")
     return ground_truth
+
+
+def open_dataset_t3(path: str, labels: str):
+    labels = scipy.io.loadmat(labels)['label']
+    return open_t_dataset_t3(path), labels
 
 
 # To open dataset .bin/hdr using the path
@@ -353,7 +360,7 @@ def open_dataset_t6(path: str, labels: str):
     return T, labels
 
 
-def open_dataset_t3(path: str):
+def open_t_dataset_t3(path: str):
     path = Path(path)
     first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
     T = np.zeros(first_read.shape + (6,), dtype=complex)

@@ -131,9 +131,9 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
     return model
 
 
-def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex64):
+def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex64, name="cao_model"):
     in1 = complex_input(shape=input_shape, dtype=dtype)
-    return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype)
+    return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name)
 
 
 def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)):
@@ -303,7 +303,8 @@ def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
 
 
 if __name__ == '__main__':
-    model_c = get_tf_real_cao_model(input_shape=(128, 128, 42))
-    plot_model(model_c, to_file="tf_model.png", show_shapes=True)
-    model_c = get_cao_cvfcn_model(input_shape=(128, 128, 21))
+    model_c = get_cao_cvfcn_model(input_shape=(1300, 1200, 42))
     plot_model(model_c, to_file="cvnn_model.png", show_shapes=True)
+    model_c = get_tf_real_cao_model(input_shape=(128, 128, 21))
+    plot_model(model_c, to_file="tf_model.png", show_shapes=True)
+

@@ -20,14 +20,16 @@ elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
     NOTIFY = False
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
-from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation
+from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
-from cvnn.utils import create_folder
+from dataset_reader import labels_to_ground_truth
+from cvnn.utils import create_folder, transform_to_real_map_function
 from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 200              # Section 3.3.2
+    'epochs': 2,              # Section 3.3.2
+    "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
 }
 
 
@@ -53,14 +55,15 @@ def run_model(complex_mode=True, tensorflow=False):
     # data, label = next(iter(dataset))
     if not tensorflow:
         if complex_mode:
-            model = get_cao_cvfcn_model(input_shape=(None, None, 21))
+            model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']), name="cao_cvfcn")
         else:
-            model = get_cao_cvfcn_model(input_shape=(None, None, 42), dtype=np.float32)
+            model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), dtype=np.float32,
+                                        name="cao_rvfcn")
     else:
         if complex_mode:
             raise ValueError("Tensorflow does not support complex model. "
                              "Do not use tensorflow and complex_mode both as True")
-        model = get_tf_real_cao_model(input_shape=(None, None, 42))
+        model = get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), name="tf_cao_rvfcn")
     # Checkpoints
     callbacks, temp_path = get_callbacks_list()
     # elem, label = next(iter(test_dataset))
@@ -76,13 +79,20 @@ def run_model(complex_mode=True, tensorflow=False):
 
 def open_saved_models(checkpoint_path):
     train_dataset, test_dataset = get_ober_dataset_for_segmentation()
-    test_dataset = test_dataset.batch(100)
+    # test_dataset = test_dataset.batch(100)
     model = get_cao_cvfcn_model(input_shape=(None, None, 21))
     loss, acc = model.evaluate(test_dataset, verbose=2)
     print("Untrained model, accuracy: {:5.2f}%".format(100 * acc))
-    model.load_weights(checkpoint_path)
+    model.load_weights(checkpoint_path + "/checkpoints/cp.ckpt")
     loss, acc = model.evaluate(test_dataset, verbose=2)
     print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
+    full_image, ground_truth = get_ober_dataset_with_labels_t6()
+    full_image = tf.expand_dims(full_image, axis=0)
+    full_padded_image = tf.pad(full_image,
+                               [[0, 0], [54, 54], [40, 40], [0, 0]])
+    prediction = model.predict(full_padded_image)
+    labels_to_ground_truth(prediction[0],
+                           savefig=checkpoint_path + "/prediction")
 
 
 def train_model():
@@ -109,6 +119,7 @@ def train_model():
 
 def debug_models(indx):
     notify = Notify()
+    tf.random.set_seed(116)
     model = get_debug_tf_models(input_shape=(None, None, 42), indx=indx)
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
     # for model in models_list:
@@ -116,7 +127,7 @@ def debug_models(indx):
     try:
         callbacks, temp_path = get_callbacks_list()
         # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
-        history = model.fit(x=train_dataset, epochs=200, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
     except Exception as e:
@@ -126,19 +137,26 @@ def debug_models(indx):
 
 
 def run_montecarlo():
-    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=True)
     montecarlo = MonteCarlo()
-    montecarlo.add_model(get_cao_cvfcn_model(input_shape=(None, None, 42), dtype=np.float32))
-    montecarlo.add_model(get_tf_real_cao_model(input_shape=(None, None, 42)))
-    montecarlo.run(x=train_dataset, y=None, data_summary="Oberpfaffenhofen_PolInSAR",
+    data_summary = "Oberpfaffenhofen" + "_PolInSAR" if cao_fit_parameters['channels'] == 21 else "_PolSAR"
+    tf.random.set_seed(116)
+    montecarlo.add_model(get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']),
+                                             dtype=np.float32))
+    tf.random.set_seed(116)
+    montecarlo.add_model(get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels'])))
+    montecarlo.run(x=train_dataset, y=None, data_summary=data_summary,
                    validation_data=test_dataset, validation_split=0.0,
-                   iterations=5, epochs=200, shuffle=True)
+                   iterations=5, epochs=20, shuffle=False, debug=True)
 
 
 if __name__ == "__main__":
-    # run_model(complex_mode=False, tensorflow=True)
+    tf.random.set_seed(116)
+    run_model(complex_mode=False, tensorflow=True)
+    tf.random.set_seed(116)
+    run_model(complex_mode=False, tensorflow=True)
     # train_model()
     # args = sys.argv
     # debug_models(int(args[1]))
-    run_montecarlo()
-    # open_saved_models("/home/barrachina/Documents/onera/src/PolSar/Oberpfaffenhofen/u-net/log/2021/05May/12Wednesday/run-19h55m20/checkpoints/cp.ckpt")
+    # run_montecarlo()
+    # open_saved_models("/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen/first_results/no_dropout/cvnn")

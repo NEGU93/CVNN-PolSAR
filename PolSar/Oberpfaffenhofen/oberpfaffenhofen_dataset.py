@@ -17,7 +17,8 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the dataset reader not found")
-from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_labels_t6, get_dataset_for_classification
+from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_labels_t6, \
+    get_dataset_for_classification, get_dataset_with_labels_t3
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
@@ -36,11 +37,18 @@ def get_ober_dataset_with_labels_t6():
     return get_dataset_with_labels_t6(path, labels_path)
 
 
-def get_ober_dataset_for_segmentation(complex_mode=True):
+def get_ober_dataset_with_labels_t3():
+    return get_dataset_with_labels_t3(path, labels_path)
+
+
+def get_ober_dataset_for_segmentation(complex_mode=True, t6=False):
     """
     Opens the t6 dataset of Oberpfaffenhofen with the corresponding labels with cao's configuration scheme.
     """
-    T, labels = get_dataset_with_labels_t6(path, labels_path)
+    if t6:
+        T, labels = get_ober_dataset_with_labels_t6()
+    else:
+        T, labels = get_ober_dataset_with_labels_t3()
     # :return: Tuple (T, labels)
     #     - T: Image as a numpy array of size hxwxB=1300x1200x21 where h and w are the height and width of the
     #         spatial dimensions respectively, B is the number of complex bands.
