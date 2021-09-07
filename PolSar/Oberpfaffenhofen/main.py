@@ -23,7 +23,7 @@ else:
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
 from dataset_reader import labels_to_ground_truth
-from cvnn.utils import create_folder, transform_to_real_map_function
+from cvnn.utils import create_folder
 from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
