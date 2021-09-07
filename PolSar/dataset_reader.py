@@ -397,8 +397,8 @@ def get_dataset_with_labels_t3(dataset_path: str, labels: str):
     :param labels: A np 2D matrix of the labels in sparse mode. Where 0 is unlabeled
     :return: t3 matrix and labels in categorical mode (3D with the 3rd dimension size of number of classes)
     """
+    t3, labels = open_dataset_t3(dataset_path, labels)
     labels_flev = sparse_to_categorical_2D(labels)
-    t3 = open_dataset_t3(dataset_path)
     assert check_dataset_and_lebels(t3, labels_flev)
     return t3, labels_flev
 
