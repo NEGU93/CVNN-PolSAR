@@ -19,4 +19,4 @@ if __name__ == "__main__":
     models = []
     for sh in shapes:
         models.append(get_mlp(input_size=n, output_size=2, shape_raw=sh))
-    run_gaussian_dataset_montecarlo(models=models, n=n, epochs=500, iterations=5, early_stop=True, debug=True)
+    run_gaussian_dataset_montecarlo(models=models, n=n, epochs=500, iterations=5, early_stop=True, debug=False)
