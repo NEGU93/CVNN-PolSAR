@@ -6,3 +6,4 @@ python3 main.py 4
 python3 main.py 5
 python3 main.py 6
 python3 main.py 7
+
