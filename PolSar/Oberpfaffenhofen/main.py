@@ -8,6 +8,7 @@ from notify_run import Notify
 import traceback
 from os import path
 import numpy as np
+import scipy.io
 from pdb import set_trace
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
@@ -20,7 +21,7 @@ elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
     NOTIFY = False
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
-from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6
+from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6, get_mask
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
 from dataset_reader import labels_to_ground_truth
 from cvnn.utils import create_folder
@@ -78,7 +79,7 @@ def run_model(complex_mode=True, tensorflow=False):
 
 
 def open_saved_models(checkpoint_path):
-    train_dataset, test_dataset = get_ober_dataset_for_segmentation()
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(t6=True)
     # test_dataset = test_dataset.batch(100)
     model = get_cao_cvfcn_model(input_shape=(None, None, 21))
     loss, acc = model.evaluate(test_dataset, verbose=2)
@@ -90,9 +91,10 @@ def open_saved_models(checkpoint_path):
     full_image = tf.expand_dims(full_image, axis=0)
     full_padded_image = tf.pad(full_image,
                                [[0, 0], [54, 54], [40, 40], [0, 0]])
-    prediction = model.predict(full_padded_image)
-    labels_to_ground_truth(prediction[0],
-                           savefig=checkpoint_path + "/prediction")
+    prediction = model.predict(full_padded_image)[0]
+    mask = get_mask()
+    padded_mask = tf.pad(mask, [[54, 54], [40, 40]])
+    labels_to_ground_truth(prediction, savefig=checkpoint_path + "/prediction", mask=padded_mask)
 
 
 def train_model():
@@ -120,14 +122,14 @@ def train_model():
 def debug_models(indx):
     notify = Notify()
     tf.random.set_seed(116)
-    model = get_debug_tf_models(input_shape=(None, None, 42), indx=indx)
+    model = get_debug_tf_models(input_shape=(None, None, 2*cao_fit_parameters['channels']), indx=indx)
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=False)
     # for model in models_list:
     notify.send(f"Testing model {indx}: {model.name}")
     try:
         callbacks, temp_path = get_callbacks_list()
         # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
-        history = model.fit(x=train_dataset, epochs=20, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        history = model.fit(x=train_dataset, epochs=50, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
     except Exception as e:
@@ -151,12 +153,13 @@ def run_montecarlo():
 
 
 if __name__ == "__main__":
-    tf.random.set_seed(116)
-    run_model(complex_mode=False, tensorflow=True)
-    tf.random.set_seed(116)
-    run_model(complex_mode=False, tensorflow=True)
+    # run_model(complex_mode=False, tensorflow=True)
+    # tf.random.set_seed(116)
+    # run_model(complex_mode=False, tensorflow=True)
     # train_model()
-    # args = sys.argv
-    # debug_models(int(args[1]))
+    args = sys.argv
+    debug_models(int(args[1]))
     # run_montecarlo()
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    # assert not tf.test.gpu_device_name(), "Using GPU"
     # open_saved_models("/home/barrachina/Documents/onera/PolSar/Oberpfaffenhofen/first_results/no_dropout/cvnn")

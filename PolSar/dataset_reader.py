@@ -263,7 +263,7 @@ def remove_unlabeled_with_window(T, labels, window_size=32):
 ----------"""
 
 
-def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None) -> np.ndarray:
+def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None) -> np.ndarray:
     """
     Transforms the labels to a RGB format so it can be drawn as images
     :param labels: The labels to be transformed to rgb
@@ -295,6 +295,8 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
         for j in range(labels.shape[1]):
             if labels[i, j] != 0:
                 ground_truth[i, j] = colors[labels[i, j] - 1]
+    if mask is not None:
+        ground_truth[mask == 0] = [0, 0, 0]
     plt.imshow(ground_truth)
     if showfig:
         plt.show()

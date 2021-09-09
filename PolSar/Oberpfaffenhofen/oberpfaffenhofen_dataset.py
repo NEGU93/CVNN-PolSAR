@@ -33,6 +33,10 @@ else:
     raise FileNotFoundError("No path found for the requested dataset")
 
 
+def get_mask():
+    return scipy.io.loadmat(labels_path)['label']
+
+
 def get_ober_dataset_with_labels_t6():
     return get_dataset_with_labels_t6(path, labels_path)
 
