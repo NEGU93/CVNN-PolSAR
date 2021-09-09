@@ -5,23 +5,19 @@ from notify_run import Notify
 if __name__ == "__main__":
     notify = Notify()
     notify.send('New simulation started')
+    param_list = [
+        [0.15, 1, 1],
+        [-0.15, 1, 1]
+    ]
     n = 128
     shapes = [
-        [4],
-        [8],
-        [16],
-        [32],
-        [64],
-        [128],
-        [256],
-        [512],
-        [1024],
-        [2048],
-        [4096]
+        [4], [8], [16], [32], [64], [128], [256], [512], [1024], [2048], [4096],
+        [8000], [16000],    # [32000], [64000], [128000], [256000]
     ]
     models = []
     for sh in shapes:
         models.append(get_mlp(input_size=n, output_size=2, shape_raw=sh, dropout=None, name=f"{sh[0]}"))
         # Should I use dropout or not?
-    run_gaussian_dataset_montecarlo(models=models, n=n, epochs=500, iterations=5, early_stop=True, debug=False)
+    run_gaussian_dataset_montecarlo(models=models, n=n, epochs=500, iterations=5, early_stop=False, debug=False,
+                                    param_list=param_list)
     notify.send('Simulation Done')
