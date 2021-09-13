@@ -276,42 +276,42 @@ def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
                                dtype=tf.float32, name="mixed_down_batch")
     elif indx == 8:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="down_20",
                                dropout_dict={"downsampling": 0.2, "bottle_neck": None, "upsampling": None})
     elif indx == 9:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="down_10",
                                dropout_dict={"downsampling": 0.1, "bottle_neck": None, "upsampling": None})
     elif indx == 10:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="down_30",
                                dropout_dict={"downsampling": 0.3, "bottle_neck": None, "upsampling": None})
     elif indx == 11:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="down_50",
                                dropout_dict={"downsampling": 0.5, "bottle_neck": None, "upsampling": None})
     elif indx == 12:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="up_20",
                                dropout_dict={"downsampling": None, "bottle_neck": None, "upsampling": 0.2})
     elif indx == 13:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="up_10",
                                dropout_dict={"downsampling": None, "bottle_neck": None, "upsampling": 0.1})
     elif indx == 14:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="up_30",
                                dropout_dict={"downsampling": None, "bottle_neck": None, "upsampling": 0.3})
     elif indx == 15:
         in1 = Input(shape=input_shape)
-        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+        model = _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf,
                                dtype=tf.float32, name="down_20_up_20",
                                dropout_dict={"downsampling": 0.2, "bottle_neck": None, "upsampling": 0.2})
     else:
