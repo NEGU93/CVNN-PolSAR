@@ -129,7 +129,7 @@ def debug_models(indx):
     try:
         callbacks, temp_path = get_callbacks_list()
         # plot_model(model, to_file=temp_path / "model.png", show_shapes=True)
-        history = model.fit(x=train_dataset, epochs=50, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        history = model.fit(x=train_dataset, epochs=180, validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
     except Exception as e:
