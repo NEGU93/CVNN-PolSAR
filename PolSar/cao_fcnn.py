@@ -52,23 +52,20 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropou
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
     if dropout:
-        pool = ComplexDropout(rate=cao_params_model["dropout"], dtype=dtype)(pool)
+        pool = ComplexDropout(rate=dropout, dtype=dtype)(pool)
     return pool, pool_argmax
 
 
 def _get_upsampling_block(input_to_block, pool_argmax, kernels,
                           activation=cao_params_model['activation'], dropout=False, dtype=np.complex64):
-    # TODO: Shall I use dropout here too?
     unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(unpool)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
-    if dropout:
-        conv = ComplexDropout(rate=cao_params_model["dropout"], dtype=dtype)(conv)
     conv = Activation(activation)(conv)
-    # if dropout:
-    #     conv = ComplexDropout(cao_params_model['dropout'])(conv)
+    if dropout:
+        conv = ComplexDropout(rate=dropout, dtype=dtype)(conv)
     return conv
 
 
@@ -81,22 +78,19 @@ def _get_downsampling_block_tf(input_to_block, num: int, dropout=False, **kwargs
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
     if dropout:
-        pool = Dropout(rate=cao_params_model["dropout"])(pool)
+        pool = Dropout(rate=dropout)(pool)
     return pool, pool_argmax
 
 
 def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
                              activation="relu", dropout=False, **kwargs):
-    # TODO: Shall I use dropout here too?
     unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     conv = Conv2D(kernels, cao_params_model['kernel_shape'],
                   activation='linear', padding=cao_params_model['padding'], kernel_initializer="he_normal")(unpool)
     conv = BatchNormalization()(conv)
-    if dropout:
-        conv = Dropout(rate=cao_params_model["dropout"])(conv)
     conv = Activation(activation)(conv)
-    # if dropout:
-    #     conv = Dropout(cao_params_model['dropout'])(conv)
+    if dropout:
+        conv = Dropout(rate=dropout)(conv)
     return conv
 
 
