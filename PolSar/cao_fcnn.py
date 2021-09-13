@@ -4,10 +4,10 @@ from tensorflow.keras import Model, Sequential
 from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import categorical_crossentropy
+from cvnn.losses import ComplexAverageCrossEntropy
 from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense
-from cvnn.activations import softmax_real_with_avg, cart_relu
+from cvnn.activations import cart_softmax, cart_relu
 from cvnn.initializers import ComplexHeNormal
 from custom_accuracy import CustomCategoricalAccuracy
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, Input
@@ -15,6 +15,12 @@ import tensorflow as tf
 
 IMG_HEIGHT = None  # 128
 IMG_WIDTH = None  # 128
+
+DROPOUT_DEFAULT = {     # TODO: Not found yet where
+    "downsampling": None,
+    "bottle_neck": None,
+    "upsampling": None
+}
 
 cao_params_model = {
     'padding': 'same',
@@ -25,11 +31,10 @@ cao_params_model = {
     'activation': cart_relu,  # Equation 11 & 12
     'kernels': [12, 24, 48, 96, 192],  # Table 1
     'num_classes': 3,
-    'dropout': 0.5,  # TODO: Not found yet where
-    'output_function': softmax_real_with_avg,  # Section 2.3.2 at the end and section 2.4
+    'output_function': cart_softmax,  # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),  # Section 2.2
-    'loss': categorical_crossentropy,  # Section 2.4
-    'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
+    'loss': ComplexAverageCrossEntropy(),  # Section 2.4
+    'optimizer': Adam(learning_rate=0.001, beta_1=0.9)
 }
 cao_mlp_params = {
     'input_window': 32,
@@ -38,15 +43,16 @@ cao_mlp_params = {
 }
 
 
-def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64):
+def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropout=False):
     conv = ComplexConv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
                          kernel_initializer=cao_params_model['init'], dtype=dtype)(input_to_block)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(cao_params_model['activation'])(conv)
-    # conv = ComplexDropout(cao_params_model['dropout'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
+    if dropout:
+        pool = ComplexDropout(rate=cao_params_model["dropout"], dtype=dtype)(pool)
     return pool, pool_argmax
 
 
@@ -66,15 +72,16 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels,
     return conv
 
 
-def _get_downsampling_block_tf(input_to_block, num: int, **kwargs):
+def _get_downsampling_block_tf(input_to_block, num: int, dropout=False, **kwargs):
     conv = Conv2D(cao_params_model['kernels'][num], cao_params_model['kernel_shape'],
                   activation='linear', padding=cao_params_model['padding'],
                   kernel_initializer="he_normal")(input_to_block)
     conv = BatchNormalization()(conv)
     conv = Activation(cao_params_model['activation'])(conv)
-    # conv = Dropout(cao_params_model['dropout'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(cao_params_model['max_pool_kernel'],
                                                       strides=cao_params_model['stride'])(conv)
+    if dropout:
+        pool = Dropout(rate=cao_params_model["dropout"])(pool)
     return pool, pool_argmax
 
 
@@ -93,32 +100,41 @@ def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
     return conv
 
 
-def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.complex64, name="cao_model"):
+def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.complex64, name="cao_model",
+                   dropout_dict=None):
     # Downsampling
-    pool1, pool1_argmax = get_downsampling_block(in1, 0, dtype=dtype)  # Block 1
-    pool2, pool2_argmax = get_downsampling_block(pool1, 1, dtype=dtype)  # Block 2
-    pool3, pool3_argmax = get_downsampling_block(pool2, 2, dtype=dtype)  # Block 3
-    pool4, pool4_argmax = get_downsampling_block(pool3, 3, dtype=dtype)  # Block 4
-    pool5, pool5_argmax = get_downsampling_block(pool4, 4, dtype=dtype)  # Block 5
+    if dropout_dict is None:
+        dropout_dict = DROPOUT_DEFAULT
+    pool1, pool1_argmax = get_downsampling_block(in1, 0, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 1
+    pool2, pool2_argmax = get_downsampling_block(pool1, 1, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 2
+    pool3, pool3_argmax = get_downsampling_block(pool2, 2, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 3
+    pool4, pool4_argmax = get_downsampling_block(pool3, 3, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 4
+    pool5, pool5_argmax = get_downsampling_block(pool4, 4, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 5
 
     # Bottleneck
     # Block 6
     conv6 = ComplexConv2D(cao_params_model['kernels'][4], (1, 1),
                           activation=cao_params_model['activation'], padding=cao_params_model['padding'],
                           dtype=dtype)(pool5)
+    if dropout_dict["bottle_neck"]:
+        conv6 = ComplexDropout(rate=dropout_dict["bottle_neck"], dtype=dtype)(conv6)
 
     # Upsampling
     # Block7
-    conv7 = get_upsampling_block(conv6, pool5_argmax, cao_params_model['kernels'][3], dtype=dtype)
+    conv7 = get_upsampling_block(conv6, pool5_argmax, cao_params_model['kernels'][3],
+                                 dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 8
     add8 = Add()([conv7, pool4])
-    conv8 = get_upsampling_block(add8, pool4_argmax, cao_params_model['kernels'][2], dtype=dtype)
+    conv8 = get_upsampling_block(add8, pool4_argmax, cao_params_model['kernels'][2],
+                                 dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 9
     add9 = Add()([conv8, pool3])
-    conv9 = get_upsampling_block(add9, pool3_argmax, cao_params_model['kernels'][1], dtype=dtype)
+    conv9 = get_upsampling_block(add9, pool3_argmax, cao_params_model['kernels'][1],
+                                 dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 10
     add10 = Add()([conv9, pool2])
-    conv10 = get_upsampling_block(add10, pool2_argmax, cao_params_model['kernels'][0], dtype=dtype)
+    conv10 = get_upsampling_block(add10, pool2_argmax, cao_params_model['kernels'][0],
+                                  dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 11
     add11 = Add()([conv10, pool1])
     out = get_upsampling_block(add11, pool1_argmax, dropout=False,
@@ -135,14 +151,20 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
     return model
 
 
-def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex64, name="cao_model"):
+def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex64, name="cao_model", dropout_dict=None):
+    if dropout_dict is None:
+        dropout_dict = DROPOUT_DEFAULT
     in1 = complex_input(shape=input_shape, dtype=dtype)
-    return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name)
+    return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name,
+                          dropout_dict=dropout_dict)
 
 
-def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), name="tf_cao_model"):
+def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), name="tf_cao_model", dropout_dict=None):
+    if dropout_dict is None:
+        dropout_dict = DROPOUT_DEFAULT
     in1 = Input(shape=input_shape)
-    return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32, name=name)
+    return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32, name=name,
+                          dropout_dict=dropout_dict)
 
 
 def get_cao_mlp_models(output_size, input_size=None):
@@ -187,7 +209,7 @@ def _get_mixed_up_batch(input_to_block, pool_argmax, kernels,
 
 
 def _get_mixed_up_conv(input_to_block, pool_argmax, kernels,
-                  activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
+                    activation=cao_params_model['activation'], dropout=True, dtype=np.complex64):
     unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     conv = ComplexConv2D(kernels, cao_params_model['kernel_shape'],
                          activation='linear', padding=cao_params_model['padding'],
@@ -252,6 +274,46 @@ def get_debug_tf_models(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), indx=-1):
         in1 = Input(shape=input_shape)
         model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
                                dtype=tf.float32, name="mixed_down_batch")
+    elif indx == 8:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="down_20",
+                               dropout_dict={"downsampling": 0.2, "bottle_neck": None, "upsampling": None})
+    elif indx == 9:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="down_10",
+                               dropout_dict={"downsampling": 0.1, "bottle_neck": None, "upsampling": None})
+    elif indx == 10:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="down_30",
+                               dropout_dict={"downsampling": 0.3, "bottle_neck": None, "upsampling": None})
+    elif indx == 11:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="down_50",
+                               dropout_dict={"downsampling": 0.5, "bottle_neck": None, "upsampling": None})
+    elif indx == 12:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="up_20",
+                               dropout_dict={"downsampling": None, "bottle_neck": None, "upsampling": 0.2})
+    elif indx == 13:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="up_10",
+                               dropout_dict={"downsampling": None, "bottle_neck": None, "upsampling": 0.1})
+    elif indx == 14:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="up_30",
+                               dropout_dict={"downsampling": None, "bottle_neck": None, "upsampling": 0.3})
+    elif indx == 15:
+        in1 = Input(shape=input_shape)
+        model = _get_cao_model(in1, _get_mixed_down_batch, _get_upsampling_block_tf,
+                               dtype=tf.float32, name="down_20_up_20",
+                               dropout_dict={"downsampling": 0.2, "bottle_neck": None, "upsampling": 0.2})
     else:
         raise ValueError(f"indx {indx} out of range")
     return model
