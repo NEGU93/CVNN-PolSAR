@@ -158,7 +158,7 @@ def run_montecarlo():
 
 
 if __name__ == "__main__":
-    run_model(complex_mode=False, tensorflow=True)
+    # run_model(complex_mode=False, tensorflow=True)
     run_model(complex_mode=False, tensorflow=False)
     # tf.random.set_seed(116)
     # run_model(complex_mode=False, tensorflow=True)
