@@ -29,7 +29,7 @@ from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 200,              # Section 3.3.2
+    'epochs': 100,              # Section 3.3.2
     "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
 }
 
@@ -52,8 +52,12 @@ def get_callbacks_list():
 
 
 def run_model(complex_mode=True, tensorflow=False):
-    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode)
+    notify = Notify()
+    notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
+                f"{'cvnn' if not tensorflow else 'tf'}")
+    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
     # data, label = next(iter(dataset))
+    tf.random.set_seed(116)
     if not tensorflow:
         if complex_mode:
             model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']), name="cao_cvfcn")
@@ -75,6 +79,7 @@ def run_model(complex_mode=True, tensorflow=False):
     stop = time()
     with open(temp_path / 'history_dict', 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
+    notify.send("Simulation done")
     return secondsToStr(stop - start)
 
 
@@ -153,13 +158,13 @@ def run_montecarlo():
 
 
 if __name__ == "__main__":
-    # run_model(complex_mode=False, tensorflow=True)
-    # run_model(complex_mode=False, tensorflow=False)
+    run_model(complex_mode=False, tensorflow=True)
+    run_model(complex_mode=False, tensorflow=False)
     # tf.random.set_seed(116)
     # run_model(complex_mode=False, tensorflow=True)
     # train_model()
-    args = sys.argv
-    debug_models(int(args[1]))
+    # args = sys.argv
+    # debug_models(int(args[1]))
     # run_montecarlo()
     # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     # assert not tf.test.gpu_device_name(), "Using GPU"

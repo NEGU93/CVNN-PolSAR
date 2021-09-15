@@ -406,8 +406,8 @@ def get_dataset_with_labels_t3(dataset_path: str, labels: str):
 
 
 # Returns a dataset T with labels in the correct form
-def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2) -> \
-        (tf.data.Dataset, tf.data.Dataset):
+def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2,
+                                 shuffle: bool = True) -> (tf.data.Dataset, tf.data.Dataset):
     """
     Applies the sliding window operations getting smaller images of a big image T.
     Splits dataset into train and test.
@@ -420,7 +420,7 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, t
     """
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
     del T, labels  # Free up memory
-    return get_tf_dataset_split(patches, label_patches, test_size=test_size)
+    return get_tf_dataset_split(patches, label_patches, test_size=test_size, shuffle=shuffle)
 
 
 def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8):
@@ -434,8 +434,8 @@ def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8):
     return get_tf_dataset_split(T, labels, test_size=test_size)
 
 
-def get_tf_dataset_split(T, labels, test_size=0.1):
-    x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=test_size, shuffle=True)
+def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
+    x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=test_size, shuffle=shuffle)
     del T, labels
     train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
     test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
@@ -448,11 +448,12 @@ def get_tf_dataset_split(T, labels, test_size=0.1):
 ----------"""
 
 
-def get_dataset_for_cao_segmentation(T, labels, complex_mode=True):
+def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True):
     train_dataset, test_dataset = get_dataset_for_segmentation(T=T, labels=labels,
                                                                size=cao_dataset_parameters['sliding_window_size'],
                                                                stride=cao_dataset_parameters['sliding_window_stride'],
-                                                               test_size=cao_dataset_parameters['validation_split'])
+                                                               test_size=cao_dataset_parameters['validation_split'],
+                                                               shuffle=shuffle)
     train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
     test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
     if not complex_mode:

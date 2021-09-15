@@ -45,7 +45,7 @@ def get_ober_dataset_with_labels_t3():
     return get_dataset_with_labels_t3(path, labels_path)
 
 
-def get_ober_dataset_for_segmentation(complex_mode=True, t6=False):
+def get_ober_dataset_for_segmentation(complex_mode=True, t6=False, shuffle=True):
     """
     Opens the t6 dataset of Oberpfaffenhofen with the corresponding labels with cao's configuration scheme.
     """
@@ -61,7 +61,7 @@ def get_ober_dataset_for_segmentation(complex_mode=True, t6=False):
     #         1: Built-up Area
     #         2: Wood Land
     #         3: Open Area
-    return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode)
+    return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode, shuffle=shuffle)
 
 
 def get_ober_dataset_for_classification():
