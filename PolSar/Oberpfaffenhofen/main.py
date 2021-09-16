@@ -8,6 +8,7 @@ from notify_run import Notify
 import traceback
 from os import path
 import numpy as np
+import argparse
 import scipy.io
 from pdb import set_trace
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
@@ -57,13 +58,19 @@ def run_model(complex_mode=True, tensorflow=False):
                 f"{'cvnn' if not tensorflow else 'tf'}")
     train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
     # data, label = next(iter(dataset))
+    dropout = {
+        "downsampling": 0.2,
+        "bottle_neck": None,
+        "upsampling": 0.2
+    }
     tf.random.set_seed(116)
     if not tensorflow:
         if complex_mode:
-            model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']), name="cao_cvfcn")
+            model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']),
+                                        name="cao_cvfcn", dropout=dropout)
         else:
             model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), dtype=np.float32,
-                                        name="cao_rvfcn")
+                                        name="cao_rvfcn", dropout=dropout)
     else:
         if complex_mode:
             raise ValueError("Tensorflow does not support complex model. "
@@ -158,8 +165,12 @@ def run_montecarlo():
 
 
 if __name__ == "__main__":
-    # run_model(complex_mode=False, tensorflow=True)
-    run_model(complex_mode=False, tensorflow=False)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--complex', action='store_true', help='run complex model')
+    parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
+    args = parser.parse_args()
+    run_model(complex_mode=args.complex, tensorflow=args.tensorflow)
+
     # tf.random.set_seed(116)
     # run_model(complex_mode=False, tensorflow=True)
     # train_model()

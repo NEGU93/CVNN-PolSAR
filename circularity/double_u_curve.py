@@ -37,5 +37,5 @@ def plotter(path):
 
 
 if __name__ == "__main__":
-    run_simulation()
-    # plotter("/home/barrachina/Documents/onera/circularity/log/montecarlo/2021/09September/13Monday/run-12h55m42")
+    # run_simulation()
+    plotter("/home/barrachina/Documents/onera/circularity/log/montecarlo/2021/09September/15Wednesday/run-15h24m55/run_data.csv")
