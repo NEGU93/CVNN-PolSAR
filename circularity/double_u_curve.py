@@ -20,13 +20,13 @@ def run_simulation():
     # set_trace()
     models = []
     for i, sh in enumerate(shapes):
-        models.append(get_mlp(input_size=n, output_size=2, shape_raw=[sh], dropout=None, name=f"{i}_{sh}"))
+        models.append(get_mlp(input_size=n, output_size=2, shape_raw=[sh], dropout=0.5, name=f"{i}_{sh}"))
         # Should I use dropout or not?
     # run_gaussian_dataset_montecarlo(models=models, n=n, epochs=500, iterations=5, early_stop=True, debug=False,
     #                                 param_list=param_list, shuffle=True)
     run_montecarlo(models=models, dataset=None,
                    open_dataset="/home/barrachina/Documents/onera/circularity/log/montecarlo/2021/09September/13Monday/run-12h55m42",
-                   epochs=500, iterations=20, early_stop=True, shuffle=True)
+                   epochs=500, iterations=10, early_stop=True, shuffle=True)
     # notify.send('Simulation Done')
 
 

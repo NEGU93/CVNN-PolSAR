@@ -34,7 +34,7 @@ cao_params_model = {
     'output_function': cart_softmax,  # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),  # Section 2.2
     'loss': ComplexAverageCrossEntropy(),  # Section 2.4
-    'optimizer': Adam(learning_rate=0.001, beta_1=0.9)
+    'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
 }
 cao_mlp_params = {
     'input_window': 32,

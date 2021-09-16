@@ -30,7 +30,7 @@ from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 100,              # Section 3.3.2
+    'epochs': 200,              # Section 3.3.2
     "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
 }
 
@@ -60,9 +60,9 @@ def run_model(complex_mode=True, tensorflow=False):
         train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
         # data, label = next(iter(dataset))
         dropout = {
-            "downsampling": 0.2,
+            "downsampling": None,
             "bottle_neck": None,
-            "upsampling": 0.2
+            "upsampling": 0.3
         }
         tf.random.set_seed(116)
         if not tensorflow:
