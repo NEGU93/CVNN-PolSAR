@@ -56,38 +56,46 @@ def run_model(complex_mode=True, tensorflow=False):
     notify = Notify()
     notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
                 f"{'cvnn' if not tensorflow else 'tf'}")
-    train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
-    # data, label = next(iter(dataset))
-    dropout = {
-        "downsampling": 0.2,
-        "bottle_neck": None,
-        "upsampling": 0.2
-    }
-    tf.random.set_seed(116)
-    if not tensorflow:
-        if complex_mode:
-            model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']),
-                                        name="cao_cvfcn", dropout=dropout)
+    try:
+        train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
+        # data, label = next(iter(dataset))
+        dropout = {
+            "downsampling": 0.2,
+            "bottle_neck": None,
+            "upsampling": 0.2
+        }
+        tf.random.set_seed(116)
+        if not tensorflow:
+            if complex_mode:
+                model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']),
+                                            name="cao_cvfcn", dropout_dict=dropout)
+            else:
+                model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']),
+                                            dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout)
         else:
-            model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), dtype=np.float32,
-                                        name="cao_rvfcn", dropout=dropout)
-    else:
-        if complex_mode:
-            raise ValueError("Tensorflow does not support complex model. "
-                             "Do not use tensorflow and complex_mode both as True")
-        model = get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), name="tf_cao_rvfcn")
-    # Checkpoints
-    callbacks, temp_path = get_callbacks_list()
-    # elem, label = next(iter(test_dataset))
-    # input_out = model.layers[0](elem)
-    start = time()
-    history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
-                        validation_data=test_dataset, shuffle=True, callbacks=callbacks)
-    stop = time()
-    with open(temp_path / 'history_dict', 'wb') as file_pi:
-        pickle.dump(history.history, file_pi)
-    notify.send("Simulation done")
-    return secondsToStr(stop - start)
+            if complex_mode:
+                raise ValueError("Tensorflow does not support complex model. "
+                                 "Do not use tensorflow and complex_mode both as True")
+            model = get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels']),
+                                          name="tf_cao_rvfcn", dropout_dict=dropout)
+        # Checkpoints
+        callbacks, temp_path = get_callbacks_list()
+        # elem, label = next(iter(test_dataset))
+        # input_out = model.layers[0](elem)
+        start = time()
+        history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
+                            validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        stop = time()
+        with open(temp_path / 'history_dict', 'wb') as file_pi:
+            pickle.dump(history.history, file_pi)
+        notify.send("Simulation done")
+        return secondsToStr(stop - start)
+    except Exception as e:
+        if NOTIFY:
+            notify.send("Error occurred")
+        print(e)
+        traceback.print_exc()
+        return -1
 
 
 def open_saved_models(checkpoint_path):

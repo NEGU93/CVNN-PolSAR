@@ -14,10 +14,9 @@ def run_simulation():
     ]
     n = 128
     shapes = list(np.linspace(512, 4096, 10).astype(int))
-    # [
-    # 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
-    # 8000, 16000],    # 32000, 64000, 128000, 256000
-    # ]
+    shapes = [
+        16, 32, 64, 128, 256, 512, 1024, 2048, 4096,
+        8000, 16000]    # 32000, 64000, 128000, 256000
     # set_trace()
     models = []
     for i, sh in enumerate(shapes):
@@ -27,15 +26,16 @@ def run_simulation():
     #                                 param_list=param_list, shuffle=True)
     run_montecarlo(models=models, dataset=None,
                    open_dataset="/home/barrachina/Documents/onera/circularity/log/montecarlo/2021/09September/13Monday/run-12h55m42",
-                   epochs=500, iterations=5, early_stop=True, shuffle=True)
+                   epochs=500, iterations=20, early_stop=True, shuffle=True)
     # notify.send('Simulation Done')
 
 
 def plotter(path):
     monte = MonteCarloAnalyzer(path=path)
+    # monte.box_plot()
     monte.do_all()
 
 
 if __name__ == "__main__":
-    # run_simulation()
-    plotter("/home/barrachina/Documents/onera/circularity/log/montecarlo/2021/09September/15Wednesday/run-15h24m55/run_data.csv")
+    run_simulation()
+    # plotter("/home/barrachina/Documents/onera/circularity/log/montecarlo/2021/09September/15Wednesday/run-15h24m55/run_data.csv")
