@@ -30,7 +30,7 @@ from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 800,              # Section 3.3.2
+    'epochs': 200,              # Section 3.3.2
     "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
 }
 
@@ -57,14 +57,14 @@ def run_model(complex_mode=True, tensorflow=False):
     notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
                 f"{'cvnn' if not tensorflow else 'tf'}")
     try:
-        train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=True)
+        train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
         # data, label = next(iter(dataset))
         dropout = {
-            "downsampling": None,
+            "downsampling": 0.2,
             "bottle_neck": None,
-            "upsampling": 0.3
+            "upsampling": 0.2
         }
-        # tf.random.set_seed(116)
+        tf.random.set_seed(116)
         if not tensorflow:
             if complex_mode:
                 model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']),

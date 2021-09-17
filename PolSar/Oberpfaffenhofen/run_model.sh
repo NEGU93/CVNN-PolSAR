@@ -1,2 +1,2 @@
-python3 main.py --complex
+python3 main.py --tensorflow
 python3 main.py
