@@ -30,7 +30,7 @@ from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 200,              # Section 3.3.2
+    'epochs': 800,              # Section 3.3.2
     "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
 }
 
