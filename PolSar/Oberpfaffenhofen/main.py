@@ -4,7 +4,6 @@ import pickle
 from time import time, strftime, localtime
 from datetime import timedelta
 import tensorflow as tf
-from notify_run import Notify
 import traceback
 from os import path
 import numpy as np
@@ -20,8 +19,13 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
 elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
     sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar')
     NOTIFY = False
+elif path.exists('/home/cfren/Documents/onera/PolSar'):
+    sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
+    NOTIFY = False
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
+if NOTIFY:
+    from notify_run import Notify
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6, get_mask
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
 from dataset_reader import labels_to_ground_truth
@@ -53,9 +57,10 @@ def get_callbacks_list():
 
 
 def run_model(complex_mode=True, tensorflow=False):
-    notify = Notify()
-    notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
-                f"{'cvnn' if not tensorflow else 'tf'}")
+    if NOTIFY:
+        notify = Notify()
+        notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
+                    f"{'cvnn' if not tensorflow else 'tf'}")
     try:
         train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
         # data, label = next(iter(dataset))
@@ -88,7 +93,8 @@ def run_model(complex_mode=True, tensorflow=False):
         stop = time()
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
-        notify.send("Simulation done")
+        if NOTIFY:
+            notify.send("Simulation done")
         return secondsToStr(stop - start)
     except Exception as e:
         if NOTIFY:

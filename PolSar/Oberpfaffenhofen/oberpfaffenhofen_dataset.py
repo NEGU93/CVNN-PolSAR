@@ -15,6 +15,9 @@ elif path.exists('W:\HardDiskDrive\Documentos\GitHub\onera\PolSar'):
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/')
     NOTIFY = True
+elif path.exists('/home/cfren/Documents/onera/PolSar'):
+    sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
+    NOTIFY = False
 else:
     raise FileNotFoundError("path of the dataset reader not found")
 from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_labels_t6, \
@@ -29,6 +32,11 @@ elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar\Oberpfaffen
 elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'):
     labels_path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+elif path.exists("/home/cfren/Documents/onera/PolSar/Oberpfaffenhofen"):
+    labels_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/Label_Germany.mat'
+    path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    
+    
 else:
     raise FileNotFoundError("No path found for the requested dataset")
 
