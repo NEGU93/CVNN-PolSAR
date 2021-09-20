@@ -8,11 +8,12 @@ import traceback
 from os import path
 import numpy as np
 import argparse
+from typing import Optional
 import scipy.io
 from pdb import set_trace
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
-    NOTIFY = False
+    NOTIFY = True
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
     NOTIFY = True
@@ -34,7 +35,7 @@ from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
 cao_fit_parameters = {
-    'epochs': 200,              # Section 3.3.2
+    'epochs': 800,              # Section 3.3.2
     "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
 }
 
@@ -56,20 +57,23 @@ def get_callbacks_list():
     return [tensorboard_callback, cp_callback], temp_path
 
 
-def run_model(complex_mode=True, tensorflow=False):
+def run_model(complex_mode=True, tensorflow=False, reproducible=False, dropout=None):
     if NOTIFY:
         notify = Notify()
         notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
                     f"{'cvnn' if not tensorflow else 'tf'}")
     try:
-        train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode, shuffle=False)
+        train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode,
+                                                                        shuffle=not reproducible)
         # data, label = next(iter(dataset))
-        dropout = {
-            "downsampling": 0.2,
-            "bottle_neck": None,
-            "upsampling": 0.2
-        }
-        tf.random.set_seed(116)
+        if dropout is None:
+            dropout = {
+                "downsampling": None,
+                "bottle_neck": None,
+                "upsampling": None
+            }
+        if reproducible:
+            tf.random.set_seed(116)
         if not tensorflow:
             if complex_mode:
                 model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']),
@@ -178,13 +182,37 @@ def run_montecarlo():
                    iterations=5, epochs=20, shuffle=False, debug=True)
 
 
+def dropout_type(arg):
+    if arg == 'None':
+        f = None
+    else:
+        try:
+            f = float(arg)
+        except ValueError:
+            raise argparse.ArgumentTypeError("Must be a floating point number")
+        if f > 1. or f < 0.:
+            raise argparse.ArgumentTypeError("Argument must be < " + str(1) + " and > " + str(0))
+    return f
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--complex', action='store_true', help='run complex model')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
-    args = parser.parse_args()
-    run_model(complex_mode=args.complex, tensorflow=args.tensorflow)
+    parser.add_argument('--reproducible', action='store_true', help='use same seed to make results replicable')
+    parser.add_argument('--dropout', nargs=3, type=dropout_type, default=[None, None, None],
+                        help='dropout rate to be used on '
+                             'downsampling, bottle neck, upsampling sections (in order). '
+                             'Example: `python main.py --dropout 0.1 None 0.3` will use 10%% dropout on the '
+                             'downsampling part and 30%% on the upsamlpling part and no dropout on the bottle neck.')
 
+    args = parser.parse_args()
+    dropout = {
+        "downsampling": args.dropout[0],
+        "bottle_neck": args.dropout[1],
+        "upsampling": args.dropout[2]
+    }
+    run_model(complex_mode=args.complex, tensorflow=args.tensorflow, reproducible=args.reproducible, dropout=dropout)
     # tf.random.set_seed(116)
     # run_model(complex_mode=False, tensorflow=True)
     # train_model()
