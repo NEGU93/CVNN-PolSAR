@@ -1,10 +1,11 @@
 from cvnn.montecarlo import mlp_run_real_comparison_montecarlo, get_mlp, run_montecarlo
 from cvnn.dataset import Dataset
 from cvnn.real_equiv_tools import get_real_equivalent
-from dataset_reader import get_coh_data, get_k_data
+from bretigny_dataset import get_coh_data, get_k_data
 from notify_run import Notify
 import traceback
 from pdb import set_trace
+
 
 def test_shapes(x_train, y_train, x_val, y_val):
     dataset = Dataset(x=x_train, y=y_train)
@@ -43,7 +44,6 @@ def test_shapes(x_train, y_train, x_val, y_val):
                        validation_data=(x_val, y_val)
         )
     
-
 
 def test_activations():
     x_train, y_train, x_val, y_val = get_coh_data()

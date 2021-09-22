@@ -30,7 +30,6 @@ cao_params_model = {
     'stride': 2,  # Section 2.3.2 at 2nd paragraph
     'activation': cart_relu,  # Equation 11 & 12
     'kernels': [12, 24, 48, 96, 192],  # Table 1
-    'num_classes': 3,
     'output_function': cart_softmax,  # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),  # Section 2.2
     'loss': ComplexAverageCrossEntropy(),  # Section 2.4
@@ -95,7 +94,7 @@ def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
 
 
 def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.complex64, name="cao_model",
-                   dropout_dict=None):
+                   dropout_dict=None, num_classes=4):
     # Downsampling
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
@@ -132,7 +131,7 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
     # Block 11
     add11 = Add()([conv10, pool1])
     out = get_upsampling_block(add11, pool1_argmax, dropout=False,
-                               kernels=cao_params_model['num_classes'], activation=cao_params_model['output_function'],
+                               kernels=num_classes, activation=cao_params_model['output_function'],
                                dtype=dtype)
 
     model = Model(inputs=[in1], outputs=[out], name=name)
@@ -145,20 +144,22 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
     return model
 
 
-def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), dtype=np.complex64, name="cao_model", dropout_dict=None):
+def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4, dtype=np.complex64, name="cao_model",
+                        dropout_dict=None):
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
     in1 = complex_input(shape=input_shape, dtype=dtype)
     return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name,
-                          dropout_dict=dropout_dict)
+                          dropout_dict=dropout_dict, num_classes=num_classes)
 
 
-def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), name="tf_cao_model", dropout_dict=None):
+def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4,
+                          name="tf_cao_model", dropout_dict=None):
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
     in1 = Input(shape=input_shape)
     return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32, name=name,
-                          dropout_dict=dropout_dict)
+                          dropout_dict=dropout_dict, num_classes=num_classes)
 
 
 def get_cao_mlp_models(output_size, input_size=None):

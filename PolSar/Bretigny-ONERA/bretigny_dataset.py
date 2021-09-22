@@ -3,7 +3,29 @@ import os
 import numpy as np
 import tensorflow as tf
 from pdb import set_trace
+from os import path
+import sys
 from sklearn.model_selection import train_test_split
+if path.exists('/home/barrachina/Documents/onera/PolSar/'):
+    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/')
+    NOTIFY = False
+elif path.exists('W:\HardDiskDrive\Documentos\GitHub\onera\PolSar'):
+    sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\onera\PolSar')
+    NOTIFY = False
+elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
+    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/')
+    NOTIFY = True
+elif path.exists('/home/cfren/Documents/onera/PolSar'):
+    sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
+    NOTIFY = False
+else:
+    raise FileNotFoundError("path of the dataset reader not found")
+from dataset_reader import get_dataset_for_cao_segmentation, sparse_to_categorical_2D, sparse_to_categorical_1D
+
+"""------------------
+    Visualization
+------------------"""
+
 
 COLORS = [
     [1, 0.349, 0.392],      # Red; Built-up Area
@@ -11,6 +33,61 @@ COLORS = [
     [0.937, 0.917, 0.352],   # Yellow; Open Area
     [0, 0.486, 0.745]
 ]
+
+
+def print_image_with_labels():
+    try:
+        from PIL import Image
+    except ImportError:
+        import Image
+
+    path = "img3.png"
+    background = Image.open(path)
+    _, labels = open_data()
+    labels = labels['image']
+    labels = to_rgb_colors(labels)
+
+    overlay = Image.fromarray(labels, mode="RGBA")
+    background = background.convert("RGBA")
+
+    background.paste(overlay.convert('RGB'), (0, 0), overlay)
+    background.save("overlapped.png", "PNG")
+    # background.show()
+
+
+def to_rgb_colors(labels):
+    assert len(labels.shape) == 2
+    output = np.zeros(shape=labels.shape + (4,))
+    for i in range(0, labels.shape[0]):
+        for j in range(0, labels.shape[1]):
+            if labels[i, j] == 0:
+                output[i][j] = [0, 0, 0, 0]
+            elif labels[i][j] == 1:     # Forest
+                output[i][j] = COLORS[1] + [0.8]
+            elif labels[i][j] == 2:     # Piste
+                output[i][j] = COLORS[3] + [0.8]
+            elif labels[i][j] == 3:     # Piste
+                output[i][j] = COLORS[0] + [0.8]
+            elif labels[i][j] == 4:     # Forest
+                output[i][j] = COLORS[2] + [0.8]
+    return (output * 255).astype(np.uint8)
+
+
+"""------------------
+    Low level API
+------------------"""
+
+
+def open_data():
+    if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
+        path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
+    elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
+        path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
+    else:
+        raise FileNotFoundError("Dataset path not found")
+    mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
+    seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
+    return mat, seg
 
 
 def mean_filter(input, filter_size=3):
@@ -31,14 +108,62 @@ def mean_filter(input, filter_size=3):
     return tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
 
 
+"""------------------
+    Dataset raw
+------------------"""
+
+
+def get_k_vector(HH, VV, HV):
+    k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
+    return tf.transpose(k, perm=[1, 2, 0])
+
+
 def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
-    k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-    tf_k = tf.expand_dims(tf.transpose(k, perm=[1, 2, 0]), axis=-1)  # From shape 3xhxw to hxwx3x1
-
+    k = get_k_vector(HH, VV, HV)
+    tf_k = tf.expand_dims(k, axis=-1)  # From shape 3xhxw to hxwx3x1
     T = tf.linalg.matmul(tf_k, tf.transpose(tf_k, perm=[0, 1, 3, 2], conjugate=True))  # T = k * k^H
     one_channel_T = tf.reshape(T, shape=(T.shape[0], T.shape[1], T.shape[2] * T.shape[3]))  # hxwx3x3 to hxwx9
     filtered_T = mean_filter(one_channel_T, kernel_shape)
+    return filtered_T
+
+
+def get_bret_coherency_dataset():
+    mat, seg = open_data()
+    T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    labels = sparse_to_categorical_2D(seg['image'])
+    return T, labels
+
+
+def get_bret_k_dataset():
+    mat, seg = open_data()
+    k = get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    labels = sparse_to_categorical_2D(seg['image'])
+    return k, labels
+
+
+"""------------------
+    Dataset CAO
+------------------"""
+
+
+def get_k_dataset_for_segmentation(complex_mode=True):
+    k, labels = get_bret_k_dataset()
+    return get_dataset_for_cao_segmentation(k, labels, complex_mode=complex_mode, shuffle=True)
+
+
+def get_coherency_dataset_for_segmentation(complex_mode=True):
+    T, labels = get_bret_coherency_dataset()
+    return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode, shuffle=True)
+
+
+"""---------------------
+        MLP Models
+---------------------"""
+
+
+def get_flattened_coherency_matrix(HH, VV, HV, kernel_shape=3):
+    filtered_T = get_coherency_matrix(HH=HH, VV=VV, HV=HV, kernel_shape=kernel_shape)
     # filtered_T = tfa.image.mean_filter2d(tf.math.real(one_channel_T), kernel_shape)     # Filter the image
     flatten_T = tf.reshape(filtered_T, shape=(filtered_T.shape[0] * filtered_T.shape[1], filtered_T.shape[2]))
     return flatten_T
@@ -53,14 +178,6 @@ def remove_unlabeled(x, y):
     """
     mask = y != 0
     return x[mask], y[mask]
-
-
-def sparse_to_categorical_1D(labels):
-    cat_labels = np.zeros((labels.shape[0], np.max(labels)))
-    for i, val in enumerate(labels):
-        if val != 0:
-            cat_labels[i][val - 1] = 1.
-    return cat_labels
 
 
 def use_neighbors(im, size: int = 3, stride: int = 1, pad: int = 0):
@@ -89,21 +206,9 @@ def use_neighbors(im, size: int = 3, stride: int = 1, pad: int = 0):
     return tiles
 
 
-def open_data():
-    if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
-        path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
-    elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
-        path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
-    else:
-        raise FileNotFoundError("Dataset path not found")
-    mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
-    seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
-    return mat, seg
-
-
-def get_k_vector(HH, VV, HV):
-    k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-    data = use_neighbors(tf.transpose(k, perm=[1, 2, 0]), pad=1)
+def get_flattened_k_vector(HH, VV, HV):
+    k = get_k_vector(HH, VV, HV)
+    data = use_neighbors(k, pad=1)
     return tf.reshape(data, shape=(data.shape[0] * data.shape[1], data.shape[2]))
 
 
@@ -128,55 +233,17 @@ def format_data_for_mlp(data, labels):
     return x_train, y_train, x_val, y_val
 
 
-def get_k_data():
+def get_k_data_for_mlp():
     mat, seg = open_data()
-    k = get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    k = get_flattened_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
     return format_data_for_mlp(k, seg['image'])
 
 
-def get_coh_data():
+def get_coh_data_for_mlp():
     mat, seg = open_data()
 
     T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
     return format_data_for_mlp(T, seg['image'])
-
-
-def to_rgb_colors(labels):
-    assert len(labels.shape) == 2
-    output = np.zeros(shape=labels.shape + (4,))
-    for i in range(0, labels.shape[0]):
-        for j in range(0, labels.shape[1]):
-            if labels[i, j] == 0:
-                output[i][j] = [0, 0, 0, 0]
-            elif labels[i][j] == 1:     # Forest
-                output[i][j] = COLORS[1] + [0.8]
-            elif labels[i][j] == 2:     # Piste
-                output[i][j] = COLORS[3] + [0.8]
-            elif labels[i][j] == 3:     # Piste
-                output[i][j] = COLORS[0] + [0.8]
-            elif labels[i][j] == 4:     # Forest
-                output[i][j] = COLORS[2] + [0.8]
-    return (output * 255).astype(np.uint8)
-
-
-def print_image_with_labels():
-    try:
-        from PIL import Image
-    except ImportError:
-        import Image
-
-    path = "img3.png"
-    background = Image.open(path)
-    _, labels = open_data()
-    labels = labels['image']
-    labels = to_rgb_colors(labels)
-
-    overlay = Image.fromarray(labels, mode="RGBA")
-    background = background.convert("RGBA")
-
-    background.paste(overlay.convert('RGB'), (0, 0), overlay)
-    background.save("overlapped.png", "PNG")
-    # background.show()
 
 
 if __name__ == "__main__":
