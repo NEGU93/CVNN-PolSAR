@@ -24,7 +24,7 @@ else:
 if NOTIFY:
     from notify_run import Notify
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
-from bretigny_dataset import get_k_dataset_for_segmentation, get_coherency_dataset_for_segmentation
+from bretigny_dataset import get_cao_dataset_for_segmentation
 
 EPOCHS = 50
 
@@ -110,13 +110,9 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
                         f"{'cvnn' if not tensorflow else 'tf'} on {'coherency' if coherency else 'k'} data")
         dropout = parse_dropout(dropout=dropout)
         # Get dataset
-        if coherency:
-            train_dataset, test_dataset = get_coherency_dataset_for_segmentation(complex_mode=complex_mode)
-            channels = 6
-        else:
-            train_dataset, test_dataset = get_k_dataset_for_segmentation(complex_mode=complex_mode)
-            channels = 3
-            # data, label = next(iter(dataset))
+        train_dataset, test_dataset = get_cao_dataset_for_segmentation(complex_mode=complex_mode,
+                                                                       coherency=coherency)
+        channels = 6 if coherency else 3
         # Get model
         if not tensorflow:
             if complex_mode:

@@ -20,7 +20,8 @@ elif path.exists('/home/cfren/Documents/onera/PolSar'):
     NOTIFY = False
 else:
     raise FileNotFoundError("path of the dataset reader not found")
-from dataset_reader import get_dataset_for_cao_segmentation, sparse_to_categorical_2D, sparse_to_categorical_1D
+from dataset_reader import get_dataset_for_cao_segmentation, sparse_to_categorical_2D, sparse_to_categorical_1D, \
+    get_separated_dataset
 
 """------------------
     Visualization
@@ -108,6 +109,16 @@ def mean_filter(input, filter_size=3):
     return tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
 
 
+def _remove_lower_part(coh):
+    mask = np.array(
+        [True, True, True,
+         False, True, True,
+         False, False, True]
+    )
+    masked_coh = tf.boolean_mask(coh, mask, axis=2)
+    return masked_coh
+
+
 """------------------
     Dataset raw
 ------------------"""
@@ -131,6 +142,7 @@ def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
 def get_bret_coherency_dataset():
     mat, seg = open_data()
     T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    T = _remove_lower_part(T)
     labels = sparse_to_categorical_2D(seg['image'])
     return T, labels
 
@@ -142,19 +154,28 @@ def get_bret_k_dataset():
     return k, labels
 
 
-"""------------------
-    Dataset CAO
-------------------"""
+"""-------------------
+    High level API
+-------------------"""
 
 
-def get_k_dataset_for_segmentation(complex_mode=True):
-    k, labels = get_bret_k_dataset()
-    return get_dataset_for_cao_segmentation(k, labels, complex_mode=complex_mode, shuffle=True)
+def get_cao_dataset_for_segmentation(complex_mode=True, coherency=False):
+    if not coherency:
+        img, label = get_bret_k_dataset()
+    else:
+        img, label = get_bret_coherency_dataset()
+    train_dataset, test_dataset = get_dataset_for_cao_segmentation(img, label, complex_mode=complex_mode, shuffle=True)
+    del img, label
+    return train_dataset, test_dataset
 
 
-def get_coherency_dataset_for_segmentation(complex_mode=True):
-    T, labels = get_bret_coherency_dataset()
-    return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode, shuffle=True)
+def get_bret_separated_dataset(complex_mode=True, k_mode=True, shuffle=True, pad=0):
+    if k_mode:
+        img, labels = get_bret_k_dataset()
+    else:
+        img, labels = get_bret_coherency_dataset()
+    return get_separated_dataset(img, labels, percentage=(0.7, 0.15, 0.15), shuffle=shuffle, pad=pad,
+                                 savefig='./images_crop/')
 
 
 """---------------------
@@ -246,7 +267,5 @@ def get_coh_data_for_mlp():
     return format_data_for_mlp(T, seg['image'])
 
 
-if __name__ == "__main__":
-    print_image_with_labels()
-    # get_k_data()
-    # x_train, y_train, x_val, y_val = get_coh_data()
+if __name__ == '__main__':
+    get_bret_separated_dataset()

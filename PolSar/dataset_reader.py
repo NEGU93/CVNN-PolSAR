@@ -8,6 +8,7 @@ import tensorflow as tf
 from cvnn.utils import standarize, randomize
 from typing import Tuple, Optional
 from sklearn.model_selection import train_test_split
+import sklearn
 
 cao_dataset_parameters = {
     'validation_split': 0.1,  # Section 3.3.2
@@ -18,10 +19,17 @@ cao_dataset_parameters = {
 }
 
 OBER_COLORS = np.array([
-    [1, 0.349, 0.392],  # Red; Built-up Area
+    [1, 0.349, 0.392],      # Red; Built-up Area
     [0.086, 0.858, 0.576],  # Green; Wood Land
     [0.937, 0.917, 0.352],  # Yellow; Open Area
     [0, 0.486, 0.745]
+])
+
+BRET_COLORS = np.array([
+    [0.086, 0.858, 0.576],  # Green; Forest
+    [0, 0.486, 0.745],      # Blue; Piste
+    [1, 0.349, 0.392],      # Red; Built-up Area
+    [0.937, 0.917, 0.352],  # Yellow; Open Area
 ])
 
 # https://imagecolorpicker.com/en
@@ -201,9 +209,9 @@ def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: in
     assert im.shape[0] > size and im.shape[1] > size
     if pad:
         im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
-        lab = np.pad(lab, ((pad, pad), (pad, pad)))
-    for x in range(0, im.shape[0] - size, stride):
-        for y in range(0, im.shape[1] - size, stride):
+        lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
+    for x in range(0, im.shape[0] - size + 1, stride):
+        for y in range(0, im.shape[1] - size + 1, stride):
             slice_x = slice(x, x + size)
             slice_y = slice(y, y + size)
             tiles.append(im[slice_x, slice_y])
@@ -211,6 +219,7 @@ def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: in
     assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
     assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
     if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
+        # import pdb; pdb.set_trace()
         assert int(np.shape(tiles)[0]) == int(
             (np.floor((im.shape[0] - size) / stride) + 1) * (np.floor((im.shape[1] - size) / stride) + 1))
     return np.array(tiles), np.array(label_tiles)
@@ -258,29 +267,66 @@ def remove_unlabeled_with_window(T, labels, window_size=32):
     return np.array(results), np.array(results_labels)
 
 
+def _transform_to_tensor(x, y, data_augment: bool = True,
+                         batch_size: int = cao_dataset_parameters['batch_size'], complex_mode: bool = True):
+    ds = tf.data.Dataset.from_tensor_slices((x, y))
+    ds = ds.batch(batch_size)
+    if data_augment:
+        ds = ds.map(flip)
+    if not complex_mode:
+        ds = ds.map(to_real)
+    return ds
+
+
+def _parse_percentage(percentage):
+    try:
+        percentage = tuple(percentage)
+    except Exception as e:
+        raise ValueError(f"Could not cast {percentage} to tuple")
+    assert np.all([percentage[i] > 0 for i in range(0, len(percentage))]), "No negative percentage values allowed."
+    if len(percentage) == 3:
+        assert sum(percentage) == 1., "Total percentage does not get to 100%"
+    elif len(percentage) == 2:
+        assert sum(percentage) < 1., "Total percentage over 100%"
+    else:
+        raise ValueError(f"Expected percentage length 2 or 3. Received {len(percentage)}")
+    return percentage
+
+
 """----------
 -   Public  -
 ----------"""
 
 
-def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None) -> np.ndarray:
+def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None,
+                           format: str = '.png') -> np.ndarray:
     """
     Transforms the labels to a RGB format so it can be drawn as images
     :param labels: The labels to be transformed to rgb
     :param showfig: boolean. If true it will show the generated ground truth image
-    :param savefig: Atring. String with the file to be saved of the generated ground truth image
+    :param savefig: A string. String with the file to be saved of the generated ground truth image
     :param colors: Color palette to be used. Must be at least size of the labels. TODO: Some kind of check for this?
+    :param mask: If the mask is passed it will remove the pixels (black) when mask == 0
     :return: numpy array of the ground truth RGB image
     """
     if len(labels.shape) == 3:
-        labels = np.argmax(labels, axis=-1) + 1
+        new_labels = np.zeros(labels.shape[:-1]).astype(int)
+        for i in range(labels.shape[0]):
+            for j in range(labels.shape[1]):
+                if np.any(labels[i][j] != 0):
+                    new_labels[i][j] = int(np.nonzero(labels[i][j])[0] + 1)
+        # labels = np.argmax(labels, axis=-1) + 1
+        labels = new_labels
     elif len(labels.shape) != 2:
         raise ValueError(f"Expected labels to be rank 3 or 2, received rank {len(labels.shape)}.")
     # import pdb; pdb.set_trace()
     if colors is None:
-        if np.max(labels) == 3 or np.max(labels) == 4:
+        if np.max(labels) == 3:
             print("Using Oberpfaffenhofen dataset colors")
             colors = OBER_COLORS
+        elif np.max(labels) == 4:
+            print("Using Bretigny dataset colors")
+            colors = BRET_COLORS
         elif np.max(labels) == 15:
             print("Using Flevoland dataset colors")
             colors = FLEVOLAND
@@ -294,16 +340,21 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
     for i in range(labels.shape[0]):
         for j in range(labels.shape[1]):
             if labels[i, j] != 0:
+                # try:
                 ground_truth[i, j] = colors[labels[i, j] - 1]
+                # except Exception as e:
+                #     import pdb; pdb.set_trace()
     if mask is not None:
         ground_truth[mask == 0] = [0, 0, 0]
-    plt.imshow(ground_truth)
     if showfig:
-        plt.show()
+        plt.imshow(ground_truth)
+        # plt.show()
     if savefig is not None:
         assert isinstance(savefig, str)
-        plt.imsave(savefig + ".pdf", ground_truth)
-        tikzplotlib.save(savefig + ".tex")
+        if format == ".tex":
+            tikzplotlib.save(savefig + ".tex")
+        else:
+            plt.imsave(savefig + format, ground_truth)
     return ground_truth
 
 
@@ -407,7 +458,7 @@ def get_dataset_with_labels_t3(dataset_path: str, labels: str):
 
 # Returns a dataset T with labels in the correct form
 def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2,
-                                 shuffle: bool = True) -> (tf.data.Dataset, tf.data.Dataset):
+                                 shuffle: bool = True, pad=0) -> (tf.data.Dataset, tf.data.Dataset):
     """
     Applies the sliding window operations getting smaller images of a big image T.
     Splits dataset into train and test.
@@ -418,9 +469,11 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, t
     :param test_size: float. Percentage of examples to be used for the test set [0, 1]
     :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
     """
-    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=0)
-    del T, labels  # Free up memory
-    return get_tf_dataset_split(patches, label_patches, test_size=test_size, shuffle=shuffle)
+    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad)
+    # del T, labels  # Free up memory
+    x_train, x_test, y_train, y_test = get_tf_dataset_split(patches, label_patches, test_size=test_size, shuffle=shuffle)
+    del patches, label_patches
+    return x_train, x_test, y_train, y_test
 
 
 def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8):
@@ -436,11 +489,48 @@ def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8):
 
 def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
     x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=test_size, shuffle=shuffle)
-    del T, labels
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-    del x_train, y_train, x_test, y_test
-    return train_dataset, test_dataset
+    # train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    # test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+    # del x_train, y_train, x_test, y_test
+    return x_train, x_test, y_train, y_test
+
+
+def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                          savefig: Optional[str] = None):
+    percentage = _parse_percentage(percentage)
+
+    slice_1 = int(T.shape[1] * percentage[0])
+    slice_2 = int(T.shape[1] * percentage[1]) + slice_1
+
+    # labels_to_ground_truth(labels, savefig='./full_image')
+
+    train_slice_t = T[:, :slice_1]
+    train_slice_label = labels[:, :slice_1]
+    val_slice_t = T[:, slice_1:slice_2]
+    val_slice_label = labels[:, slice_1:slice_2]
+    test_slice_t = T[:, slice_2:]
+    test_slice_label = labels[:, slice_2:]
+    if savefig:
+        labels_to_ground_truth(train_slice_label, savefig=savefig + 'train_ground_truth')
+        labels_to_ground_truth(val_slice_label, savefig=savefig + 'val_ground_truth')
+        labels_to_ground_truth(test_slice_label, savefig=savefig + 'test_ground_truth')
+
+    train_patches, train_label_patches = sliding_window_operation(train_slice_t, train_slice_label,
+                                                                  size=size, stride=stride, pad=pad)
+    val_patches, val_label_patches = sliding_window_operation(val_slice_t, val_slice_label,
+                                                              size=size, stride=stride, pad=pad)
+    test_patches, test_label_patches = sliding_window_operation(test_slice_t, test_slice_label,
+                                                                size=size, stride=stride, pad=pad)
+
+    if shuffle:     # No need to shuffle the rest
+        train_patches, train_label_patches = sklearn.utils.shuffle(train_patches, train_label_patches)
+
+    ds_train = _transform_to_tensor(train_patches, train_label_patches, data_augment=True, batch_size=30)
+    ds_val = _transform_to_tensor(val_patches, val_label_patches, data_augment=False, batch_size=30)
+    ds_test = _transform_to_tensor(test_patches, test_label_patches, data_augment=False, batch_size=30)
+    del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
+    del train_patches, train_label_patches, val_patches, val_label_patches, test_patches, test_label_patches
+    return ds_train, ds_val, ds_test
 
 
 """----------
@@ -448,17 +538,19 @@ def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
 ----------"""
 
 
-def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True):
-    train_dataset, test_dataset = get_dataset_for_segmentation(T=T, labels=labels,
-                                                               size=cao_dataset_parameters['sliding_window_size'],
-                                                               stride=cao_dataset_parameters['sliding_window_stride'],
-                                                               test_size=cao_dataset_parameters['validation_split'],
-                                                               shuffle=shuffle)
-    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size']).map(flip)
-    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
-    if not complex_mode:
-        train_dataset = train_dataset.map(to_real)
-        test_dataset = test_dataset.map(to_real)
+def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0):
+    x_train, x_test, y_train, y_test = get_dataset_for_segmentation(T=T, labels=labels,
+                                                                    size=cao_dataset_parameters['sliding_window_size'],
+                                                                    stride=cao_dataset_parameters[
+                                                                        'sliding_window_stride'],
+                                                                    test_size=cao_dataset_parameters[
+                                                                        'validation_split'],
+                                                                    shuffle=shuffle, pad=pad)
+    train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True,
+                                         batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
+    test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False,
+                                        batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
+    del x_train, x_test, y_train, y_test
     return train_dataset, test_dataset
 
 

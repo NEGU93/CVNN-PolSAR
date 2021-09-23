@@ -64,7 +64,7 @@ def run_model(complex_mode=True, tensorflow=False, reproducible=False, dropout=N
                     f"{'cvnn' if not tensorflow else 'tf'}")
     try:
         train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode,
-                                                                        shuffle=not reproducible)
+                                                                        shuffle=not reproducible, pad=77)
         # data, label = next(iter(dataset))
         if dropout is None:
             dropout = {
@@ -76,16 +76,16 @@ def run_model(complex_mode=True, tensorflow=False, reproducible=False, dropout=N
             tf.random.set_seed(116)
         if not tensorflow:
             if complex_mode:
-                model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']),
+                model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']), num_classes=3,
                                             name="cao_cvfcn", dropout_dict=dropout)
             else:
-                model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']),
+                model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), num_classes=3,
                                             dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout)
         else:
             if complex_mode:
                 raise ValueError("Tensorflow does not support complex model. "
                                  "Do not use tensorflow and complex_mode both as True")
-            model = get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels']),
+            model = get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), num_classes=3,
                                           name="tf_cao_rvfcn", dropout_dict=dropout)
         # Checkpoints
         callbacks, temp_path = get_callbacks_list()
