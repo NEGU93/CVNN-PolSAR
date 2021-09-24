@@ -24,9 +24,9 @@ else:
 if NOTIFY:
     from notify_run import Notify
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
-from bretigny_dataset import get_cao_dataset_for_segmentation
+from bretigny_dataset import get_bret_cao_dataset, get_bret_separated_dataset
 
-EPOCHS = 50
+EPOCHS = 100
 
 
 """----------
@@ -39,6 +39,8 @@ def parse_input():
     parser.add_argument('--complex', action='store_true', help='run complex model')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
     parser.add_argument('--coherency', action='store_true', help='use coherency matrix instead of k')
+    parser.add_argument('--split_datasets', action='store_true', help='Split the dataset into 3 parts to make sure '
+                                                                      'train and test sets do not overlap')
     parser.add_argument('--dropout', nargs=3, type=dropout_type, default=[None, None, None],
                         help='dropout rate to be used on '
                              'downsampling, bottle neck, upsampling sections (in order). '
@@ -102,7 +104,7 @@ def parse_dropout(dropout):
     return dropout
 
 
-def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False):
+def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False):
     try:
         if NOTIFY:
             notify = Notify()
@@ -110,8 +112,10 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
                         f"{'cvnn' if not tensorflow else 'tf'} on {'coherency' if coherency else 'k'} data")
         dropout = parse_dropout(dropout=dropout)
         # Get dataset
-        train_dataset, test_dataset = get_cao_dataset_for_segmentation(complex_mode=complex_mode,
-                                                                       coherency=coherency)
+        if split_datasets:
+            train_dataset, test_dataset, _ = get_bret_separated_dataset(complex_mode=complex_mode, coherency=coherency)
+        else:
+            train_dataset, test_dataset = get_bret_cao_dataset(complex_mode=complex_mode, coherency=coherency)
         channels = 6 if coherency else 3
         # Get model
         if not tensorflow:
@@ -134,6 +138,7 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
             summary_file.write(f"Data type: {'complex' if complex_mode else 'real'}\n")
             summary_file.write(f"Library: {'cvnn' if not tensorflow else 'tensorflow'}\n")
             summary_file.write(f"Data format: {'coherency' if coherency else 'k'}\n")
+            summary_file.write(f"\tdataset {'not' if not split_datasets else ''} splitted\n")
             summary_file.write(f"Dropout:\n")
             for key, value in dropout.items():
                 summary_file.write(f"\t- {key}: {value}\n")
@@ -155,4 +160,5 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
 
 if __name__ == "__main__":
     args = parse_input()
-    run_model(complex_mode=args.complex, tensorflow=args.tensorflow, coherency=args.coherency, dropout=args.dropout)
+    run_model(complex_mode=args.complex, tensorflow=args.tensorflow, coherency=args.coherency, dropout=args.dropout,
+              split_datasets=args.split_datasets)

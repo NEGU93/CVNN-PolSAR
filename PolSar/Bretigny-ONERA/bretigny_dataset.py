@@ -2,6 +2,7 @@ import scipy.io
 import os
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 from pdb import set_trace
 from os import path
 import sys
@@ -98,15 +99,22 @@ def mean_filter(input, filter_size=3):
     :param filter_size:
     :return:
     """
-    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start
+    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start 9xhxw
 
-    filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype) / (filter_size * filter_size)
+    filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype)
     filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
                                         filters=filter, padding="SAME")
     filtered_T_imag = tf.nn.convolution(input=tf.expand_dims(tf.math.imag(input_transposed), axis=-1),
                                         filters=filter, padding="SAME")
     filtered_T = tf.complex(filtered_T_real, filtered_T_imag)
-    return tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
+    my_filter_result = tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
+    my_filter_result = my_filter_result / (filter_size * filter_size)
+    # This method would be better but it has problems with tf 2.4.1 (used on conda-develop)
+    # tf_mean_real = tfa.image.mean_filter2d(tf.math.real(input), filter_shape=filter_size, padding="CONSTANT")
+    # tf_mean_imag = tfa.image.mean_filter2d(tf.math.imag(input), filter_shape=filter_size, padding="CONSTANT")
+    # tf_mean = tf.complex(tf_mean_real, tf_mean_imag)
+    # assert np.allclose(tf_mean, my_filter_result)
+    return my_filter_result
 
 
 def _remove_lower_part(coh):
@@ -132,8 +140,9 @@ def get_k_vector(HH, VV, HV):
 def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
     k = get_k_vector(HH, VV, HV)
-    tf_k = tf.expand_dims(k, axis=-1)  # From shape 3xhxw to hxwx3x1
-    T = tf.linalg.matmul(tf_k, tf.transpose(tf_k, perm=[0, 1, 3, 2], conjugate=True))  # T = k * k^H
+    tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
+    tf_k_transposed = tf.transpose(tf_k, perm=[0, 1, 3, 2], conjugate=True)     # hxwx1x3
+    T = tf.linalg.matmul(tf_k, tf_k_transposed)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
     one_channel_T = tf.reshape(T, shape=(T.shape[0], T.shape[1], T.shape[2] * T.shape[3]))  # hxwx3x3 to hxwx9
     filtered_T = mean_filter(one_channel_T, kernel_shape)
     return filtered_T
@@ -159,7 +168,7 @@ def get_bret_k_dataset():
 -------------------"""
 
 
-def get_cao_dataset_for_segmentation(complex_mode=True, coherency=False):
+def get_bret_cao_dataset(complex_mode=True, coherency=False):
     if not coherency:
         img, label = get_bret_k_dataset()
     else:
@@ -169,13 +178,13 @@ def get_cao_dataset_for_segmentation(complex_mode=True, coherency=False):
     return train_dataset, test_dataset
 
 
-def get_bret_separated_dataset(complex_mode=True, k_mode=True, shuffle=True, pad=0):
-    if k_mode:
+def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0):
+    if not coherency:
         img, labels = get_bret_k_dataset()
     else:
         img, labels = get_bret_coherency_dataset()
     return get_separated_dataset(img, labels, percentage=(0.7, 0.15, 0.15), shuffle=shuffle, pad=pad,
-                                 savefig='./images_crop/')
+                                 complex_mode=complex_mode)
 
 
 """---------------------

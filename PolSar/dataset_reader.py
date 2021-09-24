@@ -496,7 +496,7 @@ def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
 
 
 def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                          savefig: Optional[str] = None):
+                          savefig: Optional[str] = None, complex_mode: bool = True):
     percentage = _parse_percentage(percentage)
 
     slice_1 = int(T.shape[1] * percentage[0])
@@ -525,9 +525,12 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
     if shuffle:     # No need to shuffle the rest
         train_patches, train_label_patches = sklearn.utils.shuffle(train_patches, train_label_patches)
 
-    ds_train = _transform_to_tensor(train_patches, train_label_patches, data_augment=True, batch_size=30)
-    ds_val = _transform_to_tensor(val_patches, val_label_patches, data_augment=False, batch_size=30)
-    ds_test = _transform_to_tensor(test_patches, test_label_patches, data_augment=False, batch_size=30)
+    ds_train = _transform_to_tensor(train_patches, train_label_patches, data_augment=True, batch_size=30,
+                                    complex_mode=complex_mode)
+    ds_val = _transform_to_tensor(val_patches, val_label_patches, data_augment=False, batch_size=30,
+                                  complex_mode=complex_mode)
+    ds_test = _transform_to_tensor(test_patches, test_label_patches, data_augment=False, batch_size=30,
+                                   complex_mode=complex_mode)
     del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
     del train_patches, train_label_patches, val_patches, val_label_patches, test_patches, test_label_patches
     return ds_train, ds_val, ds_test
