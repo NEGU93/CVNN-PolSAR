@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import spectral.io.envi as envi
 from pathlib import Path
 import scipy.io
+from pdb import set_trace
 import tikzplotlib
 import tensorflow as tf
 from cvnn.utils import standarize, randomize
@@ -310,13 +311,16 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
     :return: numpy array of the ground truth RGB image
     """
     if len(labels.shape) == 3:
-        new_labels = np.zeros(labels.shape[:-1]).astype(int)
-        for i in range(labels.shape[0]):
-            for j in range(labels.shape[1]):
-                if np.any(labels[i][j] != 0):
-                    new_labels[i][j] = int(np.nonzero(labels[i][j])[0] + 1)
-        # labels = np.argmax(labels, axis=-1) + 1
-        labels = new_labels
+        # new_labels = np.zeros(labels.shape[:-1]).astype(int)
+        # for i in range(labels.shape[0]):
+        #     for j in range(labels.shape[1]):
+        #         if np.any(labels[i][j] != 0):
+        #             # try:
+        #             new_labels[i][j] = int(np.nonzero(labels[i][j])[0] + 1)
+        #             # except Exception as e:
+        #             #     set_trace()
+        # labels = new_labels
+        labels = np.argmax(labels, axis=-1) + 1
     elif len(labels.shape) != 2:
         raise ValueError(f"Expected labels to be rank 3 or 2, received rank {len(labels.shape)}.")
     # import pdb; pdb.set_trace()

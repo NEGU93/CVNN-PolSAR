@@ -145,13 +145,12 @@ def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     T = tf.linalg.matmul(tf_k, tf_k_transposed)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
     one_channel_T = tf.reshape(T, shape=(T.shape[0], T.shape[1], T.shape[2] * T.shape[3]))  # hxwx3x3 to hxwx9
     filtered_T = mean_filter(one_channel_T, kernel_shape)
-    return filtered_T
+    return _remove_lower_part(filtered_T)
 
 
 def get_bret_coherency_dataset():
     mat, seg = open_data()
     T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
-    T = _remove_lower_part(T)
     labels = sparse_to_categorical_2D(seg['image'])
     return T, labels
 

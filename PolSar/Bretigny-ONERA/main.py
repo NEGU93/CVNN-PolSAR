@@ -9,7 +9,7 @@ import traceback
 from cvnn.utils import create_folder
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
-    NOTIFY = True
+    NOTIFY = False
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
     NOTIFY = True
@@ -25,8 +25,9 @@ if NOTIFY:
     from notify_run import Notify
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from bretigny_dataset import get_bret_cao_dataset, get_bret_separated_dataset
+from image_generator import save_result_image_from_saved_model
 
-EPOCHS = 100
+EPOCHS = 50
 
 
 """----------
@@ -104,7 +105,8 @@ def parse_dropout(dropout):
     return dropout
 
 
-def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False):
+def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
+              save_model=True):
     try:
         if NOTIFY:
             notify = Notify()
@@ -134,6 +136,7 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
         # Train
         callbacks, temp_path = get_callbacks_list()
         with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
+            summary_file.write(" ".join(sys.argv[1:]) + "\n")
             summary_file.write(f"Model Name: {model.name}\n")
             summary_file.write(f"Data type: {'complex' if complex_mode else 'real'}\n")
             summary_file.write(f"Library: {'cvnn' if not tensorflow else 'tensorflow'}\n")
@@ -144,6 +147,9 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
                 summary_file.write(f"\t- {key}: {value}\n")
         history = model.fit(x=train_dataset, epochs=EPOCHS,
                             validation_data=test_dataset, shuffle=True, callbacks=callbacks)
+        if save_model:
+            save_result_image_from_saved_model(temp_path, complex_mode=complex_mode, tensorflow=tensorflow,
+                                               dropout=dropout, coherency=coherency)
         # Save results
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
