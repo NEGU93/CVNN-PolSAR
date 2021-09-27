@@ -69,7 +69,7 @@ def read_parameters(root_path):
     return params_dict
 
 
-def open_saved_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False):
+def open_saved_model(root_path, complex_mode=True, tensorflow=False, dropout=None, coherency=False):
     dropout = parse_dropout(dropout=dropout)
     channels = 6 if coherency else 3
     if not tensorflow:
@@ -100,7 +100,8 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
         full_img = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
     full_image = tf.expand_dims(full_img, axis=0)
     # Get model
-    model = open_saved_model(complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout, coherency=coherency)
+    model = open_saved_model(root_path,
+                             complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout, coherency=coherency)
     tf.print("Predicting image")
     prediction = model.predict(full_image)[0]
     tf.print("Prediction done")
