@@ -37,6 +37,7 @@ EPOCHS = 100
 
 def parse_input():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='epochs to be done')
     parser.add_argument('--complex', action='store_true', help='run complex model')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
     parser.add_argument('--coherency', action='store_true', help='use coherency matrix instead of k')
@@ -105,7 +106,7 @@ def parse_dropout(dropout):
     return dropout
 
 
-def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
+def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
               save_model=True):
     try:
         if NOTIFY:
@@ -145,7 +146,7 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
             summary_file.write(f"Dropout:\n")
             for key, value in dropout.items():
                 summary_file.write(f"\t- {key}: {value}\n")
-        history = model.fit(x=train_dataset, epochs=EPOCHS,
+        history = model.fit(x=train_dataset, epochs=epochs,
                             validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         if save_model:
             save_result_image_from_saved_model(temp_path, complex_mode=complex_mode, tensorflow=tensorflow,
@@ -166,5 +167,5 @@ def run_model(complex_mode=True, tensorflow=False, dropout=None, coherency=False
 
 if __name__ == "__main__":
     args = parse_input()
-    run_model(complex_mode=args.complex, tensorflow=args.tensorflow, coherency=args.coherency, dropout=args.dropout,
-              split_datasets=args.split_datasets)
+    run_model(epochs=args.epochs[0], complex_mode=args.complex, tensorflow=args.tensorflow, coherency=args.coherency,
+              dropout=args.dropout, split_datasets=args.split_datasets)
