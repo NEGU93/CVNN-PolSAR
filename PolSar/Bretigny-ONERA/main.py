@@ -27,7 +27,7 @@ from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from bretigny_dataset import get_bret_cao_dataset, get_bret_separated_dataset
 from image_generator import save_result_image_from_saved_model
 
-EPOCHS = 50
+EPOCHS = 100
 
 
 """----------
