@@ -37,7 +37,9 @@ EPOCHS = 100
 
 def parse_input():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--boxcar', nargs=1, type=int, default=[3], help='boxcar size for coherency matrix generation')
     parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='epochs to be done')
+    parser.add_argument('--early_stop', action='store_true', help='apply early stopping to training')
     parser.add_argument('--complex', action='store_true', help='run complex model')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
     parser.add_argument('--coherency', action='store_true', help='use coherency matrix instead of k')
@@ -65,14 +67,19 @@ def dropout_type(arg):
     return f
 
 
-def get_callbacks_list():
+def get_callbacks_list(early_stop):
     temp_path = create_folder("./log/")
     makedirs(temp_path, exist_ok=True)
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt',
                                                      save_weights_only=True,
                                                      verbose=0, save_best_only=True)
-    return [tensorboard_callback, cp_callback], temp_path
+    callback_list = [tensorboard_callback, cp_callback]
+    if early_stop:
+        callback_list.append(tf.keras.callbacks.EarlyStopping(
+            monitor='val_loss', patience=5, restore_best_weights=False
+        ))
+    return callback_list, temp_path
 
 
 def parse_dropout(dropout):
@@ -107,7 +114,7 @@ def parse_dropout(dropout):
 
 
 def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
-              save_model=True):
+              save_model=True, early_stop=False, kernel_shape=3):
     try:
         if NOTIFY:
             notify = Notify()
@@ -116,9 +123,11 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
         dropout = parse_dropout(dropout=dropout)
         # Get dataset
         if split_datasets:
-            train_dataset, test_dataset, _ = get_bret_separated_dataset(complex_mode=complex_mode, coherency=coherency)
+            train_dataset, test_dataset, _ = get_bret_separated_dataset(complex_mode=complex_mode, coherency=coherency,
+                                                                        kernel_shape=kernel_shape)
         else:
-            train_dataset, test_dataset = get_bret_cao_dataset(complex_mode=complex_mode, coherency=coherency)
+            train_dataset, test_dataset = get_bret_cao_dataset(complex_mode=complex_mode, coherency=coherency,
+                                                               kernel_shape=kernel_shape)
         channels = 6 if coherency else 3
         # Get model
         if not tensorflow:
@@ -135,7 +144,7 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
             model = get_tf_real_cao_model(input_shape=(None, None, 2*channels), num_classes=4,
                                           name="tf_cao_rvfcn", dropout_dict=dropout)
         # Train
-        callbacks, temp_path = get_callbacks_list()
+        callbacks, temp_path = get_callbacks_list(early_stop)
         with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
             summary_file.write(" ".join(sys.argv[1:]) + "\n")
             summary_file.write(f"Model Name: {model.name}\n")
@@ -168,4 +177,5 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
 if __name__ == "__main__":
     args = parse_input()
     run_model(epochs=args.epochs[0], complex_mode=args.complex, tensorflow=args.tensorflow, coherency=args.coherency,
-              dropout=args.dropout, split_datasets=args.split_datasets)
+              dropout=args.dropout, split_datasets=args.split_datasets, early_stop=args.early_stop,
+              kernel_shape=args.boxcar[0])

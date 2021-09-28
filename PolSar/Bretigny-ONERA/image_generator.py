@@ -85,7 +85,7 @@ def open_saved_model(root_path, complex_mode=True, tensorflow=False, dropout=Non
                              "Do not use tensorflow and complex_mode both as True")
         model = get_tf_real_cao_model(input_shape=(None, None, 2 * channels), num_classes=4,
                                       name="tf_cao_rvfcn", dropout_dict=dropout)
-    model.load_weights(root_path + "/checkpoints/cp.ckpt")
+    model.load_weights(str(root_path / "checkpoints/cp.ckpt"))
     # set_trace()
     return model
 
@@ -106,7 +106,7 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
     prediction = model.predict(full_image)[0]
     tf.print("Prediction done")
     prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    labels_to_ground_truth(prediction, savefig=root_path + "/prediction")
+    labels_to_ground_truth(prediction, savefig=str(root_path / "prediction"))
 
 
 if __name__ == '__main__':

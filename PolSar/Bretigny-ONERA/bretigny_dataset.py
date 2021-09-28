@@ -2,6 +2,7 @@ import scipy.io
 import os
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import tensorflow_addons as tfa
 from pdb import set_trace
 from os import path
@@ -100,7 +101,6 @@ def mean_filter(input, filter_size=3):
     :return:
     """
     input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start 9xhxw
-
     filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype)
     filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
                                         filters=filter, padding="SAME")
@@ -114,6 +114,8 @@ def mean_filter(input, filter_size=3):
     # tf_mean_imag = tfa.image.mean_filter2d(tf.math.imag(input), filter_shape=filter_size, padding="CONSTANT")
     # tf_mean = tf.complex(tf_mean_real, tf_mean_imag)
     # assert np.allclose(tf_mean, my_filter_result)
+    if filter_size == 1:
+        assert np.all(my_filter_result == input), "mean filter of size 1 changed the input matrix"
     return my_filter_result
 
 
@@ -141,16 +143,16 @@ def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
     k = get_k_vector(HH, VV, HV)
     tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
-    tf_k_transposed = tf.transpose(tf_k, perm=[0, 1, 3, 2], conjugate=True)     # hxwx1x3
-    T = tf.linalg.matmul(tf_k, tf_k_transposed)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
+    T = tf.linalg.matmul(tf_k, tf_k, adjoint_b=True)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
     one_channel_T = tf.reshape(T, shape=(T.shape[0], T.shape[1], T.shape[2] * T.shape[3]))  # hxwx3x3 to hxwx9
-    filtered_T = mean_filter(one_channel_T, kernel_shape)
-    return _remove_lower_part(filtered_T)
+    removed_lower_part_T = _remove_lower_part(one_channel_T)
+    filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
+    return filtered_T
 
 
-def get_bret_coherency_dataset():
+def get_bret_coherency_dataset(kernel_shape=3):
     mat, seg = open_data()
-    T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
+    T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'], kernel_shape=kernel_shape)
     labels = sparse_to_categorical_2D(seg['image'])
     return T, labels
 
@@ -167,21 +169,21 @@ def get_bret_k_dataset():
 -------------------"""
 
 
-def get_bret_cao_dataset(complex_mode=True, coherency=False):
+def get_bret_cao_dataset(complex_mode=True, coherency=False, kernel_shape=3):
     if not coherency:
         img, label = get_bret_k_dataset()
     else:
-        img, label = get_bret_coherency_dataset()
+        img, label = get_bret_coherency_dataset(kernel_shape=kernel_shape)
     train_dataset, test_dataset = get_dataset_for_cao_segmentation(img, label, complex_mode=complex_mode, shuffle=True)
     del img, label
     return train_dataset, test_dataset
 
 
-def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0):
+def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0, kernel_shape=3):
     if not coherency:
         img, labels = get_bret_k_dataset()
     else:
-        img, labels = get_bret_coherency_dataset()
+        img, labels = get_bret_coherency_dataset(kernel_shape=kernel_shape)
     return get_separated_dataset(img, labels, percentage=(0.7, 0.15, 0.15), shuffle=shuffle, pad=pad,
                                  complex_mode=complex_mode)
 
