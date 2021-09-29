@@ -69,7 +69,7 @@ def _accuracy(y_true, y_pred):
     if y_true.dtype != y_pred.dtype:
         y_pred = tf.cast(y_pred, y_true.dtype)
     reduced_sum = tf.reduce_sum(tf.cast(tf.math.equal(y_true, y_pred), backend.floatx()), axis=-1)
-    return reduced_sum / tf.cast(tf.shape(y_pred)[-1], reduced_sum.dtype)
+    return tf.math.divide_no_nan(reduced_sum / tf.cast(tf.shape(y_pred)[-1], reduced_sum.dtype))
 
 
 def custom_average_accuracy(y_true, y_pred):

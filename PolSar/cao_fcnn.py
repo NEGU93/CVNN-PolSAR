@@ -9,7 +9,8 @@ from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense
 from cvnn.activations import cart_softmax, cart_relu
 from cvnn.initializers import ComplexHeNormal
-from custom_accuracy import CustomCategoricalAccuracy, CustomAverageAccuracy, CustomCohenKappa
+from custom_accuracy import CustomCategoricalAccuracy, CustomAverageAccuracy, CustomCohenKappa, \
+    CustomPrecision, CustomRecall
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Dropout, Input
 import tensorflow as tf
 
@@ -136,8 +137,8 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
 
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
-                  metrics=[CustomCategoricalAccuracy(name='accuracy'),
-                           CustomAverageAccuracy(name='average_accuracy'),
+                  metrics=[CustomCategoricalAccuracy(name='accuracy'), CustomAverageAccuracy(name='average_accuracy'),
+                           CustomPrecision(name='precision'), CustomRecall(name='recall')
                            # CustomCohenKappa(num_classes=num_classes, name='cohen_kappa')
                   ])
 
