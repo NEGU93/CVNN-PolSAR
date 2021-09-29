@@ -1,8 +1,6 @@
-from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy, Recall, Precision
-from tensorflow_addons.metrics import MeanMetricWrapper     # To have compat with tf v2.4
-from tensorflow_addons.metrics import CohenKappa
+from cvnn.metrics import ComplexAccuracy, ComplexCategoricalAccuracy, ComplexRecall, ComplexPrecision, ComplexCohenKappa
+from tensorflow_addons.metrics import MeanMetricWrapper     # To have compat with tf v2.4, tf has MeanMetric since 2.6
 from tensorflow import cast, bool
-from tensorflow.python.ops import math_ops
 from tensorflow.python.keras import backend
 import tensorflow as tf
 from tensorflow import math
@@ -16,7 +14,7 @@ from pdb import set_trace
 #     return math_ops.cast(coincidences or mask, backend.floatx())
 
 
-class CustomAccuracy(Accuracy):
+class CustomAccuracy(ComplexAccuracy):
 
     def __init__(self, name='custom_accuracy', **kwargs):
         super(CustomAccuracy, self).__init__(name=name, **kwargs)
@@ -25,7 +23,7 @@ class CustomAccuracy(Accuracy):
         super(CustomAccuracy, self).update_state(y_true=y_true, y_pred=y_pred, sample_weight=cast(y_true, bool))
 
 
-class CustomCategoricalAccuracy(CategoricalAccuracy):
+class CustomCategoricalAccuracy(ComplexCategoricalAccuracy):
 
     def __init__(self, name='custom_categorical_accuracy', **kwargs):
         super(CustomCategoricalAccuracy, self).__init__(name=name, **kwargs)
@@ -36,7 +34,7 @@ class CustomCategoricalAccuracy(CategoricalAccuracy):
         super(CustomCategoricalAccuracy, self).update_state(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
 
 
-class CustomCohenKappa(CohenKappa):
+class CustomCohenKappa(ComplexCohenKappa):
     def __init__(self, num_classes, name='custom_cohen_kappa', **kwargs):
         super(CustomCohenKappa, self).__init__(num_classes, name=name, **kwargs)
 
@@ -46,7 +44,7 @@ class CustomCohenKappa(CohenKappa):
         super(CustomCohenKappa, self).update_state(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
 
 
-class CustomRecall(Recall):
+class CustomRecall(ComplexRecall):
     def __init__(self, name='custom_recall', **kwargs):
         super(CustomRecall, self).__init__(name=name, **kwargs)
 
@@ -55,7 +53,7 @@ class CustomRecall(Recall):
         super(CustomRecall, self).update_state(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
 
 
-class CustomPrecision(Precision):
+class CustomPrecision(ComplexPrecision):
     def __init__(self, name='custom_precision', **kwargs):
         super(CustomPrecision, self).__init__(name=name, **kwargs)
 
