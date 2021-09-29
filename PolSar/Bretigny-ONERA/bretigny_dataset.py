@@ -90,6 +90,10 @@ def open_data():
         raise FileNotFoundError("Dataset path not found")
     mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
     seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
+    mat['HH'] = mat['HH'][:-3]
+    mat['HV'] = mat['HV'][:-3]
+    mat['VV'] = mat['VV'][:-3]
+    seg['image'] = seg['image'][:-3]
     return mat, seg
 
 
@@ -145,7 +149,7 @@ def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
     T = tf.linalg.matmul(tf_k, tf_k, adjoint_b=True)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
     one_channel_T = tf.reshape(T, shape=(T.shape[0], T.shape[1], T.shape[2] * T.shape[3]))  # hxwx3x3 to hxwx9
-    removed_lower_part_T = _remove_lower_part(one_channel_T)
+    removed_lower_part_T = _remove_lower_part(one_channel_T)            # hxwx9 to hxwx6 removing lower part of matrix
     filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
     return filtered_T
 
