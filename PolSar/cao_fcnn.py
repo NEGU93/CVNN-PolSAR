@@ -137,8 +137,10 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
 
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
-                  metrics=[CustomCategoricalAccuracy(name='accuracy'), CustomAverageAccuracy(name='average_accuracy'),
-                           CustomPrecision(name='precision'), CustomRecall(name='recall')
+                  metrics=[CustomCategoricalAccuracy(name='accuracy'),
+                           CustomAverageAccuracy(name='average_accuracy'),
+                           CustomPrecision(name='precision')
+                           # CustomRecall(name='recall')
                            # CustomCohenKappa(num_classes=num_classes, name='cohen_kappa')
                   ])
 
