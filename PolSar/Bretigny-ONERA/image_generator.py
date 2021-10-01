@@ -52,7 +52,7 @@ def parse_dropout(dropout):
 
 
 def read_parameters(root_path):
-    with open(Path(root_path) / "model_summary.txt") as f:
+    with open(root_path / "model_summary.txt") as f:
         first_line = f.readline().rstrip().split(" ")
         if '--dropout' in first_line:
             indx = first_line.index("--dropout") + 1
@@ -100,10 +100,13 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
         full_img = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
     if not complex_mode:
         full_img, seg = to_real(full_img, seg)
+    full_img = tf.pad(full_img, [[0, 3], [0, 0], [0, 0]])
     full_image = tf.expand_dims(full_img, axis=0)
+
     # Get model
     model = open_saved_model(root_path,
                              complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout, coherency=coherency)
+    set_trace()
     tf.print("Predicting image")
     prediction = model.predict(full_image)[0]
     tf.print("Prediction done")
@@ -117,7 +120,7 @@ if __name__ == '__main__':
                         default='/home/barrachina/Documents/onera/PolSar/Bretigny-ONERA/log/2021/09September/24Friday/run-13h46m02',
                         help='Path with the model checkpoint')
     parser.add_argument('--use_mask', action='store_true', help='Set non-labeled pixels to black')
-    root_path = parser.parse_args().path[0]
+    root_path = Path(parser.parse_args().path[0])
     params = read_parameters(root_path)
     save_result_image_from_saved_model(root_path, complex_mode=params['complex'], tensorflow=params['tensorflow'],
                                        dropout=params['dropout'], coherency=params['coherency'],
