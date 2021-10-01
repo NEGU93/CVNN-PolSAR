@@ -17,7 +17,8 @@ else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from bretigny_dataset import open_data, get_coherency_matrix, get_k_vector
-from dataset_reader import labels_to_ground_truth, to_real
+from dataset_reader import labels_to_ground_truth
+from cvnn.utils import transform_to_real_map_function
 
 
 def parse_dropout(dropout):
@@ -99,7 +100,7 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
     else:
         full_img = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
     if not complex_mode:
-        full_img, seg = to_real(full_img, seg)
+        full_img, seg = transform_to_real_map_function(full_img, seg)
     full_img = tf.pad(full_img, [[0, 3], [0, 0], [0, 0]])
     full_image = tf.expand_dims(full_img, axis=0)
 

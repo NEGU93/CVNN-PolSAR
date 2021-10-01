@@ -8,10 +8,10 @@ import scipy.io
 from pdb import set_trace
 import tikzplotlib
 import tensorflow as tf
-from cvnn.utils import standarize, randomize
 from typing import Tuple, Optional
 from sklearn.model_selection import train_test_split
 import sklearn
+from cvnn.utils import standarize, randomize, transform_to_real_map_function
 
 cao_dataset_parameters = {
     'validation_split': 0.1,  # Section 3.3.2
@@ -97,12 +97,6 @@ def flip(data, labels):
     data = tf.image.random_flip_up_down(data)
 
     return data, labels
-
-
-def to_real(data, labels):
-    stacked = tf.stack([tf.math.real(data), tf.math.imag(data)], axis=-1)
-    reshaped = tf.reshape(stacked, shape=tf.concat([tf.shape(data)[:-1], tf.convert_to_tensor([-1])], axis=-1))
-    return reshaped, labels
 
 
 def check_dataset_and_lebels(dataset, labels):
@@ -271,13 +265,14 @@ def remove_unlabeled_with_window(T, labels, window_size=32):
 
 
 def _transform_to_tensor(x, y, data_augment: bool = True,
-                         batch_size: int = cao_dataset_parameters['batch_size'], complex_mode: bool = True):
+                         batch_size: int = cao_dataset_parameters['batch_size'], complex_mode: bool = True,
+                         mode: str = 'real_imag'):
     ds = tf.data.Dataset.from_tensor_slices((x, y))
     ds = ds.batch(batch_size)
     if data_augment:
         ds = ds.map(flip)
     if not complex_mode:
-        ds = ds.map(to_real)
+        ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, mode))
     return ds
 
 
@@ -524,6 +519,7 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, t
     :param test_size: float. Percentage of examples to be used for the test set [0, 1]
     :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
     """
+    labels = _balance_image(labels)
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad)
     # del T, labels  # Free up memory
     x_train, x_test, y_train, y_test = get_tf_dataset_split(patches, label_patches, test_size=test_size, shuffle=shuffle)
@@ -556,7 +552,7 @@ def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
 
 
 def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                          savefig: Optional[str] = None, complex_mode: bool = True):
+                          savefig: Optional[str] = None, complex_mode: bool = True, mode: str = 'real_imag'):
     percentage = _parse_percentage(percentage)
 
     slice_1 = int(T.shape[1] * percentage[0])
@@ -589,11 +585,11 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
         train_patches, train_label_patches = sklearn.utils.shuffle(train_patches, train_label_patches)
 
     ds_train = _transform_to_tensor(train_patches, train_label_patches, data_augment=True, batch_size=30,
-                                    complex_mode=complex_mode)
+                                    complex_mode=complex_mode, mode=mode)
     ds_val = _transform_to_tensor(val_patches, val_label_patches, data_augment=False, batch_size=30,
-                                  complex_mode=complex_mode)
+                                  complex_mode=complex_mode, mode=mode)
     ds_test = _transform_to_tensor(test_patches, test_label_patches, data_augment=False, batch_size=30,
-                                   complex_mode=complex_mode)
+                                   complex_mode=complex_mode, mode=mode)
     del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
     del train_patches, train_label_patches, val_patches, val_label_patches, test_patches, test_label_patches
     return ds_train, ds_val, ds_test
@@ -604,7 +600,7 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
 ----------"""
 
 
-def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0):
+def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0, mode: str = 'real_imag'):
     x_train, x_test, y_train, y_test = get_dataset_for_segmentation(T=T, labels=labels,
                                                                     size=cao_dataset_parameters['sliding_window_size'],
                                                                     stride=cao_dataset_parameters[
@@ -612,10 +608,9 @@ def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True,
                                                                     test_size=cao_dataset_parameters[
                                                                         'validation_split'],
                                                                     shuffle=shuffle, pad=pad)
-    y_train = _balance_image(y_train)
-    train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True,
+    train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True, mode=mode,
                                          batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
-    test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False,
+    test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False, mode=mode,
                                         batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
     del x_train, x_test, y_train, y_test
     return train_dataset, test_dataset

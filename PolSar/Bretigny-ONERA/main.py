@@ -9,7 +9,7 @@ import traceback
 from cvnn.utils import create_folder
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
-    NOTIFY = False
+    NOTIFY = True
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
     NOTIFY = True
@@ -26,6 +26,7 @@ if NOTIFY:
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from bretigny_dataset import get_bret_cao_dataset, get_bret_separated_dataset
 from image_generator import save_result_image_from_saved_model
+from cvnn.utils import REAL_CAST_MODES
 
 EPOCHS = 100
 
@@ -40,7 +41,8 @@ def parse_input():
     parser.add_argument('--boxcar', nargs=1, type=int, default=[3], help='boxcar size for coherency matrix generation')
     parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='epochs to be done')
     parser.add_argument('--early_stop', action='store_true', help='apply early stopping to training')
-    parser.add_argument('--complex', action='store_true', help='run complex model')
+    parser.add_argument('--real_mode', type=str, nargs='?', const='real_imag', default='complex',
+                        help='run real model instead of complex')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
     parser.add_argument('--coherency', action='store_true', help='use coherency matrix instead of k')
     parser.add_argument('--split_datasets', action='store_true', help='Split the dataset into 3 parts to make sure '
@@ -114,20 +116,21 @@ def parse_dropout(dropout):
 
 
 def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
-              save_model=True, early_stop=False, kernel_shape=3):
+              save_model=True, early_stop=False, kernel_shape=3, mode: str = 'real_imag'):
     try:
+        msg = f"Running Bretigny {'complex' if complex_mode else 'real ' + mode} model using " \
+              f"{'cvnn' if not tensorflow else 'tf'} on {'coherency' if coherency else 'k'} data"
         if NOTIFY:
             notify = Notify()
-            notify.send(f"Running Bretigny {'complex' if complex_mode else 'real'} model using "
-                        f"{'cvnn' if not tensorflow else 'tf'} on {'coherency' if coherency else 'k'} data")
+            notify.send("Running simulation: " + ('complex ' if complex_mode else mode + " ") + " ".join(sys.argv[1:]))
         dropout = parse_dropout(dropout=dropout)
         # Get dataset
         if split_datasets:
             train_dataset, test_dataset, _ = get_bret_separated_dataset(complex_mode=complex_mode, coherency=coherency,
-                                                                        kernel_shape=kernel_shape)
+                                                                        kernel_shape=kernel_shape, mode=mode)
         else:
             train_dataset, test_dataset = get_bret_cao_dataset(complex_mode=complex_mode, coherency=coherency,
-                                                               kernel_shape=kernel_shape)
+                                                               kernel_shape=kernel_shape, mode=mode)
         channels = 6 if coherency else 3
         # Get model
         if not tensorflow:
@@ -135,13 +138,13 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
                 model = get_cao_cvfcn_model(input_shape=(None, None, channels), num_classes=4,
                                             name="cao_cvfcn", dropout_dict=dropout)
             else:
-                model = get_cao_cvfcn_model(input_shape=(None, None, 2*channels), num_classes=4,
+                model = get_cao_cvfcn_model(input_shape=(None, None, REAL_CAST_MODES[mode]*channels), num_classes=4,
                                             dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout)
         else:
             if complex_mode:
                 raise ValueError("Tensorflow does not support complex model. "
                                  "Do not use tensorflow and complex_mode both as True")
-            model = get_tf_real_cao_model(input_shape=(None, None, 2*channels), num_classes=4,
+            model = get_tf_real_cao_model(input_shape=(None, None, REAL_CAST_MODES[mode]*channels), num_classes=4,
                                           name="tf_cao_rvfcn", dropout_dict=dropout)
         # Train
         callbacks, temp_path = get_callbacks_list(early_stop)
@@ -161,7 +164,7 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
         if NOTIFY:
-            notify.send("Simulation done")
+            notify.send("Simulation done: " + " ".join(sys.argv[1:]))
         if save_model:
             save_result_image_from_saved_model(temp_path, complex_mode=complex_mode, tensorflow=tensorflow,
                                                dropout=dropout, coherency=coherency)
@@ -176,6 +179,6 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
 
 if __name__ == "__main__":
     args = parse_input()
-    run_model(epochs=args.epochs[0], complex_mode=args.complex, tensorflow=args.tensorflow, coherency=args.coherency,
-              dropout=args.dropout, split_datasets=args.split_datasets, early_stop=args.early_stop,
-              kernel_shape=args.boxcar[0])
+    run_model(epochs=args.epochs[0], complex_mode=args.real_mode == 'complex', tensorflow=args.tensorflow,
+              coherency=args.coherency, dropout=args.dropout, split_datasets=args.split_datasets,
+              early_stop=args.early_stop, kernel_shape=args.boxcar[0], mode=args.real_mode)

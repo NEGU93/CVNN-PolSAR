@@ -173,23 +173,25 @@ def get_bret_k_dataset():
 -------------------"""
 
 
-def get_bret_cao_dataset(complex_mode=True, coherency=False, kernel_shape=3):
+def get_bret_cao_dataset(complex_mode=True, coherency=False, kernel_shape=3, mode: str = 'real_imag'):
     if not coherency:
         img, label = get_bret_k_dataset()
     else:
         img, label = get_bret_coherency_dataset(kernel_shape=kernel_shape)
-    train_dataset, test_dataset = get_dataset_for_cao_segmentation(img, label, complex_mode=complex_mode, shuffle=True)
+    train_dataset, test_dataset = get_dataset_for_cao_segmentation(img, label,
+                                                                   complex_mode=complex_mode, shuffle=True, mode=mode)
     del img, label
     return train_dataset, test_dataset
 
 
-def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0, kernel_shape=3):
+def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0, kernel_shape=3,
+                               mode: str = 'real_imag'):
     if not coherency:
         img, labels = get_bret_k_dataset()
     else:
         img, labels = get_bret_coherency_dataset(kernel_shape=kernel_shape)
     return get_separated_dataset(img, labels, percentage=(0.7, 0.15, 0.15), shuffle=shuffle, pad=pad,
-                                 complex_mode=complex_mode)
+                                 complex_mode=complex_mode, mode=mode)
 
 
 """---------------------
