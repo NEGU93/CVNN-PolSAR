@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import matplotlib.pyplot as plt
 import spectral.io.envi as envi
@@ -294,6 +296,55 @@ def _parse_percentage(percentage):
     return percentage
 
 
+def _select_random(img, value: int, total: int):
+    """
+    Gets an image with different values and returns a boolean matrix with a total number of True equal to the total
+        parameter where all True are located in the same place where the img has the value passed as parameter
+    :param img: Image to be selected
+    :param value: Value to be matched
+    :param total:
+    :return:
+    """
+    assert len(img.shape) == 2
+    flatten_img = np.reshape(img, tf.math.reduce_prod(img.shape).numpy())
+    random_indx = np.random.permutation(len(flatten_img))
+    mixed_img = flatten_img[random_indx]
+    selection_mask = np.zeros(shape=img.shape)
+    selected = 0
+    indx = 0
+    saved_indexes = []
+    while selected < total:
+        val = mixed_img[indx]
+        if val == value:
+            selected += 1
+            saved_indexes.append(random_indx[indx])
+            assert img[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] == value
+            selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
+        indx += 1
+    return selection_mask.astype(bool)
+
+
+def _balance_image(labels):
+    """
+    Removes pixel labels so that all classes have the same amount of classes (balance dataset)
+    :param labels: One-hot encoded labels (rank 3 is forced due to _select_random function)
+    :return: Balance dataset of one-hot encoded labels
+    """
+    classes = tf.argmax(labels, axis=-1)
+    mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
+    classes = tf.where(mask, classes, classes+1)    # Increment classes, now 0 = no label
+    totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in range(1, tf.math.reduce_max(classes).numpy()+1)]
+    if all(element == totals[0] for element in totals):
+        print("All labels are already balanced")
+        return labels
+    min_value = min(totals)
+    for value in range(1, len(totals)+1):
+        matrix_mask = _select_random(classes, value=value, total=min_value)
+        labels = tf.where(tf.expand_dims((classes != value).numpy() | matrix_mask, axis=-1),
+                          labels, tf.zeros(shape=labels.shape))
+    return labels
+
+
 """----------
 -   Public  -
 ----------"""
@@ -499,6 +550,11 @@ def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
     return x_train, x_test, y_train, y_test
 
 
+"""--------------
+-   HIGH API    -
+--------------"""
+
+
 def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
                           savefig: Optional[str] = None, complex_mode: bool = True):
     percentage = _parse_percentage(percentage)
@@ -518,6 +574,9 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
         labels_to_ground_truth(train_slice_label, savefig=savefig + 'train_ground_truth')
         labels_to_ground_truth(val_slice_label, savefig=savefig + 'val_ground_truth')
         labels_to_ground_truth(test_slice_label, savefig=savefig + 'test_ground_truth')
+    train_slice_label = _balance_image(train_slice_label)
+    # train_slice_label = _balance_image(train_slice_label)
+    # set_trace()
 
     train_patches, train_label_patches = sliding_window_operation(train_slice_t, train_slice_label,
                                                                   size=size, stride=stride, pad=pad)
@@ -553,6 +612,7 @@ def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True,
                                                                     test_size=cao_dataset_parameters[
                                                                         'validation_split'],
                                                                     shuffle=shuffle, pad=pad)
+    y_train = _balance_image(y_train)
     train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True,
                                          batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
     test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False,

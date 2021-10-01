@@ -157,14 +157,14 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
                 summary_file.write(f"\t- {key}: {value}\n")
         history = model.fit(x=train_dataset, epochs=epochs,
                             validation_data=test_dataset, shuffle=True, callbacks=callbacks)
-        if save_model:
-            save_result_image_from_saved_model(temp_path, complex_mode=complex_mode, tensorflow=tensorflow,
-                                               dropout=dropout, coherency=coherency)
         # Save results
         with open(temp_path / 'history_dict', 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
         if NOTIFY:
             notify.send("Simulation done")
+        if save_model:
+            save_result_image_from_saved_model(temp_path, complex_mode=complex_mode, tensorflow=tensorflow,
+                                               dropout=dropout, coherency=coherency)
         return None
     except Exception as e:
         if NOTIFY:
