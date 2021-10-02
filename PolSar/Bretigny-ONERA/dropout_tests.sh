@@ -1,11 +1,13 @@
 
-python main.py --complex --coherency --epochs 50 --early_stop --boxcar 1
-python main.py --complex --coherency --epochs 50 --early_stop --boxcar 5
+python main.py --coherency --epochs 150 --boxcar 1
+python main.py --real_mode --coherency --epochs 150 --boxcar 1
 
-python main.py --complex --coherency --epochs 50 --early_stop --boxcar 1 --dropout 0.2 None 0.2
-python main.py --complex --coherency --epochs 50 --early_stop --boxcar 3 --dropout 0.2 None 0.2
+python main.py --complex --coherency --epochs 150 --boxcar 5
 
-python main.py --complex --coherency --epochs 50 --early_stop --boxcar 1 --dropout None None 0.2
-python main.py --complex --coherency --epochs 50 --early_stop --boxcar 3 --dropout None None 0.2
-
+while true
+do
+	python main.py --coherency --epochs 150 --boxcar 1
+	python main.py --real_mode --coherency --epochs 150 --boxcar 1
+	sleep 1
+done
 
