@@ -107,7 +107,6 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
     # Get model
     model = open_saved_model(root_path,
                              complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout, coherency=coherency)
-    set_trace()
     tf.print("Predicting image")
     prediction = model.predict(full_image)[0]
     tf.print("Prediction done")
