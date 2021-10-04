@@ -92,6 +92,10 @@ class CustomAverageAccuracy(MeanMetricWrapper):
     def __init__(self, name='custom_average_accuracy', dtype=None):
         super(CustomAverageAccuracy, self).__init__(custom_average_accuracy, name, dtype=dtype)
 
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        sample_weight = math.logical_not(math.reduce_all(math.logical_not(cast(y_true, bool)), axis=-1))
+        super(CustomAverageAccuracy, self).update_state(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
+
 
 if __name__ == '__main__':
     y_true = [[0, 0, 0],

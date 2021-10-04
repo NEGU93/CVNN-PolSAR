@@ -571,7 +571,7 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
         labels_to_ground_truth(val_slice_label, savefig=savefig + 'val_ground_truth')
         labels_to_ground_truth(test_slice_label, savefig=savefig + 'test_ground_truth')
     train_slice_label = _balance_image(train_slice_label)
-    # train_slice_label = _balance_image(train_slice_label)
+    val_slice_label = _balance_image(val_slice_label)
     # set_trace()
 
     train_patches, train_label_patches = sliding_window_operation(train_slice_t, train_slice_label,
