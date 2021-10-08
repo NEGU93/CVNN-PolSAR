@@ -1,9 +1,21 @@
 import os
+import pickle
 from pdb import set_trace
 from pathlib import Path
 from collections import defaultdict
+from pandas import DataFrame
+import pandas as pd
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import tikzplotlib
+
 from typing import Dict
+
 from cvnn.data_analysis import MonteCarloAnalyzer
+from cvnn.utils import transform_to_real_map_function
+from image_generator import open_saved_model, save_result_image_from_saved_model
+from bretigny_dataset import get_bret_separated_dataset
 
 
 def get_dictionary(root_dir: str = "/media/barrachina/data/results/Bretigny/ICASSP_2022_trials") -> Dict[str, str]:
@@ -25,19 +37,94 @@ def get_dictionary(root_dir: str = "/media/barrachina/data/results/Bretigny/ICAS
     return monte_dict
 
 
-if __name__ == "__main__":
+def save_test_results(monte_dict, monte_analyzer):
+    print("Getting test results")
+    test_results = defaultdict(lambda: defaultdict(list))
+    _, complex_val_data, complex_test_data = get_bret_separated_dataset(complex_mode=True, coherency=False,
+                                                                        shuffle=False)
+    real_test_data = complex_test_data.map(lambda img, labels: transform_to_real_map_function(img, labels))
+    real_val_data = complex_val_data.map(lambda img, labels: transform_to_real_map_function(img, labels))
+    for key, paths in monte_dict.items():
+        for path in paths:
+            complex_mode = 'complex' in key
+            model = open_saved_model(Path(path).parents[0], complex_mode=complex_mode,
+                                     tensorflow=False, dropout=None, coherency=False)
+            if complex_mode:
+                metrics_result = model.evaluate(complex_test_data)
+                val_metrics_result = model.evaluate(complex_val_data)
+            else:
+                metrics_result = model.evaluate(real_test_data)
+                val_metrics_result = model.evaluate(real_val_data)
+            test_results[key]['test_loss'].append(metrics_result[0])
+            test_results[key]['test_acc'].append(metrics_result[1])
+            test_results[key]['test_avg_acc'].append(metrics_result[2])
+            test_results[key]['val_loss'].append(val_metrics_result[0])
+            test_results[key]['val_acc'].append(val_metrics_result[1])
+            test_results[key]['val_avg_acc'].append(val_metrics_result[2])
+    df = DataFrame()
+    for network, metric in test_results.items():
+        tmp_df = DataFrame.from_dict(metric)
+        tmp_df['network'] = network
+        df = df.append(tmp_df, ignore_index=True)
+    df.to_csv(Path(monte_analyzer.path) / "test_results.csv")
+    return None
+
+
+def generate_masked_prediction(monte_dict):
+    print("Generating masked prediction")
+    for key, paths in monte_dict.items():
+        for path in paths:
+            complex_mode = 'complex' in key
+            save_result_image_from_saved_model(Path(path).parents[0], complex_mode=complex_mode, use_mask=True)
+
+
+def generate_csv_results(monte_dict):
+    for key, paths in monte_dict.items():
+        for path in paths:
+            df = DataFrame.from_dict(pd.read_pickle(path))
+            df.to_csv(Path(path).parents[0] / "run_data_1.csv")
+
+
+def parse_data():
     monte_dict = get_dictionary()
     del monte_dict['real_coh']
     del monte_dict['complex_coh']
-    # hist_dict = {
-    #     "k": [
-    #         "/mnt/point_de_montage/onera/PolSar/Bretigny-ONERA/log/2021/09September/22Wednesday/run-20h39m25/history_dict",
-    #         "/mnt/point_de_montage/onera/PolSar/Bretigny-ONERA/log/2021/09September/22Wednesday/run-13h40m03/history_dict"
-    #     ],
-    #     "coh": [
-    #         "/mnt/point_de_montage/onera/PolSar/Bretigny-ONERA/log/2021/09September/23Thursday/run-17h39m37/history_dict",
-    #         "/mnt/point_de_montage/onera/PolSar/Bretigny-ONERA/log/2021/09September/23Thursday/run-10h44m59/history_dict"
-    #     ]
-    # }
+    monte_dict['real_k'] = monte_dict['real_k'][:-2]
+
     monte_analyzer = MonteCarloAnalyzer(history_dictionary=monte_dict)
+    monte_analyzer.save_stat_results()
     monte_analyzer.do_all()
+    # save_test_results(monte_dict, monte_analyzer)
+    # generate_csv_results(monte_dict)
+    # generate_masked_prediction(monte_dict)
+
+
+def get_stats_of_results():
+    path = "/home/barrachina/Documents/onera/PolSar/Bretigny-ONERA/log/montecarlo/2021/10October/05Tuesday/run-16h22m12/test_results.csv"
+    df = DataFrame.from_dict(pd.read_csv(path))
+    networks_availables = df.network.unique()
+    for net in networks_availables:
+        data = df[df.network == net].describe()
+        data.to_csv(Path(path).parents[0] / (net + "_max_stat_result.csv"))
+    fig = plt.figure()
+    ax = sns.boxplot(x="network", y="val_acc", hue="network", data=df[df.network != "real_k_b"],
+                     boxprops=dict(alpha=.3))
+    for i, artist in enumerate(ax.artists):
+        col = artist.get_facecolor()[:-1]  # the -1 removes the transparency
+        artist.set_edgecolor(col)
+        for j in range(i * 6, i * 6 + 6):
+            line = ax.lines[j]
+            line.set_color(col)
+            line.set_mfc(col)
+            line.set_mec(col)
+    fig.savefig(Path(path).parents[0] / "tikz_box_plot.png", transparent=False)
+    tikzplotlib.save(Path(path).parents[0] / "tikz_box_plot.tex")
+
+
+if __name__ == "__main__":
+    # get_stats_of_results()
+    parse_data()
+
+
+
+

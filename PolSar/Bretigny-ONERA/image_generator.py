@@ -92,7 +92,8 @@ def open_saved_model(root_path, complex_mode=True, tensorflow=False, dropout=Non
 
 
 def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=False, dropout=None, coherency=False,
-                                       use_mask=False):
+                                       use_mask=True):
+    # print("Generating predicted image")
     # Prepare image
     mat, seg = open_data()
     if not coherency:
@@ -105,13 +106,15 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
     full_image = tf.expand_dims(full_img, axis=0)
 
     # Get model
+    if use_mask:
+        mask = tf.pad(seg['image'], [[0, 3], [0, 0]])
+    else:
+        mask = None
     model = open_saved_model(root_path,
                              complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout, coherency=coherency)
-    tf.print("Predicting image")
     prediction = model.predict(full_image)[0]
-    tf.print("Prediction done")
     prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    labels_to_ground_truth(prediction, savefig=str(root_path / "prediction"))
+    labels_to_ground_truth(prediction, savefig=str(root_path / "prediction"), mask=mask)
 
 
 if __name__ == '__main__':

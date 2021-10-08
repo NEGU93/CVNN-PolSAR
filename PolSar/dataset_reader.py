@@ -94,7 +94,7 @@ def flip(data, labels):
     :return: Augmented image
     """
     data = tf.image.random_flip_left_right(data)
-    data = tf.image.random_flip_up_down(data)
+    # data = tf.image.random_flip_up_down(data)
 
     return data, labels
 
@@ -340,6 +340,15 @@ def _balance_image(labels):
     return labels
 
 
+def _get_weights(labels):
+    classes = tf.argmax(labels, axis=-1)
+    mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
+    classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
+    totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
+              range(1, tf.math.reduce_max(classes).numpy() + 1)]
+    return max(totals) / totals
+
+
 """----------
 -   Public  -
 ----------"""
@@ -519,7 +528,7 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, t
     :param test_size: float. Percentage of examples to be used for the test set [0, 1]
     :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
     """
-    labels = _balance_image(labels)
+    # labels = _balance_image(labels)
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad)
     # del T, labels  # Free up memory
     x_train, x_test, y_train, y_test = get_tf_dataset_split(patches, label_patches, test_size=test_size, shuffle=shuffle)
@@ -570,9 +579,8 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
         labels_to_ground_truth(train_slice_label, savefig=savefig + 'train_ground_truth')
         labels_to_ground_truth(val_slice_label, savefig=savefig + 'val_ground_truth')
         labels_to_ground_truth(test_slice_label, savefig=savefig + 'test_ground_truth')
-    train_slice_label = _balance_image(train_slice_label)
-    val_slice_label = _balance_image(val_slice_label)
-    # set_trace()
+    # train_slice_label = _balance_image(train_slice_label)
+    weights = _get_weights(train_slice_label)
 
     train_patches, train_label_patches = sliding_window_operation(train_slice_t, train_slice_label,
                                                                   size=size, stride=stride, pad=pad)
@@ -592,7 +600,7 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
                                    complex_mode=complex_mode, mode=mode)
     del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
     del train_patches, train_label_patches, val_patches, val_label_patches, test_patches, test_label_patches
-    return ds_train, ds_val, ds_test
+    return ds_train, ds_val, ds_test, weights
 
 
 """----------
@@ -601,6 +609,7 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
 
 
 def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0, mode: str = 'real_imag'):
+    weights = _get_weights(labels)
     x_train, x_test, y_train, y_test = get_dataset_for_segmentation(T=T, labels=labels,
                                                                     size=cao_dataset_parameters['sliding_window_size'],
                                                                     stride=cao_dataset_parameters[
@@ -613,7 +622,7 @@ def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True,
     test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False, mode=mode,
                                         batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
     del x_train, x_test, y_train, y_test
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, weights
 
 
 def get_dataset_for_cao_classification(T, labels, complex_mode=True):

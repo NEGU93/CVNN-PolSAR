@@ -1,5 +1,5 @@
 from cvnn.metrics import ComplexAccuracy, ComplexCategoricalAccuracy, ComplexRecall, ComplexPrecision, ComplexCohenKappa
-from tensorflow_addons.metrics import MeanMetricWrapper     # To have compat with tf v2.4, tf has MeanMetric since 2.6
+from tensorflow.keras.metrics import Mean     # To have compat with tf v2.4, tf has MeanMetric since 2.6
 from tensorflow import cast, bool
 from tensorflow.python.keras import backend
 import tensorflow as tf
@@ -87,14 +87,15 @@ def custom_average_accuracy(y_true, y_pred):
     return tf.math.reduce_sum(accuracies) / len(accuracies)
 
 
-class CustomAverageAccuracy(MeanMetricWrapper):
+class CustomAverageAccuracy(Mean):
 
     def __init__(self, name='custom_average_accuracy', dtype=None):
-        super(CustomAverageAccuracy, self).__init__(custom_average_accuracy, name, dtype=dtype)
+        self._fn = custom_average_accuracy
+        super(CustomAverageAccuracy, self).__init__(name, dtype=dtype)
 
     def update_state(self, y_true, y_pred, sample_weight=None):
-        sample_weight = math.logical_not(math.reduce_all(math.logical_not(cast(y_true, bool)), axis=-1))
-        super(CustomAverageAccuracy, self).update_state(y_true=y_true, y_pred=y_pred, sample_weight=sample_weight)
+        matches = self._fn(y_true, y_pred)
+        return super(CustomAverageAccuracy, self).update_state(matches, sample_weight=sample_weight)
 
 
 if __name__ == '__main__':
@@ -110,4 +111,6 @@ if __name__ == '__main__':
     m = CustomCategoricalAccuracy()
     m.update_state(y_true, y_pred)
     print(m.result().numpy())
-    print(custom_average_accuracy(y_true, y_pred).numpy())  # I want 0.5/3 = 1/6
+    m = CustomAverageAccuracy()
+    m.update_state(y_true, y_pred)
+    print(m.result().numpy())  # I want 0.5/3 = 1/6

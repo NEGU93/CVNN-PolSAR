@@ -4,7 +4,7 @@ from tensorflow.keras import Model, Sequential
 from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.optimizers import Adam
-from cvnn.losses import ComplexAverageCrossEntropy
+from cvnn.losses import ComplexAverageCrossEntropy, ComplexWeightedAverageCrossEntropy
 from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense
 from cvnn.activations import cart_softmax, cart_relu
@@ -33,7 +33,7 @@ cao_params_model = {
     'kernels': [12, 24, 48, 96, 192],  # Table 1
     'output_function': cart_softmax,  # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),  # Section 2.2
-    'loss': ComplexAverageCrossEntropy(),  # Section 2.4
+    'loss': ComplexWeightedAverageCrossEntropy,  # Section 2.4
     'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
 }
 cao_mlp_params = {
@@ -95,7 +95,7 @@ def _get_upsampling_block_tf(input_to_block, pool_argmax, kernels,
 
 
 def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.complex64, name="cao_model",
-                   dropout_dict=None, num_classes=4):
+                   dropout_dict=None, num_classes=4, weights=None):
     # Downsampling
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
@@ -135,12 +135,17 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
                                kernels=num_classes, activation=cao_params_model['output_function'],
                                dtype=dtype)
 
+    if weights is not None:
+        loss = ComplexWeightedAverageCrossEntropy(weights=weights)
+    else:
+        loss = ComplexAverageCrossEntropy()
+
     model = Model(inputs=[in1], outputs=[out], name=name)
-    model.compile(optimizer=cao_params_model['optimizer'], loss=cao_params_model['loss'],
+    model.compile(optimizer=cao_params_model['optimizer'], loss=loss,
                   metrics=[CustomCategoricalAccuracy(name='accuracy'),
-                           CustomAverageAccuracy(name='average_accuracy')
-                           # CustomPrecision(name='precision'),
-                           # CustomRecall(name='recall')
+                           CustomAverageAccuracy(name='average_accuracy'),
+                           CustomPrecision(name='precision'),
+                           CustomRecall(name='recall')
                            # CustomCohenKappa(num_classes=num_classes, name='cohen_kappa')
                   ])
 
@@ -151,21 +156,21 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
 
 
 def get_cao_cvfcn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4, dtype=np.complex64, name="cao_model",
-                        dropout_dict=None):
+                        dropout_dict=None, weights=None):
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
     in1 = complex_input(shape=input_shape, dtype=dtype)
     return _get_cao_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name,
-                          dropout_dict=dropout_dict, num_classes=num_classes)
+                          dropout_dict=dropout_dict, num_classes=num_classes, weights=weights)
 
 
 def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4,
-                          name="tf_cao_model", dropout_dict=None):
+                          name="tf_cao_model", dropout_dict=None, weights=None):
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
     in1 = Input(shape=input_shape)
     return _get_cao_model(in1, _get_downsampling_block_tf, _get_upsampling_block_tf, dtype=tf.float32, name=name,
-                          dropout_dict=dropout_dict, num_classes=num_classes)
+                          dropout_dict=dropout_dict, num_classes=num_classes, weights=weights)
 
 
 def get_cao_mlp_models(output_size, input_size=None):

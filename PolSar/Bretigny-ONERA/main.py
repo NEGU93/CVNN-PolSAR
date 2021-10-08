@@ -24,6 +24,7 @@ else:
 if NOTIFY:
     from notify_run import Notify
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
+from own_unet import get_my_unet_model
 from bretigny_dataset import get_bret_cao_dataset, get_bret_separated_dataset
 from image_generator import save_result_image_from_saved_model
 from cvnn.utils import REAL_CAST_MODES
@@ -41,6 +42,7 @@ def parse_input():
     parser.add_argument('--boxcar', nargs=1, type=int, default=[3], help='boxcar size for coherency matrix generation')
     parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='epochs to be done')
     parser.add_argument('--early_stop', action='store_true', help='apply early stopping to training')
+    parser.add_argument('--weighted_loss', action='store_true', help='apply weights to loss for unbalanced datasets')
     parser.add_argument('--real_mode', type=str, nargs='?', const='real_imag', default='complex',
                         help='run real model instead of complex')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
@@ -52,6 +54,8 @@ def parse_input():
                              'downsampling, bottle neck, upsampling sections (in order). '
                              'Example: `python main.py --dropout 0.1 None 0.3` will use 10%% dropout on the '
                              'downsampling part and 30%% on the upsamlpling part and no dropout on the bottle neck.')
+    parser.add_argument('--model', nargs=1, type=int, default=[0],
+                        help='model to be used\n\t0: cao model\n\tother: own')
 
     return parser.parse_args()
 
@@ -115,8 +119,29 @@ def parse_dropout(dropout):
     return dropout
 
 
-def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
-              save_model=True, early_stop=False, kernel_shape=3, mode: str = 'real_imag'):
+def _get_model(index: int,  channels: int, dropout, weights, mode: str, complex_mode: bool = True):
+    if complex_mode:
+        name = "my_cvunet"
+        dtype = np.complex64
+    else:
+        name = "my_rvunet"
+        dtype = np.float32
+        channels = REAL_CAST_MODES[mode] * channels
+    if index == 0:      # Cao Model
+        if complex_mode:
+            model = get_cao_cvfcn_model(input_shape=(None, None, channels), num_classes=4,
+                                        name="cao_cvfcn", dropout_dict=dropout, weights=weights)
+        else:
+            model = get_cao_cvfcn_model(input_shape=(None, None, ), num_classes=4,
+                                        dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout, weights=weights)
+    else:
+        model = get_my_unet_model(index=index, input_shape=(None, None, channels), num_classes=4,
+                                  dtype=dtype, name=name, dropout_dict=dropout, weights=weights)
+    return model
+
+
+def run_model(epochs, index=0, complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
+              save_model=True, early_stop=False, kernel_shape=3, mode: str = 'real_imag', weighted_loss=True):
     try:
         msg = f"Running Bretigny {'complex' if complex_mode else 'real ' + mode} model using " \
               f"{'cvnn' if not tensorflow else 'tf'} on {'coherency' if coherency else 'k'} data"
@@ -126,26 +151,18 @@ def run_model(epochs, complex_mode=True, tensorflow=False, dropout=None, coheren
         dropout = parse_dropout(dropout=dropout)
         # Get dataset
         if split_datasets:
-            train_dataset, test_dataset, _ = get_bret_separated_dataset(complex_mode=complex_mode, coherency=coherency,
-                                                                        kernel_shape=kernel_shape, mode=mode)
+            train_dataset, test_dataset, _, weights = get_bret_separated_dataset(complex_mode=complex_mode,
+                                                                                 coherency=coherency,
+                                                                                 kernel_shape=kernel_shape, mode=mode)
         else:
-            train_dataset, test_dataset = get_bret_cao_dataset(complex_mode=complex_mode, coherency=coherency,
-                                                               kernel_shape=kernel_shape, mode=mode)
+            train_dataset, test_dataset, weights = get_bret_cao_dataset(complex_mode=complex_mode, coherency=coherency,
+                                                                        kernel_shape=kernel_shape, mode=mode)
+        if not weighted_loss:
+            weights = None
         channels = 6 if coherency else 3
         # Get model
-        if not tensorflow:
-            if complex_mode:
-                model = get_cao_cvfcn_model(input_shape=(None, None, channels), num_classes=4,
-                                            name="cao_cvfcn", dropout_dict=dropout)
-            else:
-                model = get_cao_cvfcn_model(input_shape=(None, None, REAL_CAST_MODES[mode]*channels), num_classes=4,
-                                            dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout)
-        else:
-            if complex_mode:
-                raise ValueError("Tensorflow does not support complex model. "
-                                 "Do not use tensorflow and complex_mode both as True")
-            model = get_tf_real_cao_model(input_shape=(None, None, REAL_CAST_MODES[mode]*channels), num_classes=4,
-                                          name="tf_cao_rvfcn", dropout_dict=dropout)
+        model = _get_model(index=index, channels=channels, dropout=dropout, weights=weights, mode=mode,
+                           complex_mode=complex_mode)
         # Train
         callbacks, temp_path = get_callbacks_list(early_stop)
         with open(temp_path / 'model_summary.txt', 'w+') as summary_file:

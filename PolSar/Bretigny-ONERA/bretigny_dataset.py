@@ -82,10 +82,12 @@ def to_rgb_colors(labels):
 
 
 def open_data():
+
     if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
         path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
     elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
         path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
+
     else:
         raise FileNotFoundError("Dataset path not found")
     mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
@@ -178,10 +180,11 @@ def get_bret_cao_dataset(complex_mode=True, coherency=False, kernel_shape=3, mod
         img, label = get_bret_k_dataset()
     else:
         img, label = get_bret_coherency_dataset(kernel_shape=kernel_shape)
-    train_dataset, test_dataset = get_dataset_for_cao_segmentation(img, label,
-                                                                   complex_mode=complex_mode, shuffle=True, mode=mode)
+    train_dataset, test_dataset, weights = get_dataset_for_cao_segmentation(img, label,
+                                                                            complex_mode=complex_mode,
+                                                                            shuffle=True, mode=mode)
     del img, label
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, weights
 
 
 def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0, kernel_shape=3,
