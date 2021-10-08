@@ -4,13 +4,12 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.layers import concatenate, Add, Activation
 from tensorflow.keras import Model, Sequential
 from cvnn.losses import ComplexAverageCrossEntropy, ComplexWeightedAverageCrossEntropy
+from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy, ComplexPrecision, ComplexRecall
 from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense, \
     ComplexUpSampling2D, ComplexConv2DTranspose
 from cvnn.activations import cart_softmax, cart_relu
 from cvnn.initializers import ComplexHeNormal
-from custom_accuracy import CustomCategoricalAccuracy, CustomAverageAccuracy, CustomCohenKappa, \
-    CustomPrecision, CustomRecall
 
 IMG_HEIGHT = None  # 128
 IMG_WIDTH = None  # 128
@@ -117,10 +116,10 @@ def _get_my_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.co
 
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=hyper_params['optimizer'], loss=loss,
-                  metrics=[CustomCategoricalAccuracy(name='accuracy'),
-                           CustomAverageAccuracy(name='average_accuracy'),
-                           CustomPrecision(name='precision'),
-                           CustomRecall(name='recall')
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'),
+                           ComplexAverageAccuracy(name='average_accuracy'),
+                           ComplexPrecision(name='precision'),
+                           ComplexRecall(name='recall')
                            ])
     return model
 
