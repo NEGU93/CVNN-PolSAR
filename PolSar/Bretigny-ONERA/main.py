@@ -132,8 +132,8 @@ def _get_model(index: int,  channels: int, dropout, weights, mode: str, complex_
             model = get_cao_cvfcn_model(input_shape=(None, None, channels), num_classes=4,
                                         name="cao_cvfcn", dropout_dict=dropout, weights=weights)
         else:
-            model = get_cao_cvfcn_model(input_shape=(None, None, ), num_classes=4,
-                                        dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout, weights=weights)
+            model = get_cao_cvfcn_model(input_shape=(None, None, channels), num_classes=4,
+                                        dtype=dtype, name="cao_rvfcn", dropout_dict=dropout, weights=weights)
     else:
         model = get_my_unet_model(index=index, input_shape=(None, None, channels), num_classes=4,
                                   dtype=dtype, name=name, dropout_dict=dropout, weights=weights)
