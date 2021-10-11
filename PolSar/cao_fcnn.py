@@ -32,7 +32,7 @@ cao_params_model = {
     'kernels': [12, 24, 48, 96, 192],  # Table 1
     'output_function': cart_softmax,  # Section 2.3.2 at the end and section 2.4
     'init': ComplexHeNormal(),  # Section 2.2
-    'loss': ComplexWeightedAverageCrossEntropy,  # Section 2.4
+    # 'loss': ComplexWeightedAverageCrossEntropy,  # Section 2.4
     'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
 }
 cao_mlp_params = {
@@ -141,11 +141,12 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
 
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=cao_params_model['optimizer'], loss=loss,
-                  metrics=[ComplexCategoricalAccuracy(name='accuracy'),
-                           ComplexAverageAccuracy(name='average_accuracy'),
-                           ComplexPrecision(name='precision'),
-                           ComplexRecall(name='recall')
-                           # CustomCohenKappa(num_classes=num_classes, name='cohen_kappa')
+                  metrics=[
+                        ComplexCategoricalAccuracy(name='accuracy'),
+                        ComplexAverageAccuracy(name='average_accuracy'),
+                        ComplexPrecision(name='precision'),
+                        ComplexRecall(name='recall')
+                        # CustomCohenKappa(num_classes=num_classes, name='cohen_kappa')
                   ])
 
     # https://github.com/tensorflow/tensorflow/issues/38988

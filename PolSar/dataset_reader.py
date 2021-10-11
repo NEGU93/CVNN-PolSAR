@@ -99,6 +99,18 @@ def flip(data, labels):
     return data, labels
 
 
+def _remove_empty_image(data, labels):
+    filtered_data = []
+    filtered_labels = []
+    for i in range(0, len(labels)):
+        if not np.all(labels[i] == 0):
+            filtered_data.append(data[i])
+            filtered_labels.append(labels[i])
+    filtered_data = np.array(filtered_data)
+    filtered_labels = np.array(filtered_labels)
+    return filtered_data, filtered_labels
+
+
 def check_dataset_and_lebels(dataset, labels):
     return dataset.shape[:2] == labels.shape[:2]
 
@@ -588,6 +600,7 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
                                                               size=size, stride=stride, pad=pad)
     test_patches, test_label_patches = sliding_window_operation(test_slice_t, test_slice_label,
                                                                 size=size, stride=stride, pad=pad)
+    train_patches, train_label_patches = _remove_empty_image(data=train_patches, labels=train_label_patches)
 
     if shuffle:     # No need to shuffle the rest
         train_patches, train_label_patches = sklearn.utils.shuffle(train_patches, train_label_patches)
@@ -617,6 +630,7 @@ def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True,
                                                                     test_size=cao_dataset_parameters[
                                                                         'validation_split'],
                                                                     shuffle=shuffle, pad=pad)
+    x_train, y_train = _remove_empty_image(data=x_train, labels=y_train)
     train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True, mode=mode,
                                          batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
     test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False, mode=mode,

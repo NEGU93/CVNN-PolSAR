@@ -19,6 +19,11 @@ from bretigny_dataset import get_bret_separated_dataset
 
 
 def get_dictionary(root_dir: str = "/media/barrachina/data/results/Bretigny/ICASSP_2022_trials") -> Dict[str, str]:
+    """
+    Finds all simulations in a given `root_dir` directory
+    :param root_dir:
+    :return:
+    """
     child_dirs = os.walk(root_dir)
     monte_dict = defaultdict(list)
     for child_dir in child_dirs:
