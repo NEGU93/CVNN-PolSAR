@@ -21,8 +21,16 @@ cao_dataset_parameters = {
     'window_for_mlp': 32  # Section 3.4
 }
 
+zhang_dataset_parameters = {
+    'validation_split': 0.1,
+    'test_split': 0.9,
+    'batch_size': 100,
+    'sliding_window_size': 12,
+    'sliding_window_stride': 1
+}
+
 OBER_COLORS = np.array([
-    [1, 0.349, 0.392],      # Red; Built-up Area
+    [1, 0.349, 0.392],  # Red; Built-up Area
     [0.086, 0.858, 0.576],  # Green; Wood Land
     [0.937, 0.917, 0.352],  # Yellow; Open Area
     [0, 0.486, 0.745]
@@ -30,10 +38,51 @@ OBER_COLORS = np.array([
 
 BRET_COLORS = np.array([
     [0.086, 0.858, 0.576],  # Green; Forest
-    [0, 0.486, 0.745],      # Blue; Piste
-    [1, 0.349, 0.392],      # Red; Built-up Area
+    [0, 0.486, 0.745],  # Blue; Piste
+    [1, 0.349, 0.392],  # Red; Built-up Area
     [0.937, 0.917, 0.352],  # Yellow; Open Area
 ])
+
+SF_COLORS = {
+    "ALOS2": [
+        [132, 112, 255],
+        [0, 0, 255],
+        [0, 255, 0],
+        [192, 0, 0],
+        [0, 255, 255],
+        [255, 255, 0]
+    ],
+    "GF3": [
+        [132, 112, 255],
+        [0, 0, 255],
+        [0, 255, 0],
+        [192, 0, 0],
+        [0, 255, 255],
+        [255, 255, 0]
+    ],
+    "RISAT": [
+        [132, 112, 255],
+        [0, 0, 255],
+        [0, 255, 0],
+        [192, 0, 0],
+        [0, 255, 255],
+        [255, 255, 0]
+    ],
+    "RS2": [
+        [0, 0, 255],
+        [0, 255, 0],
+        [255, 0, 0],
+        [255, 255, 0],
+        [255, 0, 255]
+    ],
+    "AIRSAR": [
+        [0, 255, 255],
+        [255, 255, 0],
+        [0, 0, 255],
+        [255, 0, 0],
+        [0, 255, 0]
+    ]
+}
 
 # https://imagecolorpicker.com/en
 FLEVOLAND = np.array([
@@ -200,7 +249,7 @@ def separate_train_test_pixels(x, y, ratio=0.1):
     return x_train, y_train, x_test, y_test
 
 
-def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: int = 0) \
+def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: int = 0, segmentation: bool = True) \
         -> Tuple[np.ndarray, np.ndarray]:
     """
     Extracts many sub-images from one big image. Labels included.
@@ -224,9 +273,12 @@ def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: in
             slice_x = slice(x, x + size)
             slice_y = slice(y, y + size)
             tiles.append(im[slice_x, slice_y])
-            label_tiles.append(lab[slice_x, slice_y])
+            if segmentation:
+                label_tiles.append(lab[slice_x, slice_y])
+            else:
+                label_tiles.append(lab[x + int(size / 2), y + int(size / 2)])
     assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
-    assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
+    # assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
     if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
         # import pdb; pdb.set_trace()
         assert int(np.shape(tiles)[0]) == int(
@@ -339,13 +391,14 @@ def _balance_image(labels):
     """
     classes = tf.argmax(labels, axis=-1)
     mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
-    classes = tf.where(mask, classes, classes+1)    # Increment classes, now 0 = no label
-    totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in range(1, tf.math.reduce_max(classes).numpy()+1)]
+    classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
+    totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
+              range(1, tf.math.reduce_max(classes).numpy() + 1)]
     if all(element == totals[0] for element in totals):
         print("All labels are already balanced")
         return labels
     min_value = min(totals)
-    for value in range(1, len(totals)+1):
+    for value in range(1, len(totals) + 1):
         matrix_mask = _select_random(classes, value=value, total=min_value)
         labels = tf.where(tf.expand_dims((classes != value).numpy() | matrix_mask, axis=-1),
                           labels, tf.zeros(shape=labels.shape))
@@ -390,7 +443,6 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
         labels = np.argmax(labels, axis=-1) + 1
     elif len(labels.shape) != 2:
         raise ValueError(f"Expected labels to be rank 3 or 2, received rank {len(labels.shape)}.")
-    # import pdb; pdb.set_trace()
     if colors is None:
         if np.max(labels) == 3:
             print("Using Oberpfaffenhofen dataset colors")
@@ -407,7 +459,7 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
         else:
             print("Using Plotly dataset colors")
             colors = DEFAULT_PLOTLY_COLORS
-    ground_truth = np.zeros(labels.shape + (3,), dtype=float)  # 3 channels for RGB
+    ground_truth = np.zeros(labels.shape + (3,), dtype=float if np.max(colors) <= 1 else np.uint8)  # 3 channels for RGB
     for i in range(labels.shape[0]):
         for j in range(labels.shape[1]):
             if labels[i, j] != 0:
@@ -504,6 +556,39 @@ def open_t_dataset_t3(path: str):
     return T
 
 
+def open_s_dataset(path: str):
+    path = Path(path)
+    # http://www.spectralpython.net/fileio.html#envi-headers
+    s_11_meta = envi.open(path / 's11.bin.hdr', path / 's11.bin')
+    s_12_meta = envi.open(path / 's12.bin.hdr', path / 's12.bin')
+    s_21_meta = envi.open(path / 's21.bin.hdr', path / 's21.bin')
+    s_22_meta = envi.open(path / 's22.bin.hdr', path / 's22.bin')
+
+    s_11 = s_11_meta.read_band(0)
+    s_12 = s_12_meta.read_band(0)
+    s_21 = s_21_meta.read_band(0)
+    s_22 = s_22_meta.read_band(0)
+
+    assert np.all(s_21 == s_12)
+
+    return np.stack((s_11, s_12, s_22), axis=-1)
+
+
+def get_dataset_with_labels_s(path: str, labels: str, debug=False):
+    """
+    Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
+    :return: Tuple (T, labels)
+        - [s_11, s_12, s_22]: Image as a numpy array.
+        - labels: numpy array.
+    """
+    S = open_s_dataset(path)
+    labels = scipy.io.loadmat(labels)['label']
+    if debug:
+        labels_to_ground_truth(labels, showfig=True)
+    labels = sparse_to_categorical_2D(labels)
+    return S, labels
+
+
 def get_dataset_with_labels_t6(path: str, labels: str, debug=False):
     T, labels = open_dataset_t6(path, labels)
     if debug:
@@ -543,20 +628,27 @@ def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, t
     # labels = _balance_image(labels)
     patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad)
     # del T, labels  # Free up memory
-    x_train, x_test, y_train, y_test = get_tf_dataset_split(patches, label_patches, test_size=test_size, shuffle=shuffle)
+    x_train, x_test, y_train, y_test = get_tf_dataset_split(patches, label_patches, test_size=test_size,
+                                                            shuffle=shuffle)
     del patches, label_patches
     return x_train, x_test, y_train, y_test
 
 
-def get_dataset_for_classification(T, labels, shift_map=True, test_size=0.8):
+def get_dataset_for_classification(T, labels, size: int = 12, stride: int = 1,
+                                   test_size: float = 0.9, val_size: float = 0.1,
+                                   shuffle: bool = True, pad=6):
     """
     Gets dataset ready to be processed for the mlp model.
     The dataset will be 2D dimensioned where the first element will be each pixel that will have 21 complex values each.
     :return: Tuple (train_dataset, test_dataset, val_dataset).
     """
-    T, labels = remove_unlabeled_and_flatten(T, labels, shift_map)
-    labels = sparse_to_categorical_1D(labels)
-    return get_tf_dataset_split(T, labels, test_size=test_size)
+    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad, segmentation=False)
+    x, y = _remove_empty_image(data=patches, labels=label_patches)
+    del patches, label_patches
+    x_train, x_test, y_train, y_test = get_tf_dataset_split(x, y, test_size=test_size, shuffle=shuffle)
+    x_train, x_val, y_train, y_val = get_tf_dataset_split(x_train, y_train, test_size=val_size, shuffle=shuffle)
+    del x, y
+    return x_train, x_test, x_val, y_train, y_test, y_val
 
 
 def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
@@ -572,25 +664,101 @@ def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
 --------------"""
 
 
-def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                          savefig: Optional[str] = None, complex_mode: bool = True, mode: str = 'real_imag'):
+def _slice_dataset(T, labels, percentage: tuple, orientation: str, savefig: Optional[str]):
+    orientation = orientation.lower()
     percentage = _parse_percentage(percentage)
 
-    slice_1 = int(T.shape[1] * percentage[0])
-    slice_2 = int(T.shape[1] * percentage[1]) + slice_1
+    if orientation == "horizontal":
+        total_length = T.shape[1]
+    elif orientation == "vertical":
+        total_length = T.shape[0]
+    else:
+        raise ValueError(f"Orientation {orientation} unknown.")
 
-    # labels_to_ground_truth(labels, savefig='./full_image')
+    th_1 = int(total_length * percentage[0])
+    th_2 = int(total_length * percentage[1]) + th_1
 
-    train_slice_t = T[:, :slice_1]
-    train_slice_label = labels[:, :slice_1]
-    val_slice_t = T[:, slice_1:slice_2]
-    val_slice_label = labels[:, slice_1:slice_2]
-    test_slice_t = T[:, slice_2:]
-    test_slice_label = labels[:, slice_2:]
+    slice_1 = slice(th_1)
+    slice_2 = slice(th_1, th_2)
+    slice_3 = slice(th_2, total_length)
+
+    if orientation == "horizontal":
+        train_slice_t = T[:, slice_1]
+        train_slice_label = labels[:, slice_1]
+        val_slice_t = T[:, slice_2]
+        val_slice_label = labels[:, slice_2]
+        test_slice_t = T[:, slice_3]
+        test_slice_label = labels[:, slice_3]
+    else:
+        train_slice_t = T[slice_1]
+        train_slice_label = labels[slice_1]
+        val_slice_t = T[slice_2]
+        val_slice_label = labels[slice_2]
+        test_slice_t = T[slice_3]
+        test_slice_label = labels[slice_3]
     if savefig:
         labels_to_ground_truth(train_slice_label, savefig=savefig + 'train_ground_truth')
         labels_to_ground_truth(val_slice_label, savefig=savefig + 'val_ground_truth')
         labels_to_ground_truth(test_slice_label, savefig=savefig + 'test_ground_truth')
+    return train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
+
+
+def pad_image(image, labels):
+    first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
+    second_dim_pad = int(2 ** 5 * np.ceil(image.shape[1] / 2 ** 5)) - image.shape[1]
+    paddings = [
+        [int(np.ceil(first_dim_pad / 2)), int(np.floor(first_dim_pad / 2))],
+        [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
+        [0, 0]
+    ]
+    image = tf.pad(image, paddings)
+    labels = tf.pad(labels, paddings)
+    return image, labels
+
+
+def get_single_image_separated_dataset(T, labels, percentage: tuple, savefig: Optional[str] = None,
+                                       complex_mode: bool = True, mode: str = 'real_imag',
+                                       normalize: bool = True, orientation: str = "vertical",
+                                       pad: bool = False):
+    if normalize:
+        T, _ = tf.linalg.normalize(T, axis=[0, 1])
+    train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label = _slice_dataset(T=T,
+                                                                                                                    labels=labels,
+                                                                                                                    percentage=percentage,
+                                                                                                                    savefig=savefig,
+                                                                                                                    orientation=orientation)
+
+    weights = _get_weights(train_slice_label)
+    if pad:
+        train_slice_t, train_slice_label = pad_image(train_slice_t, train_slice_label)
+        val_slice_t, val_slice_label = pad_image(val_slice_t, val_slice_label)
+        test_slice_t, test_slice_label = pad_image(test_slice_t, test_slice_label)
+    train_slice_t = tf.expand_dims(train_slice_t, axis=0)
+    train_slice_label = tf.expand_dims(train_slice_label, axis=0)
+    val_slice_t = tf.expand_dims(val_slice_t, axis=0)
+    val_slice_label = tf.expand_dims(val_slice_label, axis=0)
+    test_slice_t = tf.expand_dims(test_slice_t, axis=0)
+    test_slice_label = tf.expand_dims(test_slice_label, axis=0)
+    ds_train = _transform_to_tensor(train_slice_t, train_slice_label, data_augment=True, batch_size=1,
+                                    complex_mode=complex_mode, mode=mode)
+    ds_val = _transform_to_tensor(val_slice_t, val_slice_label, data_augment=False, batch_size=1,
+                                  complex_mode=complex_mode, mode=mode)
+    ds_test = _transform_to_tensor(test_slice_t, test_slice_label, data_augment=False, batch_size=1,
+                                   complex_mode=complex_mode, mode=mode)
+    del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
+    return ds_train, ds_val, ds_test, weights
+
+
+def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                          savefig: Optional[str] = None, complex_mode: bool = True, mode: str = 'real_imag',
+                          normalize: bool = True, orientation: str = "vertical"):
+    if normalize:
+        T, _ = tf.linalg.normalize(T, axis=[0, 1])
+    train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label = _slice_dataset(T=T,
+                                                                                                                    labels=labels,
+                                                                                                                    percentage=percentage,
+                                                                                                                    savefig=savefig,
+                                                                                                                    orientation=orientation)
     # train_slice_label = _balance_image(train_slice_label)
     weights = _get_weights(train_slice_label)
 
@@ -602,7 +770,7 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
                                                                 size=size, stride=stride, pad=pad)
     train_patches, train_label_patches = _remove_empty_image(data=train_patches, labels=train_label_patches)
 
-    if shuffle:     # No need to shuffle the rest
+    if shuffle:  # No need to shuffle the rest
         train_patches, train_label_patches = sklearn.utils.shuffle(train_patches, train_label_patches)
 
     ds_train = _transform_to_tensor(train_patches, train_label_patches, data_augment=True, batch_size=30,
@@ -621,7 +789,10 @@ def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride:
 ----------"""
 
 
-def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0, mode: str = 'real_imag'):
+def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0, mode: str = 'real_imag',
+                                     normalize: bool = True):
+    if normalize:
+        T, _ = tf.linalg.normalize(T, axis=[0, 1])
     weights = _get_weights(labels)
     x_train, x_test, y_train, y_test = get_dataset_for_segmentation(T=T, labels=labels,
                                                                     size=cao_dataset_parameters['sliding_window_size'],
@@ -639,19 +810,26 @@ def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True,
     return train_dataset, test_dataset, weights
 
 
-def get_dataset_for_cao_classification(T, labels, complex_mode=True):
-    T, labels = remove_unlabeled_with_window(T, labels, window_size=cao_dataset_parameters['window_for_mlp'])
-    labels = sparse_to_categorical_1D(labels)
-    """
-    train_dataset, test_dataset = get_tf_dataset_split(T=T, labels=labels,
-                                                       test_size=cao_dataset_parameters['validation_split'])
-    train_dataset = train_dataset.batch(cao_dataset_parameters['batch_size'])
-    test_dataset = test_dataset.batch(cao_dataset_parameters['batch_size'])
-    if not complex_mode:
-        train_dataset = train_dataset.map(to_real)
-        test_dataset = test_dataset.map(to_real)
-    return train_dataset, test_dataset
-    """
-    x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=cao_dataset_parameters['validation_split'],
-                                                        shuffle=True)
-    return x_train, x_test, y_train, y_test
+def get_dataset_for_zhang_classification(T, labels, complex_mode=True, shuffle=True, mode: str = 'real_imag',
+                                         normalize: bool = True):
+    if normalize:
+        T, _ = tf.linalg.normalize(T, axis=[0, 1])
+    x_train, x_test, x_val, y_train, y_test, y_val = get_dataset_for_classification(T, labels, shuffle=shuffle,
+                                                                                    size=zhang_dataset_parameters[
+                                                                                        'sliding_window_size'],
+                                                                                    stride=zhang_dataset_parameters[
+                                                                                        'sliding_window_stride'],
+                                                                                    test_size=zhang_dataset_parameters[
+                                                                                        'test_split'],
+                                                                                    val_size=zhang_dataset_parameters[
+                                                                                        'validation_split'],
+                                                                                    pad=int(zhang_dataset_parameters[
+                                                                                                'sliding_window_size'] / 2))
+    train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True, mode=mode,
+                                         batch_size=zhang_dataset_parameters['batch_size'], complex_mode=complex_mode)
+    test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False, mode=mode,
+                                        batch_size=zhang_dataset_parameters['batch_size'], complex_mode=complex_mode)
+    val_dataset = _transform_to_tensor(x_val, y_val, data_augment=False, mode=mode,
+                                       batch_size=zhang_dataset_parameters['batch_size'], complex_mode=complex_mode)
+    del x_train, x_test, y_train, y_test, x_val, y_val
+    return train_dataset, test_dataset, val_dataset

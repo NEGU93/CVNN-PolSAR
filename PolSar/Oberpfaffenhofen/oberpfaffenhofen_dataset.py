@@ -21,22 +21,24 @@ elif path.exists('/home/cfren/Documents/onera/PolSar'):
 else:
     raise FileNotFoundError("path of the dataset reader not found")
 from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_labels_t6, \
-    get_dataset_for_classification, get_dataset_with_labels_t3, get_separated_dataset
+    get_dataset_for_zhang_classification, get_dataset_with_labels_t3, get_separated_dataset, get_dataset_with_labels_s
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
-    path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    t_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    s_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
 elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar\Oberpfaffenhofen'):
     labels_path = 'W:\HardDiskDrive\Documentos\GitHub\/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
-    path = 'W:\HardDiskDrive\Documentos\GitHub\datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    t_path = 'W:\HardDiskDrive\Documentos\GitHub\datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    s_path = 'W:\HardDiskDrive\Documentos\GitHub\datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
 elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'):
     labels_path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
-    path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    t_path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    s_path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
 elif path.exists("/home/cfren/Documents/onera/PolSar/Oberpfaffenhofen"):
     labels_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/Label_Germany.mat'
-    path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
-    
-    
+    t_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    s_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
 else:
     raise FileNotFoundError("No path found for the requested dataset")
 
@@ -46,11 +48,21 @@ def get_mask():
 
 
 def get_ober_dataset_with_labels_t6():
-    return get_dataset_with_labels_t6(path, labels_path)
+    return get_dataset_with_labels_t6(t_path, labels_path)
 
 
 def get_ober_dataset_with_labels_t3():
-    return get_dataset_with_labels_t3(path, labels_path)
+    return get_dataset_with_labels_t3(t_path, labels_path)
+
+
+def get_ober_dataset_with_labels_s():
+    """
+    Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
+    :return: Tuple (T, labels)
+        - [s_11, s_12, s_21, s_22]: Image as a numpy array.
+        - labels: numpy array.
+    """
+    return get_dataset_with_labels_s(s_path, labels_path)
 
 
 def get_ober_dataset_for_segmentation(complex_mode=True, t6=False, shuffle=True, pad=0):
@@ -72,29 +84,14 @@ def get_ober_dataset_for_segmentation(complex_mode=True, t6=False, shuffle=True,
     return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode, shuffle=shuffle, pad=pad)
 
 
-def get_ober_dataset_for_classification():
-    return get_dataset_for_classification(path, labels_path)
+def get_ober_dataset_for_classification(complex_mode=True, t6=False, shuffle=True):
+    if t6:
+        T, labels = get_ober_dataset_with_labels_t6()
+    else:
+        T, labels = get_ober_dataset_with_labels_t3()
+    return get_dataset_for_zhang_classification(T, labels, complex_mode=complex_mode, shuffle=shuffle)
 
 
-def open_dataset_s2():
-    """
-    Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
-    :return: Tuple (T, labels)
-        - [s_11, s_12, s_21, s_22]: Image as a numpy array.
-        - labels: numpy array.
-    """
-    path = Path('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen')
-    labels = scipy.io.loadmat('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat')['label']
-
-    # http://www.spectralpython.net/fileio.html#envi-headers
-    s_11_meta = envi.open(path / 's11.bin.hdr', path / 's11.bin')
-    s_12_meta = envi.open(path / 's12.bin.hdr', path / 's12.bin')
-    s_21_meta = envi.open(path / 's21.bin.hdr', path / 's21.bin')
-    s_22_meta = envi.open(path / 's22.bin.hdr', path / 's22.bin')
-
-    s_11 = s_11_meta.read_band(0)
-    s_12 = s_12_meta.read_band(0)
-    s_21 = s_21_meta.read_band(0)
-    s_22 = s_22_meta.read_band(0)
-
-    return [s_11, s_12, s_21, s_22], labels
+if __name__ == "__main__":
+    S, labels = get_ober_dataset_with_labels_s()
+    set_trace()

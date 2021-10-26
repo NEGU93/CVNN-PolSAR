@@ -27,16 +27,27 @@ else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 if NOTIFY:
     from notify_run import Notify
-from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6, get_mask
+from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6, get_mask, \
+    get_ober_dataset_for_classification
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
+from zhang_cnn import get_zhang_cnn_model
 from dataset_reader import labels_to_ground_truth
 from cvnn.utils import create_folder
 from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
 
+AVAILABLE_MODELS = {
+    "cao", "zhang"
+}
+
 cao_fit_parameters = {
     'epochs': 500,              # Section 3.3.2
     "channels": 6               # This is either 6 (PolSAR) or 21 (PolInSAR)
+}
+
+zhang_fit_paremeters = {
+    'epochs': 60,
+    "channels": 6
 }
 
 
@@ -57,42 +68,63 @@ def get_callbacks_list():
     return [tensorboard_callback, cp_callback], temp_path
 
 
-def run_model(complex_mode=True, tensorflow=False, reproducible=False, dropout=None):
+def _get_cao_model(dropout, reproducible, tensorflow, complex_mode):
+    if dropout is None:
+        dropout = {
+            "downsampling": None,
+            "bottle_neck": None,
+            "upsampling": None
+        }
+    if reproducible:
+        tf.random.set_seed(116)
+    if not tensorflow:
+        if complex_mode:
+            model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']), num_classes=3,
+                                        name="cao_cvfcn", dropout_dict=dropout)
+        else:
+            model = get_cao_cvfcn_model(input_shape=(None, None, 2 * cao_fit_parameters['channels']), num_classes=3,
+                                        dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout)
+    else:
+        if complex_mode:
+            raise ValueError("Tensorflow does not support complex model. "
+                             "Do not use tensorflow and complex_mode both as True")
+        model = get_tf_real_cao_model(input_shape=(None, None, 2 * cao_fit_parameters['channels']), num_classes=3,
+                                      name="tf_cao_rvfcn", dropout_dict=dropout)
+    return model
+
+
+def _get_zhang_model(complex_mode, reproducible):
+    if reproducible:
+        tf.random.set_seed(116)
+    multiplier = 1 if complex_mode else 2
+    return get_zhang_cnn_model(input_shape=(12, 12, int(multiplier*6)), num_classes=3, complex=complex_mode)
+
+
+def run_model(complex_mode=True, tensorflow=False, reproducible=False, dropout=None, model_name: str = "cao"):
     if NOTIFY:
         notify = Notify()
         notify.send(f"Running Ober {'complex' if complex_mode else 'real'} model using "
                     f"{'cvnn' if not tensorflow else 'tf'}")
     try:
-        train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode,
-                                                                        shuffle=not reproducible, pad=77)
-        # data, label = next(iter(dataset))
-        if dropout is None:
-            dropout = {
-                "downsampling": None,
-                "bottle_neck": None,
-                "upsampling": None
-            }
-        if reproducible:
-            tf.random.set_seed(116)
-        if not tensorflow:
-            if complex_mode:
-                model = get_cao_cvfcn_model(input_shape=(None, None, cao_fit_parameters['channels']), num_classes=3,
-                                            name="cao_cvfcn", dropout_dict=dropout)
-            else:
-                model = get_cao_cvfcn_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), num_classes=3,
-                                            dtype=np.float32, name="cao_rvfcn", dropout_dict=dropout)
+        model_name = model_name.lower()
+        if model_name == "cao":
+            train_dataset, test_dataset = get_ober_dataset_for_segmentation(complex_mode=complex_mode,
+                                                                            shuffle=not reproducible, pad=77)
+            model = _get_cao_model(dropout=dropout, tensorflow=tensorflow, complex_mode=complex_mode,
+                                   reproducible=reproducible)
+        elif model_name == "zhang":
+            train_dataset, _, test_dataset = get_ober_dataset_for_classification(complex_mode=complex_mode,
+                                                                                 shuffle=not reproducible)
+            model = _get_zhang_model(complex_mode=complex_mode, reproducible=reproducible)
         else:
-            if complex_mode:
-                raise ValueError("Tensorflow does not support complex model. "
-                                 "Do not use tensorflow and complex_mode both as True")
-            model = get_tf_real_cao_model(input_shape=(None, None, 2*cao_fit_parameters['channels']), num_classes=3,
-                                          name="tf_cao_rvfcn", dropout_dict=dropout)
+            raise ValueError(f"Unknown model {model_name}")
         # Checkpoints
         callbacks, temp_path = get_callbacks_list()
         # elem, label = next(iter(test_dataset))
         # input_out = model.layers[0](elem)
+        epochs = cao_fit_parameters['epochs'] if model_name == "cao" else zhang_fit_paremeters['epochs']
         start = time()
-        history = model.fit(x=train_dataset, epochs=cao_fit_parameters['epochs'],
+        history = model.fit(x=train_dataset, epochs=epochs,
                             validation_data=test_dataset, shuffle=True, callbacks=callbacks)
         stop = time()
         with open(temp_path / 'history_dict', 'wb') as file_pi:
@@ -200,6 +232,7 @@ if __name__ == "__main__":
     parser.add_argument('--complex', action='store_true', help='run complex model')
     parser.add_argument('--tensorflow', action='store_true', help='use tensorflow')
     parser.add_argument('--reproducible', action='store_true', help='use same seed to make results replicable')
+    parser.add_argument('--model_name', nargs=1, type=str, default=["cao"], help='Model to be used')
     parser.add_argument('--dropout', nargs=3, type=dropout_type, default=[None, None, None],
                         help='dropout rate to be used on '
                              'downsampling, bottle neck, upsampling sections (in order). '
@@ -212,7 +245,8 @@ if __name__ == "__main__":
         "bottle_neck": args.dropout[1],
         "upsampling": args.dropout[2]
     }
-    run_model(complex_mode=args.complex, tensorflow=args.tensorflow, reproducible=args.reproducible, dropout=dropout)
+    run_model(complex_mode=args.complex, tensorflow=args.tensorflow, reproducible=args.reproducible, dropout=dropout,
+              model_name=args.model_name[0])
     # tf.random.set_seed(116)
     # run_model(complex_mode=False, tensorflow=True)
     # train_model()

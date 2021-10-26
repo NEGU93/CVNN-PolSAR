@@ -81,7 +81,7 @@ def to_rgb_colors(labels):
 ------------------"""
 
 
-def open_data():
+def open_data(balanced_dataset: bool = False):
 
     if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
         path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
@@ -91,7 +91,10 @@ def open_data():
     else:
         raise FileNotFoundError("Dataset path not found")
     mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
-    seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
+    if not balanced_dataset:
+        seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
+    else:
+        seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI_balanced.mat')
     mat['HH'] = mat['HH'][:-3]
     mat['HV'] = mat['HV'][:-3]
     mat['VV'] = mat['VV'][:-3]
@@ -156,15 +159,15 @@ def get_coherency_matrix(HH, VV, HV, kernel_shape=3):
     return filtered_T
 
 
-def get_bret_coherency_dataset(kernel_shape=3):
-    mat, seg = open_data()
+def get_bret_coherency_dataset(balanced_dataset, kernel_shape=3):
+    mat, seg = open_data(balanced_dataset)
     T = get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'], kernel_shape=kernel_shape)
     labels = sparse_to_categorical_2D(seg['image'])
     return T, labels
 
 
-def get_bret_k_dataset():
-    mat, seg = open_data()
+def get_bret_k_dataset(balanced_dataset):
+    mat, seg = open_data(balanced_dataset)
     k = get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
     labels = sparse_to_categorical_2D(seg['image'])
     return k, labels
@@ -175,24 +178,23 @@ def get_bret_k_dataset():
 -------------------"""
 
 
-def get_bret_cao_dataset(complex_mode=True, coherency=False, kernel_shape=3, mode: str = 'real_imag'):
+def get_bret_cao_dataset(balanced_dataset=False, complex_mode=True, coherency=False, kernel_shape=3, mode: str = 'real_imag'):
     if not coherency:
-        img, label = get_bret_k_dataset()
+        img, label = get_bret_k_dataset(balanced_dataset)
     else:
-        img, label = get_bret_coherency_dataset(kernel_shape=kernel_shape)
-    train_dataset, test_dataset, weights = get_dataset_for_cao_segmentation(img, label,
-                                                                            complex_mode=complex_mode,
+        img, label = get_bret_coherency_dataset(balanced_dataset, kernel_shape=kernel_shape)
+    train_dataset, test_dataset, weights = get_dataset_for_cao_segmentation(img, label, complex_mode=complex_mode,
                                                                             shuffle=True, mode=mode)
     del img, label
     return train_dataset, test_dataset, weights
 
 
-def get_bret_separated_dataset(complex_mode=True, coherency=True, shuffle=True, pad=0, kernel_shape=3,
-                               mode: str = 'real_imag'):
+def get_bret_separated_dataset(balanced_dataset=False, complex_mode=True, coherency=True, shuffle=True, pad=0,
+                               kernel_shape=3, mode: str = 'real_imag'):
     if not coherency:
-        img, labels = get_bret_k_dataset()
+        img, labels = get_bret_k_dataset(balanced_dataset)
     else:
-        img, labels = get_bret_coherency_dataset(kernel_shape=kernel_shape)
+        img, labels = get_bret_coherency_dataset(balanced_dataset, kernel_shape=kernel_shape)
     return get_separated_dataset(img, labels, percentage=(0.7, 0.15, 0.15), shuffle=shuffle, pad=pad,
                                  complex_mode=complex_mode, mode=mode)
 

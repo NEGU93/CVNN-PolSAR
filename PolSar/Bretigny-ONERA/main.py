@@ -49,6 +49,7 @@ def parse_input():
     parser.add_argument('--coherency', action='store_true', help='use coherency matrix instead of k')
     parser.add_argument('--split_datasets', action='store_true', help='Split the dataset into 3 parts to make sure '
                                                                       'train and test sets do not overlap')
+    parser.add_argument('--balance_dataset', action='store_true', help='Use a dataset with balanced dataset.')
     parser.add_argument('--dropout', nargs=3, type=dropout_type, default=[None, None, None],
                         help='dropout rate to be used on '
                              'downsampling, bottle neck, upsampling sections (in order). '
@@ -141,12 +142,14 @@ def _get_model(index: int,  channels: int, dropout, weights, mode: str, complex_
 
 
 def run_model(epochs, index=0, complex_mode=True, tensorflow=False, dropout=None, coherency=False, split_datasets=False,
-              save_model=True, early_stop=False, kernel_shape=3, mode: str = 'real_imag', weighted_loss=True):
+              save_model=True, early_stop=False, kernel_shape=3, mode: str = 'real_imag', weighted_loss=True,
+              balanced_dataset=False):
+    if NOTIFY:
+        notify = Notify()
     try:
         msg = f"Running Bretigny {'complex' if complex_mode else 'real ' + mode} model using " \
               f"{'cvnn' if not tensorflow else 'tf'} on {'coherency' if coherency else 'k'} data"
         if NOTIFY:
-            notify = Notify()
             notify.send("Running simulation: " + ('complex ' if complex_mode else mode + " ") + " ".join(sys.argv[1:]))
         dropout = parse_dropout(dropout=dropout)
         # Get dataset
@@ -198,4 +201,5 @@ if __name__ == "__main__":
     args = parse_input()
     run_model(epochs=args.epochs[0], complex_mode=args.real_mode == 'complex', tensorflow=args.tensorflow,
               coherency=args.coherency, dropout=args.dropout, split_datasets=args.split_datasets,
-              early_stop=args.early_stop, kernel_shape=args.boxcar[0], mode=args.real_mode)
+              early_stop=args.early_stop, kernel_shape=args.boxcar[0], mode=args.real_mode,
+              balanced_dataset=args.balance_dataset, weighted_loss=args.weighted_loss)
