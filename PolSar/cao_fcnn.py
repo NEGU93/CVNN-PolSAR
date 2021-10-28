@@ -173,6 +173,14 @@ def get_tf_real_cao_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4,
                           dropout_dict=dropout_dict, num_classes=num_classes, weights=weights)
 
 
+def get_cao_fcnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4, dtype=np.complex64, name="cao_model",
+                       dropout_dict=None, weights=None, tensorflow: bool = False):
+    if tensorflow:
+        return get_tf_real_cao_model(input_shape=input_shape, num_classes=num_classes, name=name, dropout_dict=dropout_dict, weights=weights)
+    else:
+        return get_cao_cvfcn_model(input_shape=input_shape, num_classes=num_classes, dtype=dtype, name=name, dropout_dict=dropout_dict, weights=weights)
+
+
 def get_cao_mlp_models(output_size, input_size=None):
     if input_size is None:
         input_size = cao_mlp_params['input_window'] * cao_mlp_params['input_window'] * 6

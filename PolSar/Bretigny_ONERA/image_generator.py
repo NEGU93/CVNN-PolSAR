@@ -17,7 +17,7 @@ else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from bretigny_dataset import open_data, get_coherency_matrix, get_k_vector
-from dataset_reader import labels_to_ground_truth
+from dataset_reader import labels_to_rgb
 from cvnn.utils import transform_to_real_map_function
 
 
@@ -114,13 +114,13 @@ def save_result_image_from_saved_model(root_path, complex_mode=True, tensorflow=
                              complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout, coherency=coherency)
     prediction = model.predict(full_image)[0]
     prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    labels_to_ground_truth(prediction, savefig=str(root_path / "prediction"), mask=mask)
+    labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', nargs=1, type=str,
-                        default='/home/barrachina/Documents/onera/PolSar/Bretigny-ONERA/log/2021/09September/24Friday/run-13h46m02',
+                        default='/home/barrachina/Documents/onera/PolSar/Bretigny_ONERA/log/2021/09September/24Friday/run-13h46m02',
                         help='Path with the model checkpoint')
     parser.add_argument('--use_mask', action='store_true', help='Set non-labeled pixels to black')
     root_path = Path(parser.parse_args().path[0])

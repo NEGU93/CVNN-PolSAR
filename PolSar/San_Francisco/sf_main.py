@@ -14,7 +14,7 @@ from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_fun
 sys.path.insert(1, "/".join(os.path.abspath(__file__).split('/')[:-2]))
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from own_unet import get_my_unet_model
-from dataset_reader import labels_to_ground_truth, SF_COLORS
+from dataset_reader import labels_to_rgb, SF_COLORS
 from sf_data_reader import get_sf_cao_segmentation, open_image, get_labels, pauli_rgb_map_plot, get_sf_separated
 
 EPOCHS = 100
@@ -165,8 +165,8 @@ def save_result_image_from_saved_model(root_path, model_name: str,
                              tensorflow=tensorflow)
     prediction = model.predict(full_image)[0]
     prediction = (math.real(prediction) + math.imag(prediction)) / 2.
-    labels_to_ground_truth(prediction, savefig=str(root_path / "prediction"), mask=padded_mask,
-                           colors=SF_COLORS[open_data])
+    labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=padded_mask,
+                  colors=SF_COLORS[open_data])
 
 
 """
@@ -215,8 +215,6 @@ def run_model(model_name: str, epochs: int, complex_mode: bool, coherency: bool,
         else:
             train_dataset, test_dataset, weights = get_sf_separated(open_data=dataset, mode="t" if coherency else "s",
                                                                     complex_mode=complex_mode, real_mode=real_mode)
-
-
         if not weighted_loss:
             weights = None
         channels = 6 if coherency else 3
@@ -261,7 +259,7 @@ if __name__ == "__main__":
               coherency=args.coherency, dropout=args.dropout, early_stop=args.early_stop, dataset=args.dataset[0],
               weighted_loss=args.weighted_loss, model_name=args.model[0], separate_dataset=args.separate_dataset)
     # save_result_image_from_saved_model(
-    #     Path("/home/barrachina/Documents/onera/PolSar/San-Francisco/log/2021/10October/20Wednesday/run-21h43m54"),
+    #     Path("/home/barrachina/Documents/onera/PolSar/San_Francisco/log/2021/10October/20Wednesday/run-21h43m54"),
     #     model_name=args.model[0],
     #     open_data=args.dataset[0], data_mode="t" if args.coherency else "s", weights=None,
     #     channels=6 if args.coherency else 3, complex_mode=args.real_mode == 'complex', real_mode=args.real_mode,

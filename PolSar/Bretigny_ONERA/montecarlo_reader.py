@@ -105,7 +105,7 @@ def parse_data():
 
 
 def get_stats_of_results():
-    path = "/home/barrachina/Documents/onera/PolSar/Bretigny-ONERA/log/montecarlo/2021/10October/05Tuesday/run-16h22m12/test_results.csv"
+    path = "/Bretigny_ONERA/log/montecarlo/2021/10October/05Tuesday/run-16h22m12/test_results.csv"
     df = DataFrame.from_dict(pd.read_csv(path))
     networks_availables = df.network.unique()
     for net in networks_availables:

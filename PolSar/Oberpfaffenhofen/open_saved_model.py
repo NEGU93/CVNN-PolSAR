@@ -4,7 +4,7 @@ import numpy as np
 sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\onera\PolSar')
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from oberpfaffenhofen_dataset import get_ober_dataset_with_labels_t6
-from dataset_reader import labels_to_ground_truth
+from dataset_reader import labels_to_rgb
 
 def get_saved_models(checkpoint_path, complex_mode=True, tensorflow=False):
     if not tensorflow:
@@ -44,4 +44,4 @@ if __name__ == "__main__":
     slices_labels = np.array(slices_labels)
     # print(f"Evaluate {model.evaluate(x=slices, y=slices_labels)}")            
     # set_trace()
-    labels_to_ground_truth(predicted, showfig=True, savefig="W:\HardDiskDrive\Documentos\GitHub\onera\PolSar\Oberpfaffenhofen\log\\2021\\06June\\18Friday\\run-11h38m05\prediction")
+    labels_to_rgb(predicted, showfig=True, savefig="W:\HardDiskDrive\Documentos\GitHub\onera\PolSar\Oberpfaffenhofen\log\\2021\\06June\\18Friday\\run-11h38m05\prediction")

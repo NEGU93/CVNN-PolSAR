@@ -1,5 +1,5 @@
 import random
-
+from abc import ABC, abstractmethod
 import numpy as np
 import matplotlib.pyplot as plt
 import spectral.io.envi as envi
@@ -8,7 +8,7 @@ import scipy.io
 from pdb import set_trace
 import tikzplotlib
 import tensorflow as tf
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Union
 from sklearn.model_selection import train_test_split
 import sklearn
 from cvnn.utils import standarize, randomize, transform_to_real_map_function
@@ -44,7 +44,7 @@ BRET_COLORS = np.array([
 ])
 
 SF_COLORS = {
-    "ALOS2": [
+    "SF-ALOS2": [
         [132, 112, 255],
         [0, 0, 255],
         [0, 255, 0],
@@ -52,7 +52,7 @@ SF_COLORS = {
         [0, 255, 255],
         [255, 255, 0]
     ],
-    "GF3": [
+    "SF-GF3": [
         [132, 112, 255],
         [0, 0, 255],
         [0, 255, 0],
@@ -60,7 +60,7 @@ SF_COLORS = {
         [0, 255, 255],
         [255, 255, 0]
     ],
-    "RISAT": [
+    "SF-RISAT": [
         [132, 112, 255],
         [0, 0, 255],
         [0, 255, 0],
@@ -68,14 +68,14 @@ SF_COLORS = {
         [0, 255, 255],
         [255, 255, 0]
     ],
-    "RS2": [
+    "SF-RS2": [
         [0, 0, 255],
         [0, 255, 0],
         [255, 0, 0],
         [255, 255, 0],
         [255, 0, 255]
     ],
-    "AIRSAR": [
+    "SF-AIRSAR": [
         [0, 255, 255],
         [255, 255, 0],
         [0, 0, 255],
@@ -83,6 +83,8 @@ SF_COLORS = {
         [0, 255, 0]
     ]
 }
+
+COLORS = {"BRETIGNY": BRET_COLORS, "OBER": OBER_COLORS, **SF_COLORS}
 
 # https://imagecolorpicker.com/en
 FLEVOLAND = np.array([
@@ -148,64 +150,6 @@ def flip(data, labels):
     return data, labels
 
 
-def _remove_empty_image(data, labels):
-    filtered_data = []
-    filtered_labels = []
-    for i in range(0, len(labels)):
-        if not np.all(labels[i] == 0):
-            filtered_data.append(data[i])
-            filtered_labels.append(labels[i])
-    filtered_data = np.array(filtered_data)
-    filtered_labels = np.array(filtered_labels)
-    return filtered_data, filtered_labels
-
-
-def check_dataset_and_lebels(dataset, labels):
-    return dataset.shape[:2] == labels.shape[:2]
-
-
-def separate_dataset(data, window_size: int = 9, stride: int = 3):
-    """
-    Gets each pixel of the dataset with some surrounding pixels.
-    :param data:
-    :param window_size:
-    :param stride:
-    :return:
-    """
-    assert window_size % 2 == 1, "Window size must be odd, got " + str(window_size)
-    n_win = int((window_size - 1) / 2)
-    rows = np.arange(n_win, data.shape[0] - n_win, stride)
-    cols = np.arange(n_win, data.shape[1] - n_win, stride)
-    result = np.empty((len(cols) * len(rows), window_size, window_size), dtype=data.dtype)
-    k = 0
-    for row in rows.astype(int):
-        for col in cols.astype(int):
-            result[k] = data[row - n_win:row + n_win + 1, col - n_win:col + n_win + 1]
-            k += 1
-    return result
-
-
-def remove_unlabeled(x, y):
-    """
-    Removes the unlabeled pixels from both image and labels
-    :param x: image input
-    :param y: labels inputs. all values of 0's will be eliminated and its corresponging values of x
-    :return: tuple (x, y) without the unlabeled pixels.
-    """
-    mask = y != 0
-    return x[mask], y[mask]
-
-
-def sparse_to_categorical_2D(labels) -> np.ndarray:
-    classes = np.max(labels)
-    ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
-    for i in range(labels.shape[0]):
-        for j in range(labels.shape[1]):
-            if labels[i, j] != 0:
-                ground_truth[i, j, labels[i, j] - 1] = 1.
-    return ground_truth
-
-
 def sparse_to_categorical_1D(labels) -> np.ndarray:
     classes = np.max(labels)
     ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
@@ -215,212 +159,25 @@ def sparse_to_categorical_1D(labels) -> np.ndarray:
     return ground_truth
 
 
-def separate_train_test_pixels(x, y, ratio=0.1):
-    """
-    Separates each pixel of the dataset in train and test set.
-    The returned dataset will be randomized.
-    :param x: dataset images
-    :param y: dataset labels
-    :param ratio: ratio of the train set, example, 0.8 will generate 80% of the dataset as train set and 20% as test set
-    :return: Tuple x_train, y_train, x_test, y_test
-    """
-    classes = set(y)
-    x_ordered_database = []
-    y_ordered_database = []
-    for cls in classes:
-        mask = y == cls
-        x_ordered_database.append(x[mask])
-        y_ordered_database.append(y[mask])
-    len_train = int(y.shape[0] * ratio / len(classes))
-    x_train = x_ordered_database[0][:len_train]
-    x_test = x_ordered_database[0][len_train:]
-    y_train = y_ordered_database[0][:len_train]
-    y_test = y_ordered_database[0][len_train:]
-    for i in range(len(y_ordered_database)):
-        assert (y_ordered_database[i] == i).all()
-        assert len(y_ordered_database[i]) == len(x_ordered_database[i])
-        if i != 0:
-            x_train = np.concatenate((x_train, x_ordered_database[i][:len_train]))
-            x_test = np.concatenate((x_test, x_ordered_database[i][len_train:]))
-            y_train = np.concatenate((y_train, y_ordered_database[i][:len_train]))
-            y_test = np.concatenate((y_test, y_ordered_database[i][len_train:]))
-    x_train, y_train = randomize(x_train, y_train)
-    x_test, y_test = randomize(x_test, y_test)
-    return x_train, y_train, x_test, y_test
-
-
-def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: int = 0, segmentation: bool = True) \
-        -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Extracts many sub-images from one big image. Labels included.
-    Using the Sliding Window Operation defined in:
-        https://www.mdpi.com/2072-4292/10/12/1984
-    :param im: Image dataset
-    :param lab: pixel-wise labels dataset
-    :param size: Size of the desired mini new images
-    :param stride: stride between images, use stride=size for images not to overlap
-    :param pad: Pad borders
-    :return: tuple of numpy arrays (tiles, label_tiles)
-    """
-    tiles = []
-    label_tiles = []
-    assert im.shape[0] > size and im.shape[1] > size
-    if pad:
-        im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
-        lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
-    for x in range(0, im.shape[0] - size + 1, stride):
-        for y in range(0, im.shape[1] - size + 1, stride):
-            slice_x = slice(x, x + size)
-            slice_y = slice(y, y + size)
-            tiles.append(im[slice_x, slice_y])
-            if segmentation:
-                label_tiles.append(lab[slice_x, slice_y])
-            else:
-                label_tiles.append(lab[x + int(size / 2), y + int(size / 2)])
-    assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
-    # assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
-    if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
-        # import pdb; pdb.set_trace()
-        assert int(np.shape(tiles)[0]) == int(
-            (np.floor((im.shape[0] - size) / stride) + 1) * (np.floor((im.shape[1] - size) / stride) + 1))
-    return np.array(tiles), np.array(label_tiles)
-
-
-def load_image_train(input_image, input_mask):
-    if tf.random.uniform(()) > 0.5:
-        input_image = tf.image.flip_left_right(input_image)
-        input_mask = tf.image.flip_left_right(input_mask)
-    return input_image, input_mask
-
-
-def check_no_coincidence(train_dataset, test_dataset):
-    for data, label in test_dataset:
-        for train_data, train_label in train_dataset:
-            assert not np.array_equal(data.numpy(), train_data.numpy())
-
-
-def remove_unlabeled_and_flatten(T, labels, shift_map=True):
-    T, labels = remove_unlabeled(T, labels)
-    if shift_map:
-        labels -= 1  # map [1, 3] to [0, 2]
-    T = T.reshape(-1, T.shape[-1])  # Image to 1D
-    labels = labels.reshape(np.prod(labels.shape))
-    return T, labels
-
-
-def remove_unlabeled_with_window(T, labels, window_size=32):
-    """
-    Returns a flatten dataset of only labeled pixels with surrounded pixels according to window_size
-    :param T:
-    :param labels: ATTENTION: Must be sparse!
-    :param window_size:
-    :return:
-    """
-    results = []
-    results_labels = []
-    pad = int(window_size / 2)
-    T = np.pad(T, ((pad, pad), (pad, pad), (0, 0)))
-    for i in range(0, labels.shape[0]):
-        for j in range(0, labels.shape[1]):
-            if labels[i, j] != 0:
-                results.append(T[i:i + window_size, i:i + window_size].flatten())
-                results_labels.append(labels[i, j])
-    return np.array(results), np.array(results_labels)
-
-
-def _transform_to_tensor(x, y, data_augment: bool = True,
-                         batch_size: int = cao_dataset_parameters['batch_size'], complex_mode: bool = True,
-                         mode: str = 'real_imag'):
-    ds = tf.data.Dataset.from_tensor_slices((x, y))
-    ds = ds.batch(batch_size)
-    if data_augment:
-        ds = ds.map(flip)
-    if not complex_mode:
-        ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, mode))
-    return ds
-
-
-def _parse_percentage(percentage):
-    try:
-        percentage = tuple(percentage)
-    except Exception as e:
-        raise ValueError(f"Could not cast {percentage} to tuple")
-    assert np.all([percentage[i] > 0 for i in range(0, len(percentage))]), "No negative percentage values allowed."
-    if len(percentage) == 3:
-        assert sum(percentage) == 1., "Total percentage does not get to 100%"
-    elif len(percentage) == 2:
-        assert sum(percentage) < 1., "Total percentage over 100%"
+def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None, path=None, mask=None):
+    labels_rgb = labels_to_rgb(labels, colors=COLORS[dataset_name], mask=mask)
+    fig, ax = plt.subplots()
+    if t is not None:
+        rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
+        ax.imshow(rgb)
+    ax.imshow(labels_rgb, alpha=0.4)
+    if path is not None:
+        path = str(path)
+        if len(path.split(".")) < 2:
+            path = path + ".png"
+        fig.savefig(path)
     else:
-        raise ValueError(f"Expected percentage length 2 or 3. Received {len(percentage)}")
-    return percentage
+        plt.show()
+    plt.close(fig)
 
 
-def _select_random(img, value: int, total: int):
-    """
-    Gets an image with different values and returns a boolean matrix with a total number of True equal to the total
-        parameter where all True are located in the same place where the img has the value passed as parameter
-    :param img: Image to be selected
-    :param value: Value to be matched
-    :param total:
-    :return:
-    """
-    assert len(img.shape) == 2
-    flatten_img = np.reshape(img, tf.math.reduce_prod(img.shape).numpy())
-    random_indx = np.random.permutation(len(flatten_img))
-    mixed_img = flatten_img[random_indx]
-    selection_mask = np.zeros(shape=img.shape)
-    selected = 0
-    indx = 0
-    saved_indexes = []
-    while selected < total:
-        val = mixed_img[indx]
-        if val == value:
-            selected += 1
-            saved_indexes.append(random_indx[indx])
-            assert img[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] == value
-            selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
-        indx += 1
-    return selection_mask.astype(bool)
-
-
-def _balance_image(labels):
-    """
-    Removes pixel labels so that all classes have the same amount of classes (balance dataset)
-    :param labels: One-hot encoded labels (rank 3 is forced due to _select_random function)
-    :return: Balance dataset of one-hot encoded labels
-    """
-    classes = tf.argmax(labels, axis=-1)
-    mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
-    classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
-    totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
-              range(1, tf.math.reduce_max(classes).numpy() + 1)]
-    if all(element == totals[0] for element in totals):
-        print("All labels are already balanced")
-        return labels
-    min_value = min(totals)
-    for value in range(1, len(totals) + 1):
-        matrix_mask = _select_random(classes, value=value, total=min_value)
-        labels = tf.where(tf.expand_dims((classes != value).numpy() | matrix_mask, axis=-1),
-                          labels, tf.zeros(shape=labels.shape))
-    return labels
-
-
-def _get_weights(labels):
-    classes = tf.argmax(labels, axis=-1)
-    mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
-    classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
-    totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
-              range(1, tf.math.reduce_max(classes).numpy() + 1)]
-    return max(totals) / totals
-
-
-"""----------
--   Public  -
-----------"""
-
-
-def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None,
-                           format: str = '.png') -> np.ndarray:
+def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None, format: str = '.png') \
+        -> np.ndarray:
     """
     Transforms the labels to a RGB format so it can be drawn as images
     :param labels: The labels to be transformed to rgb
@@ -431,15 +188,6 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
     :return: numpy array of the ground truth RGB image
     """
     if len(labels.shape) == 3:
-        # new_labels = np.zeros(labels.shape[:-1]).astype(int)
-        # for i in range(labels.shape[0]):
-        #     for j in range(labels.shape[1]):
-        #         if np.any(labels[i][j] != 0):
-        #             # try:
-        #             new_labels[i][j] = int(np.nonzero(labels[i][j])[0] + 1)
-        #             # except Exception as e:
-        #             #     set_trace()
-        # labels = new_labels
         labels = np.argmax(labels, axis=-1) + 1
     elif len(labels.shape) != 2:
         raise ValueError(f"Expected labels to be rank 3 or 2, received rank {len(labels.shape)}.")
@@ -481,355 +229,402 @@ def labels_to_ground_truth(labels, showfig=False, savefig: Optional[str] = None,
     return ground_truth
 
 
-def open_dataset_t3(path: str, labels: str):
-    labels = scipy.io.loadmat(labels)['label']
-    return open_t_dataset_t3(path), labels
+class PolsarDatasetHandler(ABC):
 
+    def __init__(self, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
+                 normalize: bool = False, balance_dataset: bool = False):
+        self.name = name
+        assert mode.lower() in {"s", "t"}
+        self.mode = mode.lower()
+        self.real_mode = real_mode.lower()
+        self.complex_mode = complex_mode
+        self.image, self.labels, self.sparse_labels = self.open_image()
+        assert self.image.shape[:2] == self.labels.shape[:2]
+        if normalize:
+            self.image, _ = tf.linalg.normalize(self.image, axis=[0, 1])
+        if balance_dataset:
+            self._balance_image()
+        self.weights = self._get_weights(self.labels)
 
-# To open dataset .bin/hdr using the path
-def open_dataset_t6(path: str, labels: str):
-    labels = scipy.io.loadmat(labels)['label']
-    path = Path(path)
-    T = np.zeros(labels.shape + (21,), dtype=complex)
+    @abstractmethod
+    def open_image(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        pass
 
-    T[:, :, 0] = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
-    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
-    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
-    T[:, :, 3] = standarize(envi.open(path / 'T44.bin.hdr', path / 'T44.bin').read_band(0))
-    T[:, :, 4] = standarize(envi.open(path / 'T55.bin.hdr', path / 'T55.bin').read_band(0))
-    T[:, :, 5] = standarize(envi.open(path / 'T66.bin.hdr', path / 'T66.bin').read_band(0))
+    def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
+                    size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                    savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
+                    batch_size: int = cao_dataset_parameters['batch_size'], task: str = "segmentation"):
+        percentage = self._parse_percentage(percentage)
+        if method == "random":
+            x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
+                                                              shuffle=shuffle)
+        elif method == "separate":
+            x_patches, y_patches = self._get_separated_dataset(percentage=percentage, size=size, stride=stride, pad=pad,
+                                                               savefig=savefig, orientation=orientation,
+                                                               shuffle=shuffle)
+        elif method == "single_separated_image":
+            x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
+                                                                            orientation=orientation, pad=True)
+        else:
+            raise ValueError(f"Unknown dataset method {method}")
+        assert task.lower() in {"classification", "segmentation"}
+        if task.lower() == "classification":
+            assert method != "single_separated_image", f"Can't apply classification to the full image."
+            self.labels = np.reshape(self.labels[:, size // 2, size // 2, :],
+                                     shape=(self.labels.shape[0], self.labels.shape[-1]))
+        ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
+                                             data_augment=data_augment if i == 0 else False)
+                   for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+        return ds_list
 
-    T[:, :, 6] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
-    T[:, :, 7] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
-    T[:, :, 8] = standarize(envi.open(path / 'T14_real.bin.hdr', path / 'T14_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T14_imag.bin.hdr', path / 'T14_imag.bin').read_band(0))
-    T[:, :, 9] = standarize(envi.open(path / 'T15_real.bin.hdr', path / 'T15_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T15_imag.bin.hdr', path / 'T15_imag.bin').read_band(0))
-    T[:, :, 10] = standarize(envi.open(path / 'T16_real.bin.hdr', path / 'T16_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T16_imag.bin.hdr', path / 'T16_imag.bin').read_band(0))
-
-    T[:, :, 11] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
-    T[:, :, 12] = standarize(envi.open(path / 'T24_real.bin.hdr', path / 'T24_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T24_imag.bin.hdr', path / 'T24_imag.bin').read_band(0))
-    T[:, :, 13] = standarize(envi.open(path / 'T25_real.bin.hdr', path / 'T25_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T25_imag.bin.hdr', path / 'T25_imag.bin').read_band(0))
-    T[:, :, 14] = standarize(envi.open(path / 'T26_real.bin.hdr', path / 'T26_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T26_imag.bin.hdr', path / 'T26_imag.bin').read_band(0))
-
-    T[:, :, 15] = standarize(envi.open(path / 'T34_real.bin.hdr', path / 'T34_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T34_imag.bin.hdr', path / 'T34_imag.bin').read_band(0))
-    T[:, :, 16] = standarize(envi.open(path / 'T35_real.bin.hdr', path / 'T35_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T35_imag.bin.hdr', path / 'T35_imag.bin').read_band(0))
-    T[:, :, 17] = standarize(envi.open(path / 'T36_real.bin.hdr', path / 'T36_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T36_imag.bin.hdr', path / 'T36_imag.bin').read_band(0))
-
-    T[:, :, 18] = standarize(envi.open(path / 'T45_real.bin.hdr', path / 'T45_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T45_imag.bin.hdr', path / 'T45_imag.bin').read_band(0))
-    T[:, :, 19] = standarize(envi.open(path / 'T46_real.bin.hdr', path / 'T46_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T46_imag.bin.hdr', path / 'T46_imag.bin').read_band(0))
-
-    T[:, :, 20] = standarize(envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
-                             1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0))
-    return T, labels
-
-
-def open_t_dataset_t3(path: str):
-    path = Path(path)
-    first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
-    T = np.zeros(first_read.shape + (6,), dtype=complex)
-
-    # Diagonal
-    T[:, :, 0] = first_read
-    T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
-    T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
-
-    # Upper part
-    T[:, :, 3] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
-    T[:, :, 4] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
-    T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                            1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
-    return T
-
-
-def open_s_dataset(path: str):
-    path = Path(path)
-    # http://www.spectralpython.net/fileio.html#envi-headers
-    s_11_meta = envi.open(path / 's11.bin.hdr', path / 's11.bin')
-    s_12_meta = envi.open(path / 's12.bin.hdr', path / 's12.bin')
-    s_21_meta = envi.open(path / 's21.bin.hdr', path / 's21.bin')
-    s_22_meta = envi.open(path / 's22.bin.hdr', path / 's22.bin')
-
-    s_11 = s_11_meta.read_band(0)
-    s_12 = s_12_meta.read_band(0)
-    s_21 = s_21_meta.read_band(0)
-    s_22 = s_22_meta.read_band(0)
-
-    assert np.all(s_21 == s_12)
-
-    return np.stack((s_11, s_12, s_22), axis=-1)
-
-
-def get_dataset_with_labels_s(path: str, labels: str, debug=False):
     """
-    Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
-    :return: Tuple (T, labels)
-        - [s_11, s_12, s_22]: Image as a numpy array.
-        - labels: numpy array.
+        PRIVATE
     """
-    S = open_s_dataset(path)
-    labels = scipy.io.loadmat(labels)['label']
-    if debug:
-        labels_to_ground_truth(labels, showfig=True)
-    labels = sparse_to_categorical_2D(labels)
-    return S, labels
 
+    @staticmethod
+    def _parse_percentage(percentage) -> Tuple[float]:
+        if isinstance(percentage, int):
+            assert percentage == 1
+            percentage = (1.,)
+        if isinstance(percentage, float):
+            if percentage == 1:
+                percentage = (1.,)
+            elif 0 < percentage < 1:
+                percentage = (1 - percentage, percentage)
+            else:
+                raise ValueError(f"Percentage must be 0 < percentage < 1, received {percentage}")
+        else:
+            percentage = tuple(percentage)
+            assert sum(percentage) == 1., f"percentage must add to 1, " \
+                                          f"but it adds to sum{percentage} = {sum(percentage)}"
+        return percentage
 
-def get_dataset_with_labels_t6(path: str, labels: str, debug=False):
-    T, labels = open_dataset_t6(path, labels)
-    if debug:
-        labels_to_ground_truth(labels, showfig=True)
-    labels = sparse_to_categorical_2D(labels)
-    return T, labels
+    @staticmethod
+    def _pad_image(image, labels):
+        first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
+        second_dim_pad = int(2 ** 5 * np.ceil(image.shape[1] / 2 ** 5)) - image.shape[1]
+        paddings = [
+            [int(np.ceil(first_dim_pad / 2)), int(np.floor(first_dim_pad / 2))],
+            [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
+            [0, 0]
+        ]
+        image = tf.pad(image, paddings)
+        labels = tf.pad(labels, paddings)
+        return image, labels
 
+    def _slice_dataset(self, percentage: tuple, orientation: str, savefig: Optional[str]):
+        orientation = orientation.lower()
+        percentage = self._parse_percentage(percentage)
 
-# Opens dataset .bin/hdr using the path and change sparse labels to categorical
-def get_dataset_with_labels_t3(dataset_path: str, labels: str):
+        if orientation == "horizontal":
+            total_length = self.image.shape[1]
+        elif orientation == "vertical":
+            total_length = self.image.shape[0]
+        else:
+            raise ValueError(f"Orientation {orientation} unknown.")
+
+        th = 0
+        x_slice = []
+        y_slice = []
+        mask_slice = []
+        for per in percentage:
+            slice_1 = slice(th, th + int(total_length * per))
+            th += int(total_length * per)
+            if orientation == "horizontal":
+                x_slice.append(self.image[:, slice_1])
+                y_slice.append(self.labels[:, slice_1])
+                mask_slice.append(self.sparse_labels[:, slice_1])
+            else:
+                x_slice.append(self.image[slice_1])
+                y_slice.append(self.labels[slice_1])
+                mask_slice.append(self.sparse_labels[slice_1])
+        if savefig:
+            slices_names = [
+                'train_ground_truth', 'val_ground_truth', 'test_ground_truth'
+            ]
+            for i, y in enumerate(y_slice):
+                self.print_ground_truth(label=y, t=x_slice[i], mask=mask_slice[i], path=str(savefig) + slices_names[i])
+        return x_slice, y_slice
+
+    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False):
+        ds = tf.data.Dataset.from_tensor_slices((x, y))
+        ds = ds.batch(batch_size)
+        if data_augment:
+            ds = ds.map(flip)
+        if not self.complex_mode:
+            ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, self.real_mode))
+        return ds
+
+    # Get dataset
+    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: Tuple[float] = (0.8, 0.2),
+                              shuffle: bool = True, pad=0) -> (tf.data.Dataset, tf.data.Dataset):
+        """
+        Applies the sliding window operations getting smaller images of a big image T.
+        Splits dataset into train and test.
+        :param size: Size of the window to be used on the sliding window operation.
+        :param stride:
+        :param percentage: float. Percentage of examples to be used for the test set [0, 1]
+        :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
+        """
+        patches, label_patches = self.sliding_window_operation(self.image, self.labels, size=size, stride=stride,
+                                                               pad=pad)
+        # del T, labels  # Free up memory
+        x_train = patches
+        y_train = label_patches
+        x = []
+        y = []
+        for per in percentage[1:]:
+            x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=per, shuffle=shuffle)
+            x.append(x_test)
+            y.append(y_test)
+        del patches, label_patches
+        x_train, y_train = self._remove_empty_image(data=x_train, labels=y_train)
+        x.insert(0, x_train)
+        y.insert(0, y_train)
+        return x, y
+
+    def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                               savefig: Optional[str] = None, orientation: str = "vertical"):
+        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
+
+        # train_slice_label = _balance_image(train_slice_label)
+        self.weights = self._get_weights(labels[0])
+        for i in range(0, len(labels)):
+            images[i], labels[i] = self.sliding_window_operation(images[i], labels[i],
+                                                                 size=size, stride=stride, pad=pad)
+            if i == 0:
+                images[i], labels[i] = self._remove_empty_image(data=images[i], labels=labels[i])
+                if shuffle:  # No need to shuffle the rest
+                    images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
+        return images, labels
+
+    def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
+                                            orientation: str = "vertical", pad: bool = False):
+        x, y = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
+
+        self.weights = self._get_weights(y[0])
+        for i in range(0, len(y)):
+            if pad:
+                x[i], y[i] = self._pad_image(x[i], y[i])
+            x[i] = tf.expand_dims(x[i], axis=0)
+            y[i] = tf.expand_dims(y[i], axis=0)
+        return x, y
+
+    @staticmethod
+    def _remove_empty_image(data, labels):
+        filtered_data = []
+        filtered_labels = []
+        for i in range(0, len(labels)):
+            if not np.all(labels[i] == 0):
+                filtered_data.append(data[i])
+                filtered_labels.append(labels[i])
+        filtered_data = np.array(filtered_data)
+        filtered_labels = np.array(filtered_labels)
+        return filtered_data, filtered_labels
+
+    # BALANCE DATASET
+    @staticmethod
+    def _select_random(img, value: int, total: int):
+        """
+        Gets an image with different values and returns a boolean matrix with a total number of True equal to the total
+            parameter where all True are located in the same place where the img has the value passed as parameter
+        :param img: Image to be selected
+        :param value: Value to be matched
+        :param total:
+        :return:
+        """
+        assert len(img.shape) == 2
+        flatten_img = np.reshape(img, tf.math.reduce_prod(img.shape).numpy())
+        random_indx = np.random.permutation(len(flatten_img))
+        mixed_img = flatten_img[random_indx]
+        selection_mask = np.zeros(shape=img.shape)
+        selected = 0
+        indx = 0
+        saved_indexes = []
+        while selected < total:
+            val = mixed_img[indx]
+            if val == value:
+                selected += 1
+                saved_indexes.append(random_indx[indx])
+                assert img[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] == value
+                selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
+            indx += 1
+        return selection_mask.astype(bool)
+
+    def _balance_image(self):
+        """
+        Removes pixel labels so that all classes have the same amount of classes (balance dataset)
+        Balance dataset of one-hot encoded labels
+        """
+        classes = tf.argmax(self.labels, axis=-1)
+        mask = np.all((self.labels == tf.zeros(shape=self.labels.shape[-1])), axis=-1)
+        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
+        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
+                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
+        if all(element == totals[0] for element in totals):
+            print("All labels are already balanced")
+            return self.labels
+        min_value = min(totals)
+        for value in range(1, len(totals) + 1):
+            matrix_mask = self._select_random(classes, value=value, total=min_value)
+            self.labels = tf.where(tf.expand_dims((classes != value).numpy() | matrix_mask, axis=-1),
+                                   self.labels, tf.zeros(shape=self.labels.shape))
+
+    @staticmethod
+    def _get_weights(labels):
+        classes = tf.argmax(labels, axis=-1)
+        mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
+        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
+        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
+                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
+        return max(totals) / totals
+
     """
-    Returns the t3 data with it's labels. It also checks matrices sizes agrees.
-    :param dataset_path: The path with the .bin t3 files of the form T11_imag.bin, T11_real.bin, etc.
-        with also .hdr files
-    :param labels: A np 2D matrix of the labels in sparse mode. Where 0 is unlabeled
-    :return: t3 matrix and labels in categorical mode (3D with the 3rd dimension size of number of classes)
+        PUBLIC
     """
-    t3, labels = open_dataset_t3(dataset_path, labels)
-    labels_flev = sparse_to_categorical_2D(labels)
-    assert check_dataset_and_lebels(t3, labels_flev)
-    return t3, labels_flev
 
+    # Utils
+    @staticmethod
+    def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: int = 0, segmentation: bool = True) \
+            -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Extracts many sub-images from one big image. Labels included.
+        Using the Sliding Window Operation defined in:
+            https://www.mdpi.com/2072-4292/10/12/1984
+        :param im: Image dataset
+        :param lab: pixel-wise labels dataset
+        :param size: Size of the desired mini new images
+        :param stride: stride between images, use stride=size for images not to overlap
+        :param pad: Pad borders
+        :return: tuple of numpy arrays (tiles, label_tiles)
+        """
+        tiles = []
+        label_tiles = []
+        if pad:
+            im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
+            lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
+        assert im.shape[0] > size and im.shape[1] > size
+        for x in range(0, im.shape[0] - size + 1, stride):
+            for y in range(0, im.shape[1] - size + 1, stride):
+                slice_x = slice(x, x + size)
+                slice_y = slice(y, y + size)
+                tiles.append(im[slice_x, slice_y])
+                if segmentation:
+                    label_tiles.append(lab[slice_x, slice_y])
+                else:
+                    label_tiles.append(lab[x + int(size / 2), y + int(size / 2)])
+        assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
+        # assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
+        if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
+            # import pdb; pdb.set_trace()
+            assert int(np.shape(tiles)[0]) == int(
+                (np.floor((im.shape[0] - size) / stride) + 1) * (np.floor((im.shape[1] - size) / stride) + 1))
+        return np.array(tiles), np.array(label_tiles)
 
-# Returns a dataset T with labels in the correct form
-def get_dataset_for_segmentation(T, labels, size: int = 128, stride: int = 25, test_size: float = 0.2,
-                                 shuffle: bool = True, pad=0) -> (tf.data.Dataset, tf.data.Dataset):
-    """
-    Applies the sliding window operations getting smaller images of a big image T.
-    Splits dataset into train and test.
-    :param T: Big image T (3D)
-    :param labels: labels for T
-    :param size: Size of the window to be used on the sliding window operation.
-    :param stride:
-    :param test_size: float. Percentage of examples to be used for the test set [0, 1]
-    :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
-    """
-    # labels = _balance_image(labels)
-    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad)
-    # del T, labels  # Free up memory
-    x_train, x_test, y_train, y_test = get_tf_dataset_split(patches, label_patches, test_size=test_size,
-                                                            shuffle=shuffle)
-    del patches, label_patches
-    return x_train, x_test, y_train, y_test
+    @staticmethod
+    def sparse_to_categorical_2D(labels) -> np.ndarray:
+        classes = np.max(labels)
+        ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
+        for i in range(labels.shape[0]):
+            for j in range(labels.shape[1]):
+                if labels[i, j] != 0:
+                    ground_truth[i, j, labels[i, j] - 1] = 1.
+        return ground_truth
 
+    # Open with path
+    @staticmethod
+    def open_t_dataset_t3(path: str):
+        path = Path(path)
+        first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
+        T = np.zeros(first_read.shape + (6,), dtype=complex)
 
-def get_dataset_for_classification(T, labels, size: int = 12, stride: int = 1,
-                                   test_size: float = 0.9, val_size: float = 0.1,
-                                   shuffle: bool = True, pad=6):
-    """
-    Gets dataset ready to be processed for the mlp model.
-    The dataset will be 2D dimensioned where the first element will be each pixel that will have 21 complex values each.
-    :return: Tuple (train_dataset, test_dataset, val_dataset).
-    """
-    patches, label_patches = sliding_window_operation(T, labels, size=size, stride=stride, pad=pad, segmentation=False)
-    x, y = _remove_empty_image(data=patches, labels=label_patches)
-    del patches, label_patches
-    x_train, x_test, y_train, y_test = get_tf_dataset_split(x, y, test_size=test_size, shuffle=shuffle)
-    x_train, x_val, y_train, y_val = get_tf_dataset_split(x_train, y_train, test_size=val_size, shuffle=shuffle)
-    del x, y
-    return x_train, x_test, x_val, y_train, y_test, y_val
+        # Diagonal
+        T[:, :, 0] = first_read
+        T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
+        T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
 
+        # Upper part
+        T[:, :, 3] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
+        T[:, :, 4] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
+        T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
+        return T
 
-def get_tf_dataset_split(T, labels, test_size=0.1, shuffle=True):
-    x_train, x_test, y_train, y_test = train_test_split(T, labels, test_size=test_size, shuffle=shuffle)
-    # train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
-    # test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
-    # del x_train, y_train, x_test, y_test
-    return x_train, x_test, y_train, y_test
+    @staticmethod
+    def open_s_dataset(path: str):
+        path = Path(path)
+        # http://www.spectralpython.net/fileio.html#envi-headers
+        s_11_meta = envi.open(path / 's11.bin.hdr', path / 's11.bin')
+        s_12_meta = envi.open(path / 's12.bin.hdr', path / 's12.bin')
+        s_21_meta = envi.open(path / 's21.bin.hdr', path / 's21.bin')
+        s_22_meta = envi.open(path / 's22.bin.hdr', path / 's22.bin')
 
+        s_11 = s_11_meta.read_band(0)
+        s_12 = s_12_meta.read_band(0)
+        s_21 = s_21_meta.read_band(0)
+        s_22 = s_22_meta.read_band(0)
 
-"""--------------
--   HIGH API    -
---------------"""
+        assert np.all(s_21 == s_12)
 
+        return np.stack((s_11, s_12, s_22), axis=-1)
 
-def _slice_dataset(T, labels, percentage: tuple, orientation: str, savefig: Optional[str]):
-    orientation = orientation.lower()
-    percentage = _parse_percentage(percentage)
+    @staticmethod
+    def open_dataset_t6(path: str):
+        path = Path(path)
+        first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
+        T = np.zeros(first_read.shape + (21,), dtype=complex)
 
-    if orientation == "horizontal":
-        total_length = T.shape[1]
-    elif orientation == "vertical":
-        total_length = T.shape[0]
-    else:
-        raise ValueError(f"Orientation {orientation} unknown.")
+        # Diagonal
+        T[:, :, 0] = first_read
+        T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
+        T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
+        T[:, :, 3] = standarize(envi.open(path / 'T44.bin.hdr', path / 'T44.bin').read_band(0))
+        T[:, :, 4] = standarize(envi.open(path / 'T55.bin.hdr', path / 'T55.bin').read_band(0))
+        T[:, :, 5] = standarize(envi.open(path / 'T66.bin.hdr', path / 'T66.bin').read_band(0))
 
-    th_1 = int(total_length * percentage[0])
-    th_2 = int(total_length * percentage[1]) + th_1
+        T[:, :, 6] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
+        T[:, :, 7] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
+        T[:, :, 8] = standarize(envi.open(path / 'T14_real.bin.hdr', path / 'T14_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T14_imag.bin.hdr', path / 'T14_imag.bin').read_band(0))
+        T[:, :, 9] = standarize(envi.open(path / 'T15_real.bin.hdr', path / 'T15_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T15_imag.bin.hdr', path / 'T15_imag.bin').read_band(0))
+        T[:, :, 10] = standarize(envi.open(path / 'T16_real.bin.hdr', path / 'T16_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T16_imag.bin.hdr', path / 'T16_imag.bin').read_band(0))
 
-    slice_1 = slice(th_1)
-    slice_2 = slice(th_1, th_2)
-    slice_3 = slice(th_2, total_length)
+        T[:, :, 11] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
+        T[:, :, 12] = standarize(envi.open(path / 'T24_real.bin.hdr', path / 'T24_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T24_imag.bin.hdr', path / 'T24_imag.bin').read_band(0))
+        T[:, :, 13] = standarize(envi.open(path / 'T25_real.bin.hdr', path / 'T25_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T25_imag.bin.hdr', path / 'T25_imag.bin').read_band(0))
+        T[:, :, 14] = standarize(envi.open(path / 'T26_real.bin.hdr', path / 'T26_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T26_imag.bin.hdr', path / 'T26_imag.bin').read_band(0))
 
-    if orientation == "horizontal":
-        train_slice_t = T[:, slice_1]
-        train_slice_label = labels[:, slice_1]
-        val_slice_t = T[:, slice_2]
-        val_slice_label = labels[:, slice_2]
-        test_slice_t = T[:, slice_3]
-        test_slice_label = labels[:, slice_3]
-    else:
-        train_slice_t = T[slice_1]
-        train_slice_label = labels[slice_1]
-        val_slice_t = T[slice_2]
-        val_slice_label = labels[slice_2]
-        test_slice_t = T[slice_3]
-        test_slice_label = labels[slice_3]
-    if savefig:
-        labels_to_ground_truth(train_slice_label, savefig=savefig + 'train_ground_truth')
-        labels_to_ground_truth(val_slice_label, savefig=savefig + 'val_ground_truth')
-        labels_to_ground_truth(test_slice_label, savefig=savefig + 'test_ground_truth')
-    return train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
+        T[:, :, 15] = standarize(envi.open(path / 'T34_real.bin.hdr', path / 'T34_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T34_imag.bin.hdr', path / 'T34_imag.bin').read_band(0))
+        T[:, :, 16] = standarize(envi.open(path / 'T35_real.bin.hdr', path / 'T35_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T35_imag.bin.hdr', path / 'T35_imag.bin').read_band(0))
+        T[:, :, 17] = standarize(envi.open(path / 'T36_real.bin.hdr', path / 'T36_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T36_imag.bin.hdr', path / 'T36_imag.bin').read_band(0))
 
+        T[:, :, 18] = standarize(envi.open(path / 'T45_real.bin.hdr', path / 'T45_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T45_imag.bin.hdr', path / 'T45_imag.bin').read_band(0))
+        T[:, :, 19] = standarize(envi.open(path / 'T46_real.bin.hdr', path / 'T46_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T46_imag.bin.hdr', path / 'T46_imag.bin').read_band(0))
 
-def pad_image(image, labels):
-    first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
-    second_dim_pad = int(2 ** 5 * np.ceil(image.shape[1] / 2 ** 5)) - image.shape[1]
-    paddings = [
-        [int(np.ceil(first_dim_pad / 2)), int(np.floor(first_dim_pad / 2))],
-        [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
-        [0, 0]
-    ]
-    image = tf.pad(image, paddings)
-    labels = tf.pad(labels, paddings)
-    return image, labels
+        T[:, :, 20] = standarize(envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
+                                 1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0))
+        return T
 
-
-def get_single_image_separated_dataset(T, labels, percentage: tuple, savefig: Optional[str] = None,
-                                       complex_mode: bool = True, mode: str = 'real_imag',
-                                       normalize: bool = True, orientation: str = "vertical",
-                                       pad: bool = False):
-    if normalize:
-        T, _ = tf.linalg.normalize(T, axis=[0, 1])
-    train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label = _slice_dataset(T=T,
-                                                                                                                    labels=labels,
-                                                                                                                    percentage=percentage,
-                                                                                                                    savefig=savefig,
-                                                                                                                    orientation=orientation)
-
-    weights = _get_weights(train_slice_label)
-    if pad:
-        train_slice_t, train_slice_label = pad_image(train_slice_t, train_slice_label)
-        val_slice_t, val_slice_label = pad_image(val_slice_t, val_slice_label)
-        test_slice_t, test_slice_label = pad_image(test_slice_t, test_slice_label)
-    train_slice_t = tf.expand_dims(train_slice_t, axis=0)
-    train_slice_label = tf.expand_dims(train_slice_label, axis=0)
-    val_slice_t = tf.expand_dims(val_slice_t, axis=0)
-    val_slice_label = tf.expand_dims(val_slice_label, axis=0)
-    test_slice_t = tf.expand_dims(test_slice_t, axis=0)
-    test_slice_label = tf.expand_dims(test_slice_label, axis=0)
-    ds_train = _transform_to_tensor(train_slice_t, train_slice_label, data_augment=True, batch_size=1,
-                                    complex_mode=complex_mode, mode=mode)
-    ds_val = _transform_to_tensor(val_slice_t, val_slice_label, data_augment=False, batch_size=1,
-                                  complex_mode=complex_mode, mode=mode)
-    ds_test = _transform_to_tensor(test_slice_t, test_slice_label, data_augment=False, batch_size=1,
-                                   complex_mode=complex_mode, mode=mode)
-    del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
-    return ds_train, ds_val, ds_test, weights
-
-
-def get_separated_dataset(T, labels, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                          savefig: Optional[str] = None, complex_mode: bool = True, mode: str = 'real_imag',
-                          normalize: bool = True, orientation: str = "vertical"):
-    if normalize:
-        T, _ = tf.linalg.normalize(T, axis=[0, 1])
-    train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label = _slice_dataset(T=T,
-                                                                                                                    labels=labels,
-                                                                                                                    percentage=percentage,
-                                                                                                                    savefig=savefig,
-                                                                                                                    orientation=orientation)
-    # train_slice_label = _balance_image(train_slice_label)
-    weights = _get_weights(train_slice_label)
-
-    train_patches, train_label_patches = sliding_window_operation(train_slice_t, train_slice_label,
-                                                                  size=size, stride=stride, pad=pad)
-    val_patches, val_label_patches = sliding_window_operation(val_slice_t, val_slice_label,
-                                                              size=size, stride=stride, pad=pad)
-    test_patches, test_label_patches = sliding_window_operation(test_slice_t, test_slice_label,
-                                                                size=size, stride=stride, pad=pad)
-    train_patches, train_label_patches = _remove_empty_image(data=train_patches, labels=train_label_patches)
-
-    if shuffle:  # No need to shuffle the rest
-        train_patches, train_label_patches = sklearn.utils.shuffle(train_patches, train_label_patches)
-
-    ds_train = _transform_to_tensor(train_patches, train_label_patches, data_augment=True, batch_size=30,
-                                    complex_mode=complex_mode, mode=mode)
-    ds_val = _transform_to_tensor(val_patches, val_label_patches, data_augment=False, batch_size=30,
-                                  complex_mode=complex_mode, mode=mode)
-    ds_test = _transform_to_tensor(test_patches, test_label_patches, data_augment=False, batch_size=30,
-                                   complex_mode=complex_mode, mode=mode)
-    del train_slice_t, train_slice_label, val_slice_t, val_slice_label, test_slice_t, test_slice_label
-    del train_patches, train_label_patches, val_patches, val_label_patches, test_patches, test_label_patches
-    return ds_train, ds_val, ds_test, weights
-
-
-"""----------
--   CAO     -
-----------"""
-
-
-def get_dataset_for_cao_segmentation(T, labels, complex_mode=True, shuffle=True, pad=0, mode: str = 'real_imag',
-                                     normalize: bool = True):
-    if normalize:
-        T, _ = tf.linalg.normalize(T, axis=[0, 1])
-    weights = _get_weights(labels)
-    x_train, x_test, y_train, y_test = get_dataset_for_segmentation(T=T, labels=labels,
-                                                                    size=cao_dataset_parameters['sliding_window_size'],
-                                                                    stride=cao_dataset_parameters[
-                                                                        'sliding_window_stride'],
-                                                                    test_size=cao_dataset_parameters[
-                                                                        'validation_split'],
-                                                                    shuffle=shuffle, pad=pad)
-    x_train, y_train = _remove_empty_image(data=x_train, labels=y_train)
-    train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True, mode=mode,
-                                         batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
-    test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False, mode=mode,
-                                        batch_size=cao_dataset_parameters['batch_size'], complex_mode=complex_mode)
-    del x_train, x_test, y_train, y_test
-    return train_dataset, test_dataset, weights
-
-
-def get_dataset_for_zhang_classification(T, labels, complex_mode=True, shuffle=True, mode: str = 'real_imag',
-                                         normalize: bool = True):
-    if normalize:
-        T, _ = tf.linalg.normalize(T, axis=[0, 1])
-    x_train, x_test, x_val, y_train, y_test, y_val = get_dataset_for_classification(T, labels, shuffle=shuffle,
-                                                                                    size=zhang_dataset_parameters[
-                                                                                        'sliding_window_size'],
-                                                                                    stride=zhang_dataset_parameters[
-                                                                                        'sliding_window_stride'],
-                                                                                    test_size=zhang_dataset_parameters[
-                                                                                        'test_split'],
-                                                                                    val_size=zhang_dataset_parameters[
-                                                                                        'validation_split'],
-                                                                                    pad=int(zhang_dataset_parameters[
-                                                                                                'sliding_window_size'] / 2))
-    train_dataset = _transform_to_tensor(x_train, y_train, data_augment=True, mode=mode,
-                                         batch_size=zhang_dataset_parameters['batch_size'], complex_mode=complex_mode)
-    test_dataset = _transform_to_tensor(x_test, y_test, data_augment=False, mode=mode,
-                                        batch_size=zhang_dataset_parameters['batch_size'], complex_mode=complex_mode)
-    val_dataset = _transform_to_tensor(x_val, y_val, data_augment=False, mode=mode,
-                                       batch_size=zhang_dataset_parameters['batch_size'], complex_mode=complex_mode)
-    del x_train, x_test, y_train, y_test, x_val, y_val
-    return train_dataset, test_dataset, val_dataset
+    # Debug
+    def print_ground_truth(self, label: Optional = None, path=None, t=None, mask: Optional = None):
+        if label is None:
+            label = self.labels
+        if mask is None:
+            mask = self.sparse_labels
+        return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
+                                  path=path)

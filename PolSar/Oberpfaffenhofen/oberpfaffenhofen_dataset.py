@@ -1,7 +1,4 @@
-import spectral.io.envi as envi
-from pathlib import Path
 import scipy.io
-from pdb import set_trace
 import os
 from os import path
 import sys
@@ -20,8 +17,7 @@ elif path.exists('/home/cfren/Documents/onera/PolSar'):
     NOTIFY = False
 else:
     raise FileNotFoundError("path of the dataset reader not found")
-from dataset_reader import get_dataset_for_cao_segmentation, get_dataset_with_labels_t6, \
-    get_dataset_for_zhang_classification, get_dataset_with_labels_t3, get_separated_dataset, get_dataset_with_labels_s
+from dataset_reader import PolsarDatasetHandler
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
@@ -43,55 +39,17 @@ else:
     raise FileNotFoundError("No path found for the requested dataset")
 
 
-def get_mask():
-    return scipy.io.loadmat(labels_path)['label']
+class OberpfaffenhofenDataset(PolsarDatasetHandler):
 
+    def __init__(self, *args, **kwargs):
+        super(OberpfaffenhofenDataset, self).__init__(name="OBER", mode="t", *args, **kwargs)
 
-def get_ober_dataset_with_labels_t6():
-    return get_dataset_with_labels_t6(t_path, labels_path)
+    def print_ground_truth(self, t=None, *args, **kwargs):
+        if t is None:
+            t = self.image
+        super(OberpfaffenhofenDataset, self).print_ground_truth(t=t, *args, **kwargs)
 
-
-def get_ober_dataset_with_labels_t3():
-    return get_dataset_with_labels_t3(t_path, labels_path)
-
-
-def get_ober_dataset_with_labels_s():
-    """
-    Opens the s2 dataset of Oberpfaffenhofen with the corresponding labels.
-    :return: Tuple (T, labels)
-        - [s_11, s_12, s_21, s_22]: Image as a numpy array.
-        - labels: numpy array.
-    """
-    return get_dataset_with_labels_s(s_path, labels_path)
-
-
-def get_ober_dataset_for_segmentation(complex_mode=True, t6=False, shuffle=True, pad=0):
-    """
-    Opens the t6 dataset of Oberpfaffenhofen with the corresponding labels with cao's configuration scheme.
-    """
-    if t6:
-        T, labels = get_ober_dataset_with_labels_t6()
-    else:
-        T, labels = get_ober_dataset_with_labels_t3()
-    # :return: Tuple (T, labels)
-    #     - T: Image as a numpy array of size hxwxB=1300x1200x21 where h and w are the height and width of the
-    #         spatial dimensions respectively, B is the number of complex bands.
-    #     - labels: numpy array of size 1300x1200 where each pixel has value:
-    #         0: Unlabeled
-    #         1: Built-up Area
-    #         2: Wood Land
-    #         3: Open Area
-    return get_dataset_for_cao_segmentation(T, labels, complex_mode=complex_mode, shuffle=shuffle, pad=pad)
-
-
-def get_ober_dataset_for_classification(complex_mode=True, t6=False, shuffle=True):
-    if t6:
-        T, labels = get_ober_dataset_with_labels_t6()
-    else:
-        T, labels = get_ober_dataset_with_labels_t3()
-    return get_dataset_for_zhang_classification(T, labels, complex_mode=complex_mode, shuffle=shuffle)
-
-
-if __name__ == "__main__":
-    S, labels = get_ober_dataset_with_labels_s()
-    set_trace()
+    def open_image(self):
+        labels = scipy.io.loadmat(labels_path)['label']
+        image = self.open_t_dataset_t3(t_path)
+        return image, self.sparse_to_categorical_2D(labels), labels

@@ -31,7 +31,7 @@ from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober
     get_ober_dataset_for_classification
 from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
 from zhang_cnn import get_zhang_cnn_model
-from dataset_reader import labels_to_ground_truth
+from dataset_reader import labels_to_rgb
 from cvnn.utils import create_folder
 from cvnn.montecarlo import MonteCarlo
 from tensorflow.keras.utils import plot_model
@@ -156,7 +156,7 @@ def open_saved_models(checkpoint_path):
     prediction = model.predict(full_padded_image)[0]
     mask = get_mask()
     padded_mask = tf.pad(mask, [[54, 54], [40, 40]])
-    labels_to_ground_truth(prediction, savefig=checkpoint_path + "/prediction", mask=padded_mask)
+    labels_to_rgb(prediction, savefig=checkpoint_path + "/prediction", mask=padded_mask)
 
 
 def train_model():
