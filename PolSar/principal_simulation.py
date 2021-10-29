@@ -263,7 +263,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                                              dataset_name=dataset_name, dataset_method=dataset_method,
                                              percentage=percentage, debug=debug)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
-    if MODEL_META[model_name]["task"]:
+    if MODEL_META[model_name]["task"] != "classification":
         save_result_image_from_saved_model(temp_path, dataset_handler=dataset_handler, model_name=model_name,
                                            tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
                                            channels=3 if mode == "s" else 6, weights=weights)
