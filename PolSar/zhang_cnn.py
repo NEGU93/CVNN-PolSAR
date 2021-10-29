@@ -7,7 +7,7 @@ from tensorflow.keras.metrics import CategoricalAccuracy
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Input, AveragePooling2D
 from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, ComplexFlatten, ComplexDense
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
-from cvnn.losses import ComplexMeanSquareError, ComplexWeightedAverageCrossEntropy
+from cvnn.losses import ComplexMeanSquareError
 from cvnn.activations import cart_softmax
 
 

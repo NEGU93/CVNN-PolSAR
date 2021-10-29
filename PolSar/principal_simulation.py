@@ -18,6 +18,7 @@ from Bretigny_ONERA.bretigny_dataset import BretignyDataset
 from cao_fcnn import get_cao_fcnn_model
 from zhang_cnn import get_zhang_cnn_model
 from own_unet import get_my_unet_model
+from haensch_mlp import get_haensch_mlp_model
 
 EPOCHS = 1
 DATASET_META = {
@@ -36,7 +37,9 @@ MODEL_META = {
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32, "data_augment": True,
             "percentage": (0.9, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 6, "batch_size": 100, "data_augment": False,
-              "percentage": (0.09, 0.01, 0.9), "task": "classification"}
+              "percentage": (0.09, 0.01, 0.9), "task": "classification"},
+    "haensch": {"size": 1, "stride": 1, "pad": 0, "batch_size": 100, "data_augment": False,
+                "percentage": (0.02, 0.08, 0.9), "task": "classification"}
 }
 
 
@@ -139,6 +142,12 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
         model = get_zhang_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
                                     num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                                     name=name_prefix + model_name)
+    elif model_name == 'haensch':
+        if weights is not None:
+            print("WARNING: Zhang model does not support weighted loss")
+        model = get_haensch_mlp_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+                                      num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                                      name=name_prefix + model_name)
     else:
         raise ValueError(f"Unknown model {model_name}")
     return model
