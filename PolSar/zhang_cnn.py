@@ -66,8 +66,8 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_zhang_cnn'):
     out = Dense(num_classes, activation='linear')(flat)
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=zhang_params_model['optimizer'], loss=zhang_params_model['tf_loss'],
-                  metrics=[CategoricalAccuracy(name='accuracy'),
-                           ComplexAverageAccuracy(name='average_accuracy'),
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'),
+                           ComplexAverageAccuracy(name='average_accuracy')
                            ])
 
 

@@ -29,7 +29,7 @@ def _get_mlp_model(input_shape, num_classes, dtype, name='zhang_cnn'):
     out = ComplexDense(num_classes, activation='linear', dtype=dtype)(h)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=mlp_hyper_params['optimizer'], loss=mlp_hyper_params['loss'],
-                  # metrics=[CustomAccuracy(name='accuracy'), CustomAverageAccuracy(name='average_accuracy')] TODO
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'), ComplexAverageAccuracy(name='average_accuracy')]
                   )
     return model
 
