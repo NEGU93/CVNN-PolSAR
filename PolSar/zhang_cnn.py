@@ -2,9 +2,12 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.metrics import CategoricalAccuracy
+from tensorflow.keras.layers import Dense, Flatten, Conv2D, Input, AveragePooling2D
 from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, ComplexFlatten, ComplexDense
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
-from cvnn.losses import ComplexMeanSquareError
+from cvnn.losses import ComplexMeanSquareError, ComplexWeightedAverageCrossEntropy
 from cvnn.activations import cart_softmax
 
 
@@ -19,6 +22,7 @@ zhang_params_model = {
     'real_filters': [8, 22],
     'pool_size': 2,
     'loss': ComplexMeanSquareError(),       # End of II.A.4
+    'tf_loss': MeanSquaredError(),
     'activation': 'cart_sigmoid',           # "Note that the sigmoid function is used in this paper." but cart or polar?
     'optimizer': SGD(learning_rate=0.08)    # Start of II.B
 }
@@ -68,11 +72,37 @@ def _get_model(input_shape, num_classes, dtype, name='zhang_cnn'):
     return model
 
 
-def get_zhang_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, complex: bool = True):
-    model = _get_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.complex64 if complex else tf.float32)
-    return model
+def _get_tf_model(input_shape, num_classes, dtype, name='tf_zhang_cnn'):
+    if dtype.is_complex:
+        raise ValueError(f"Cannot use Tensorflow for creating a complex model")
+    filters = "real_filters"
+    in1 = Input(shape=input_shape)
+    c1 = Conv2D(filters=zhang_params_model[filters][0], kernel_size=zhang_params_model['kernel_size'],
+                strides=zhang_params_model['stride'], padding=zhang_params_model['padding'],
+                activation=zhang_params_model['activation'])(in1)
+    p1 = AveragePooling2D(pool_size=zhang_params_model['pool_size'])(c1)
+    c2 = Conv2D(filters=zhang_params_model[filters][1], kernel_size=zhang_params_model['kernel_size'],
+                strides=zhang_params_model['stride'], padding=zhang_params_model['padding'],
+                activation=zhang_params_model['activation'])(p1)
+    flat = Flatten(dtype=dtype)(c2)
+    out = Dense(num_classes, activation='linear')(flat)
+    model = Model(inputs=[in1], outputs=[out], name=name)
+    model.compile(optimizer=zhang_params_model['optimizer'], loss=zhang_params_model['tf_loss'],
+                  metrics=[CategoricalAccuracy(name='accuracy'),
+                           ComplexAverageAccuracy(name='average_accuracy'),
+                           ])
+
+
+def get_zhang_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, dtype=np.complex64,
+                        tensorflow: bool = False, name="my_model"):
+    if not tensorflow:
+        return _get_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
+                          name=name)
+    else:
+        return _get_tf_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
+                             name=name)
 
 
 if __name__ == '__main__':
-    model = get_zhang_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 9), complex=False)
+    model = get_zhang_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 9))
     model.summary()

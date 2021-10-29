@@ -75,9 +75,11 @@ class BretignyDataset(PolsarDatasetHandler):
 
     def open_image(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self.mode == "s":
-            return self._get_bret_k_dataset()
+            return self._get_bret_s_dataset()
         elif self.mode == "t":
             return self._get_bret_coherency_dataset()
+        elif self.mode == "k":
+            return self._get_bret_k_dataset()
         else:
             raise ValueError(f"Mode {self.mode} not supported.")
 
@@ -130,3 +132,10 @@ class BretignyDataset(PolsarDatasetHandler):
         k = self._get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
         labels = self.sparse_to_categorical_2D(seg['image'])
         return k, labels, seg['image']
+
+    def _get_bret_s_dataset(self):
+        mat, seg = self._open_data()
+        s = np.array([mat['HH'], mat['VV'], mat['HV']])
+        s = tf.transpose(s, perm=[1, 2, 0])
+        labels = self.sparse_to_categorical_2D(seg['image'])
+        return s, labels, seg['image']

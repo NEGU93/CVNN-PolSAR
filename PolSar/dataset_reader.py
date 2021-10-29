@@ -234,7 +234,7 @@ class PolsarDatasetHandler(ABC):
     def __init__(self, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
                  normalize: bool = False, balance_dataset: bool = False):
         self.name = name
-        assert mode.lower() in {"s", "t"}
+        assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
         self.real_mode = real_mode.lower()
         self.complex_mode = complex_mode
@@ -270,8 +270,8 @@ class PolsarDatasetHandler(ABC):
         assert task.lower() in {"classification", "segmentation"}
         if task.lower() == "classification":
             assert method != "single_separated_image", f"Can't apply classification to the full image."
-            self.labels = np.reshape(self.labels[:, size // 2, size // 2, :],
-                                     shape=(self.labels.shape[0], self.labels.shape[-1]))
+            y_patches = [np.reshape(y[:, size // 2, size // 2, :],
+                                    newshape=(y.shape[0], y.shape[-1])) for y in y_patches]
         ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
                                              data_augment=data_augment if i == 0 else False)
                    for i, (x, y) in enumerate(zip(x_patches, y_patches))]
@@ -503,7 +503,8 @@ class PolsarDatasetHandler(ABC):
         if pad:
             im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
             lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
-        assert im.shape[0] > size and im.shape[1] > size
+        assert im.shape[0] > size and im.shape[1] > size, f"Image shape ({im.shape[0]}x{im.shape[1]}) is smaller " \
+                                                          f"than the window to apply ({size}x{size})"
         for x in range(0, im.shape[0] - size + 1, stride):
             for y in range(0, im.shape[1] - size + 1, stride):
                 slice_x = slice(x, x + size)
