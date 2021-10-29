@@ -144,8 +144,9 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                     name=name_prefix + model_name)
     elif model_name == 'haensch':
         if weights is not None:
-            print("WARNING: Zhang model does not support weighted loss")
-        model = get_haensch_mlp_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+            print("WARNING: Haensch model does not support weighted loss")
+        model = get_haensch_mlp_model(input_shape=(MODEL_META["haensch"]["size"],
+                                                   MODEL_META["haensch"]["size"], channels),
                                       num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                                       name=name_prefix + model_name)
     else:

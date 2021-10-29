@@ -4,6 +4,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.optimizers import SGD
 from tensorflow.keras.layers import Flatten, Dense, Input
 from tensorflow.keras.losses import MeanSquaredError
+from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
 from cvnn.layers import ComplexDense, ComplexFlatten, complex_input
 from cvnn.losses import ComplexMeanSquareError      # TODO: There are 4 implementation in the paper of this
 
@@ -43,12 +44,12 @@ def _get_tf_mlp_model(input_shape, num_classes, dtype, name='zhang_cnn'):
     out = Dense(num_classes, activation='linear', dtype=dtype)(h)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=mlp_hyper_params['optimizer'], loss=tf_mlp_hyper_params['loss'],
-                  # metrics=[CustomAccuracy(name='accuracy'), CustomAverageAccuracy(name='average_accuracy')] TODO
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'), ComplexAverageAccuracy(name='average_accuracy')]
                   )
     return model
 
 
-def get_haensch_mlp_model(input_shape=(1, 1, 6), num_classes=6, dtype=np.complex64, 
+def get_haensch_mlp_model(input_shape=(1, 1, 6), num_classes=6, dtype=np.complex64,
                           tensorflow: bool = False, name="my_model"):
     if not tensorflow:
         return _get_mlp_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),

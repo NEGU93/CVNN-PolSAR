@@ -28,28 +28,6 @@ zhang_params_model = {
 }
 
 
-class CustomAccuracy(ComplexCategoricalAccuracy):
-
-    def update_state(self, y_true, y_pred, sample_weight=None, ignore_unlabeled=True):
-        y_pred = tf.convert_to_tensor(y_pred)
-        y_true = tf.convert_to_tensor(y_true)
-        if y_pred.dtype.is_complex:
-            y_pred = cart_softmax(y_pred)
-        super(CustomAccuracy, self).update_state(y_true, y_pred,
-                                                 sample_weight=sample_weight, ignore_unlabeled=ignore_unlabeled)
-
-
-class CustomAverageAccuracy(ComplexAverageAccuracy):
-
-    def update_state(self, y_true, y_pred, sample_weight=None, ignore_unlabeled=True):
-        y_pred = tf.convert_to_tensor(y_pred)
-        y_true = tf.convert_to_tensor(y_true)
-        if y_pred.dtype.is_complex:
-            y_pred = cart_softmax(y_pred)
-        super(CustomAverageAccuracy, self).update_state(y_true, y_pred,
-                                                        sample_weight=sample_weight)
-
-
 def _get_model(input_shape, num_classes, dtype, name='zhang_cnn'):
     if dtype.is_complex:
         filters = "complex_filters"
@@ -67,8 +45,8 @@ def _get_model(input_shape, num_classes, dtype, name='zhang_cnn'):
     out = ComplexDense(num_classes, activation='linear', dtype=dtype)(flat)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=zhang_params_model['optimizer'], loss=zhang_params_model['loss'],
-                  metrics=[CustomAccuracy(name='accuracy'),
-                           CustomAverageAccuracy(name='average_accuracy')])
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'),
+                           ComplexAverageAccuracy(name='average_accuracy')])
     return model
 
 
