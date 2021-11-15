@@ -90,7 +90,7 @@ class BretignyDataset(PolsarDatasetHandler):
     def _open_data(self):
         if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
             path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
-        elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny_ONERA/data'):
+        elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
             path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
         else:
             raise FileNotFoundError("Dataset path not found")
