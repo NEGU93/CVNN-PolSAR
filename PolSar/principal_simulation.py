@@ -28,7 +28,7 @@ DATASET_META = {
     # "SF-RISAT": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "OBER": {"classes": 3, "orientation": "vertical", "percentage": (0.85, 0.15)},
-    "BRETIGNY": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
+    "BRET": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
 }
 
 MODEL_META = {
@@ -103,7 +103,7 @@ def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balan
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
                                               complex_mode=complex_mode, real_mode=real_mode, normalize=normalize)
-    elif dataset_name == "BRETIGNY":
+    elif dataset_name == "BRET":
         dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                           normalize=normalize, balance_dataset=balance)
     elif dataset_name == "OBER":
