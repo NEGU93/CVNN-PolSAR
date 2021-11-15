@@ -1,4 +1,5 @@
 import argparse
+from argparse import RawTextHelpFormatter
 import sys
 import numpy as np
 import traceback
@@ -17,6 +18,7 @@ from Bretigny_ONERA.bretigny_dataset import BretignyDataset
 from cao_fcnn import get_cao_fcnn_model
 from zhang_cnn import get_zhang_cnn_model
 from own_unet import get_my_unet_model
+from haensch_mlp import get_haensch_mlp_model
 
 EPOCHS = 1
 DATASET_META = {
@@ -25,8 +27,8 @@ DATASET_META = {
     # "SF-GF3": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     # "SF-RISAT": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    "OBER": {"classes": 3, "orientation": "horizontal", "percentage": (1.,)},
-    "BRETIGNY": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
+    "OBER": {"classes": 3, "orientation": "vertical", "percentage": (0.85, 0.15)},
+    "BRET": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
 }
 
 MODEL_META = {
@@ -35,7 +37,9 @@ MODEL_META = {
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32, "data_augment": True,
             "percentage": (0.9, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 6, "batch_size": 100, "data_augment": False,
-              "percentage": (0.09, 0.01, 0.9), "task": "segmentation"}
+              "percentage": (0.09, 0.01, 0.9), "task": "classification"},
+    "haensch": {"size": 1, "stride": 1, "pad": 0, "batch_size": 100, "data_augment": False,
+                "percentage": (0.02, 0.08, 0.9), "task": "classification"}
 }
 
 
@@ -56,25 +60,34 @@ def get_callbacks_list(early_stop, temp_path):
 
 
 def parse_input():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('--dataset_method', nargs=1, default=["random"], type=str,
-                        help='One of:\n\t- random.\n\t- separate\n\t- single_separated_image')
+                        help='One of:\n\t- random (default): randomly select the train and val set\n'
+                             '\t- separate: split first the image into sections and select the sets from there\n'
+                             '\t- single_separated_image: as separate, but do not apply the slinding window operation '
+                             '\n\t\t(no batches, only one image per set). \n\t\tOnly possible with segmentation models')
     parser.add_argument('--tensorflow', action='store_true', help='Use tensorflow library')
-    parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='Epochs to be done')
+    parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='(int) epochs to be done')
     parser.add_argument('--model', nargs=1, type=str, default=["cao"],
-                        help='Deep model to be used. Options:\n\t- cao\n\town\n\tzhang')
-    parser.add_argument('--early_stop', nargs='?', const=True, default=False, type=early_stop_type, help='Apply early stopping to training')
+                        help='deep model to be used. Options:\n' +
+                             "".join([f"\t- {model}\n" for model in MODEL_META.keys()]))
+    parser.add_argument('--early_stop', nargs='?', const=True, default=False, type=early_stop_type,
+                        help='Apply early stopping to training')
     parser.add_argument('--balance', nargs=1, type=str, default=["None"], help='Deal with unbalanced dataset by:\n'
                                                                                '\t- loss: weighted loss\n'
-                                                                               '\t- dataset: randomly remove pixels\n'
-                                                                               '\t- Any other string will be considered'
+                                                                               '\t- dataset: balance dataset by '
+                                                                               'randomly remove pixels of '
+                                                                               'predominant classes\n'
+                                                                               '\t- any other string will be considered'
                                                                                ' as not balanced')
     parser.add_argument('--real_mode', type=str, nargs='?', const='real_imag', default='complex',
-                        help='Run real model instead of complex')
+                        help='run real model instead of complex.\nIf [REAL_MODE] is used it should be one of:\n'
+                             '\t- real_imag\n\t- amplitude_phase\n\t- amplitude_only\n\t- real_only')
     parser.add_argument('--coherency', action='store_true', help='Use coherency matrix instead of s')
+
     parser.add_argument("--dataset", nargs=1, type=str, default=["SF-AIRSAR"],
-                        help="Dataset to be used. Available options:\n\t"
-                             "- SF-AIRSAR\n\t- SF-ALOS2\n\t- SF-RS2\n\t- OBER\n\t- BRETIGNY")
+                        help="dataset to be used. Available options:\n" +
+                             "".join([f"\t- {dataset}\n" for dataset in DATASET_META.keys()]))
     return parser.parse_args()
 
 
@@ -90,7 +103,7 @@ def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balan
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
                                               complex_mode=complex_mode, real_mode=real_mode, normalize=normalize)
-    elif dataset_name == "BRETIGNY":
+    elif dataset_name == "BRET":
         dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                           normalize=normalize, balance_dataset=balance)
     elif dataset_name == "OBER":
@@ -124,7 +137,18 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                   tensorflow=tensorflow,
                                   dtype=dtype, name=name_prefix + model_name, weights=weights)
     elif model_name == "zhang":
-        model = get_zhang_cnn_model()
+        if weights is not None:
+            print("WARNING: Zhang model does not support weighted loss")
+        model = get_zhang_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+                                    num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                                    name=name_prefix + model_name)
+    elif model_name == 'haensch':
+        if weights is not None:
+            print("WARNING: Haensch model does not support weighted loss")
+        model = get_haensch_mlp_model(input_shape=(MODEL_META["haensch"]["size"],
+                                                   MODEL_META["haensch"]["size"], channels),
+                                      num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                                      name=name_prefix + model_name)
     else:
         raise ValueError(f"Unknown model {model_name}")
     return model
@@ -249,7 +273,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                                              dataset_name=dataset_name, dataset_method=dataset_method,
                                              percentage=percentage, debug=debug)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
-    if True:
+    if MODEL_META[model_name]["task"] != "classification":
         save_result_image_from_saved_model(temp_path, dataset_handler=dataset_handler, model_name=model_name,
                                            tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
                                            channels=3 if mode == "s" else 6, weights=weights)

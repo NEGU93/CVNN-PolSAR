@@ -1,5 +1,5 @@
-epochs=1
-for model in cao own zhang
+epochs=300
+for model in cao own
 do
 	for dataset in SF-AIRSAR SF-RS2 OBER BRETIGNY
 	do
@@ -12,7 +12,7 @@ do
 		done
 	done
 done
-for model in cao own zhang
+for model in cao own
 do
 	for dataset in SF-AIRSAR SF-RS2 BRETIGNY
 	do

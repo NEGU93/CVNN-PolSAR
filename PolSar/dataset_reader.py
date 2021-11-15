@@ -234,7 +234,7 @@ class PolsarDatasetHandler(ABC):
     def __init__(self, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
                  normalize: bool = False, balance_dataset: bool = False):
         self.name = name
-        assert mode.lower() in {"s", "t"}
+        assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
         self.real_mode = real_mode.lower()
         self.complex_mode = complex_mode
@@ -254,7 +254,6 @@ class PolsarDatasetHandler(ABC):
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
                     savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], task: str = "segmentation"):
-        percentage = self._parse_percentage(percentage)
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
                                                               shuffle=shuffle)
@@ -270,8 +269,8 @@ class PolsarDatasetHandler(ABC):
         assert task.lower() in {"classification", "segmentation"}
         if task.lower() == "classification":
             assert method != "single_separated_image", f"Can't apply classification to the full image."
-            self.labels = np.reshape(self.labels[:, size // 2, size // 2, :],
-                                     shape=(self.labels.shape[0], self.labels.shape[-1]))
+            y_patches = [np.reshape(y[:, size // 2, size // 2, :],
+                                    newshape=(y.shape[0], y.shape[-1])) for y in y_patches]
         ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
                                              data_augment=data_augment if i == 0 else False)
                    for i, (x, y) in enumerate(zip(x_patches, y_patches))]
@@ -282,7 +281,7 @@ class PolsarDatasetHandler(ABC):
     """
 
     @staticmethod
-    def _parse_percentage(percentage) -> Tuple[float]:
+    def _parse_percentage(percentage) -> List[float]:
         if isinstance(percentage, int):
             assert percentage == 1
             percentage = (1.,)
@@ -294,7 +293,7 @@ class PolsarDatasetHandler(ABC):
             else:
                 raise ValueError(f"Percentage must be 0 < percentage < 1, received {percentage}")
         else:
-            percentage = tuple(percentage)
+            percentage = list(percentage)
             assert sum(percentage) == 1., f"percentage must add to 1, " \
                                           f"but it adds to sum{percentage} = {sum(percentage)}"
         return percentage
@@ -355,8 +354,34 @@ class PolsarDatasetHandler(ABC):
             ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, self.real_mode))
         return ds
 
+    def _separate_dataset(self, patches, label_patches, percentage: List[float], shuffle: bool = True) \
+            -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """
+        :param patches: data patches
+        :param label_patches: label patches
+        :param percentage: list of percentages for each value,
+            example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test.
+        :param shuffle: Shuffle dataset before split.
+        :return: tuple of two lists of size = len(percentage), one with data x and other with labels y.
+        """
+        percentage = self._parse_percentage(percentage)
+        x_test = patches
+        y_test = label_patches
+        percentage = list(percentage)       # need it to be mutable
+        x = []
+        y = []
+        for i, per in enumerate(percentage[:-1]):
+            x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1-per, shuffle=shuffle)
+            percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
+            x.append(x_train)
+            y.append(y_train)
+        x.append(x_test)
+        y.append(y_test)
+        x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
+        return x, y
+
     # Get dataset
-    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: Tuple[float] = (0.8, 0.2),
+    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: List[float] = (0.8, 0.2),
                               shuffle: bool = True, pad=0) -> (tf.data.Dataset, tf.data.Dataset):
         """
         Applies the sliding window operations getting smaller images of a big image T.
@@ -369,18 +394,7 @@ class PolsarDatasetHandler(ABC):
         patches, label_patches = self.sliding_window_operation(self.image, self.labels, size=size, stride=stride,
                                                                pad=pad)
         # del T, labels  # Free up memory
-        x_train = patches
-        y_train = label_patches
-        x = []
-        y = []
-        for per in percentage[1:]:
-            x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=per, shuffle=shuffle)
-            x.append(x_test)
-            y.append(y_test)
-        del patches, label_patches
-        x_train, y_train = self._remove_empty_image(data=x_train, labels=y_train)
-        x.insert(0, x_train)
-        y.insert(0, y_train)
+        x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
@@ -503,7 +517,8 @@ class PolsarDatasetHandler(ABC):
         if pad:
             im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
             lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
-        assert im.shape[0] > size and im.shape[1] > size
+        assert im.shape[0] > size and im.shape[1] > size, f"Image shape ({im.shape[0]}x{im.shape[1]}) is smaller " \
+                                                          f"than the window to apply ({size}x{size})"
         for x in range(0, im.shape[0] - size + 1, stride):
             for y in range(0, im.shape[1] - size + 1, stride):
                 slice_x = slice(x, x + size)

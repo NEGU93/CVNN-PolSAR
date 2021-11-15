@@ -9,17 +9,19 @@ import tensorflow as tf
 import sys
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
+    root_path = "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF"
 elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
 elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
     sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar')
 elif path.exists('/home/cfren/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
+    root_path = "/home/cfren/Documents/onera/PolSar/San Francisco/PolSF"
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from dataset_reader import labels_to_rgb, SF_COLORS, PolsarDatasetHandler
 
-root_path = "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF"
+
 AVAILABLE_IMAGES = {
     "SF-AIRSAR": {"x1": 0, "y1": 0, "x2": 1024, "y2": 900, "y_inverse": False},
     "SF-ALOS2": {"x1": 736, "y1": 2832, "x2": 3520, "y2": 7888, "y_inverse": True},
