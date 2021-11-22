@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QRadioButton, QLabel, QVBoxLayout, QHBoxLayout, \
     QButtonGroup, QSlider, QTableView
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
 from typing import Dict, List
@@ -63,21 +63,23 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
                             "data": str(Path(child_dir[0]) / 'history_dict'),
                             "image": str(Path(child_dir[0]) / 'prediction.png'),
                             "params": {
-                                "dataset_method": f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}",
-                                "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
+                                "dataset": f"{simu_params.split()[dataset_index + 1] if dataset_index != -1 else 'SF-AIRSAR'}",
                                 "model": f"{simu_params.split()[model_index + 1] if model_index != -1 else 'cao'}",
-                                "balance": f"{simu_params.split()[balance_index + 1] if balance_index != -1 else 'None'}",
                                 "dtype": f"{'real' if 'real_mode' in simu_params else 'complex'}",
-                                # TODO: No detail of real mode
+                                "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
                                 "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
-                                "dataset": f"{simu_params.split()[dataset_index + 1] if dataset_index != -1 else 'SF-AIRSAR'}"
+                                "dataset_method": f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}",
+                                "balance": f"{simu_params.split()[balance_index + 1].lower() if balance_index != -1 else 'none'}",
                             }
                         }
-                        if not os.path.isfile(monte_dict[child_dir[0]]["image"]):     # If I dont have the image I generate it
+                        if monte_dict[child_dir[0]]["params"]["dataset"] == "BRETIGNY":
+                            monte_dict[child_dir[0]]["params"]["dataset"] = "BRET"
+                        if not os.path.isfile(monte_dict[child_dir[0]]["image"]):
+                            # If I dont have the image I generate it
                             dataset_name = monte_dict[child_dir[0]]["params"]["dataset"].upper()
                             if dataset_name == "BRETIGNY":
                                 dataset_name = "BRET"
-                            mode = "t" if 'coherency' in simu_params else "k"
+                            mode = "t" if 'coherency' in simu_params else "s"
                             dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
                                                                    complex_mode='real_mode' not in simu_params,
                                                                    normalize=False, real_mode="real_imag",
@@ -95,7 +97,6 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
             else:
                 print("No model_summary.txt found in " + child_dir[0])
     return monte_dict
-
 
 
 """
@@ -183,7 +184,7 @@ class MainWindow(QMainWindow):
         df = pd.DataFrame()
         for img in self.image_paths.values():
             df = pd.concat([df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
-        # df.sort_values(by=['labels', 'dtype', 'dataset_mode', 'dataset_split', 'loss', 'boxcar'])
+        df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance'])
         self.btngroup = []
         widget = QWidget()
         hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
@@ -211,49 +212,216 @@ class MainWindow(QMainWindow):
     def radiobuttons(self):
         vlayout = QVBoxLayout()
 
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('dataset', list(DATASET_META.keys())), "Dataset"))
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('model', list(MODEL_META.keys())), "Model"))
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('dataset_method', ["random", "separate",
-                                                                                  "single_separated_image"]),
-                                         "Dataset Method"))
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('library', ["tensorflow", "cvnn"]), "Library"))
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('balance', ["None", "loss", "dataset"]), "Balance"))
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('dtype', ["complex", "real"]), "Dtype"))
-        vlayout.addLayout(self.add_title(self.add_radiobuttons('dataset_mode', ["coh", "k"]), "Dataset Mode"))
+        vlayout.addLayout(self.add_title(self.dataset_radiobutton(), name="Dataset"))
+        vlayout.addLayout(self.add_title(self.model_radiobutton(), "Model"))
+        vlayout.addLayout(self.add_title(self.dtype_radiobuttons(), "Dtype"))
+        vlayout.addLayout(self.add_title(self.library_radiobutton(), "Library"))
+        vlayout.addLayout(self.add_title(self.dataset_mode_radiobuttons(), "Dataset Mode"))
+        vlayout.addLayout(self.add_title(self.model_method_radiobutton(), "Dataset Method"))
+        vlayout.addLayout(self.add_title(self.balance_radiobuttons(), "Balance"))
+        vlayout.addStretch()
+        return vlayout
+
+    def dataset_mode_radiobuttons(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("coh")
+        rb1.toggled.connect(lambda: self.update_image("dataset_mode", rb1.text()))
+
+        rb2 = QRadioButton("k", self)
+        rb2.toggled.connect(lambda: self.update_image("dataset_mode", rb2.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def dtype_radiobuttons(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("complex")
+        rb1.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+
+        rb2 = QRadioButton("real", self)
+        rb2.toggled.connect(lambda: self.update_image("dtype", rb2.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def balance_radiobuttons(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("none")
+        rb1.toggled.connect(lambda: self.update_image("balance", rb1.text()))
+
+        rb2 = QRadioButton("loss", self)
+        rb2.toggled.connect(lambda: self.update_image("balance", rb2.text()))
+
+        rb3 = QRadioButton("dataset")
+        rb3.toggled.connect(lambda: self.update_image("balance", rb3.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb3)
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addWidget(rb3)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def library_radiobutton(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("cvnn")
+        rb1.toggled.connect(lambda: self.update_image("library", rb1.text()))
+
+        rb2 = QRadioButton("tensorflow", self)
+        rb2.toggled.connect(lambda: self.update_image("library", rb2.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def model_method_radiobutton(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("random")
+        rb1.toggled.connect(lambda: self.update_image("dataset_method", rb1.text()))
+
+        rb2 = QRadioButton("separate", self)
+        rb2.toggled.connect(lambda: self.update_image("dataset_method", rb2.text()))
+
+        rb3 = QRadioButton("single_separated_image")
+        rb3.toggled.connect(lambda: self.update_image("dataset_method", rb3.text()))
+
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb3)
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addWidget(rb3)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def model_radiobutton(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("cao")
+        rb1.toggled.connect(lambda: self.update_image("model", rb1.text()))
+
+        rb2 = QRadioButton("own", self)
+        rb2.toggled.connect(lambda: self.update_image("model", rb2.text()))
+
+        rb3 = QRadioButton("zhang")
+        rb3.toggled.connect(lambda: self.update_image("model", rb3.text()))
+
+        rb4 = QRadioButton("haensch", self)
+        rb4.toggled.connect(lambda: self.update_image("model", rb4.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb4)
+        self.btngroup[-1].addButton(rb3)
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addWidget(rb3)
+        vlayout.addWidget(rb4)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def dataset_radiobutton(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("SF-AIRSAR")
+        rb1.toggled.connect(lambda: self.update_image("dataset", rb1.text()))
+
+        rb2 = QRadioButton("SF-RS2", self)
+        rb2.toggled.connect(lambda: self.update_image("dataset", rb2.text()))
+
+        rb3 = QRadioButton("OBER")
+        rb3.toggled.connect(lambda: self.update_image("dataset", rb3.text()))
+
+        rb4 = QRadioButton("BRET", self)
+        rb4.toggled.connect(lambda: self.update_image("dataset", rb4.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb4)
+        self.btngroup[-1].addButton(rb3)
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addWidget(rb3)
+        vlayout.addWidget(rb4)
+        vlayout.addStretch()
+
         return vlayout
 
     def add_title(self, layout, name: str, up: bool = True):
         lay = QVBoxLayout()
         l1 = QLabel(name)
-        l1.setAlignment(Qt.AlignCenter)
+        myFont = QFont()
+        myFont.setBold(True)
+        l1.setFont(myFont)
+        l1.setAlignment(Qt.AlignLeft)
         if up:
             lay.addWidget(l1)
         lay.addLayout(layout)
+        # lay.addStretch()
         if not up:
             lay.addWidget(l1)
         return lay
 
-    def add_radiobuttons(self, name: str, options: List[str]):
-        vlayout = QHBoxLayout()
-        radio_buttons = []
-        for option in options:
-            rb = QRadioButton(option, self)
-            rb.toggled.connect(lambda: self.update_image(name, rb.text()))
-            radio_buttons.append(rb)
-        self.btngroup.append(QButtonGroup())
-        for button in radio_buttons:
-            self.btngroup[-1].addButton(button)
-        radio_buttons[0].setChecked(True)
-        for button in radio_buttons:
-            vlayout.addWidget(button)
-        return vlayout
+    # def add_radiobuttons(self, name: str, options: List[str]):
+    #     vlayout = QHBoxLayout()
+    #     radio_buttons = []
+    #     for option in options:
+    #         rb = QRadioButton(option, self)
+    #         rb.toggled.connect(lambda: self.update_image(name, rb.text()))
+    #         radio_buttons.append(rb)
+    #     self.btngroup.append(QButtonGroup())
+    #     for button in radio_buttons:
+    #         self.btngroup[-1].addButton(button)
+    #     radio_buttons[0].setChecked(True)
+    #     for button in radio_buttons:
+    #         vlayout.addWidget(button)
+    #     return vlayout
 
     def get_image(self, image_path: str):
         if image_path == '':
             pixmap = QPixmap(BASE_PATHS[self.params["dataset"]])
         else:
             pixmap = QPixmap(image_path)
-        scaled_pixmap = pixmap.scaledToWidth(1000)
+        scaled_pixmap = pixmap.scaled(1000, 700, QtCore.Qt.KeepAspectRatio)
         self.label_image.setPixmap(scaled_pixmap)
         self.label_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
         # self.show()
