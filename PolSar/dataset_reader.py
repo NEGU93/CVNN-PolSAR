@@ -84,7 +84,7 @@ SF_COLORS = {
     ]
 }
 
-COLORS = {"BRETIGNY": BRET_COLORS, "OBER": OBER_COLORS, **SF_COLORS}
+COLORS = {"BRET": BRET_COLORS, "OBER": OBER_COLORS, **SF_COLORS}
 
 # https://imagecolorpicker.com/en
 FLEVOLAND = np.array([
