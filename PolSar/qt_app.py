@@ -27,6 +27,50 @@ START_VALUES = {
 }
 
 
+def _get_model(simu_params):
+    try:
+        model_index = simu_params.split().index('--model')
+    except ValueError:
+        model_index = -1
+    return f"{simu_params.split()[model_index + 1] if model_index != -1 else 'cao'}".lower()
+
+
+def _get_dataset(simu_params):
+    try:
+        dataset_index = simu_params.split().index('--dataset')
+    except ValueError:
+        dataset_index = -1
+    return_value = f"{simu_params.split()[dataset_index + 1] if dataset_index != -1 else 'SF-AIRSAR'}".upper()
+    if return_value == "BRETIGNY":
+        return_value = "BRET"
+    return return_value
+
+
+def _get_balance(simu_params):
+    try:
+        balance_index = simu_params.split().index('--model')
+        value = simu_params.split()[balance_index + 1].lower()
+        if value in {'loss', 'dataset'}:
+            return value
+        else:
+            return 'none'
+    except ValueError:
+        return 'none'
+
+
+def _get_dataset_method(simu_params):
+    try:
+        dataset_method_index = simu_params.split().index('--model')
+    except ValueError:
+        dataset_method_index = -1
+    return f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}"
+
+
+def _get_real_mode(simu_params):
+    # TODO: Support other modes other than real_imag
+    return f"{'real' if 'real_mode' in simu_params else 'complex'}"
+
+
 def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-simulations") -> dict:
     """
     Finds all paths in a given `root_dir` directory
@@ -42,38 +86,19 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
                 with open(file_path) as txt_sum_file:
                     simu_params = txt_sum_file.readline()
                     if (Path(child_dir[0]) / 'history_dict.csv').is_file():
-                        try:
-                            dataset_method_index = simu_params.split().index('--dataset_method')
-                        except ValueError:
-                            dataset_method_index = -1
-                        try:
-                            model_index = simu_params.split().index('--model')
-                        except ValueError:
-                            model_index = -1
-                        try:
-                            balance_index = simu_params.split().index('--balance')
-                        except ValueError:
-                            balance_index = -1
-                        try:
-                            dataset_index = simu_params.split().index('--dataset')
-                        except ValueError:
-                            dataset_index = -1
                         # TODO: Verify model and other strings are valid
                         monte_dict[child_dir[0]] = {
                             "data": str(Path(child_dir[0]) / 'history_dict'),
                             "image": str(Path(child_dir[0]) / 'prediction.png'),
                             "params": {
-                                "dataset": f"{simu_params.split()[dataset_index + 1] if dataset_index != -1 else 'SF-AIRSAR'}",
-                                "model": f"{simu_params.split()[model_index + 1] if model_index != -1 else 'cao'}",
-                                "dtype": f"{'real' if 'real_mode' in simu_params else 'complex'}",
+                                "dataset": _get_dataset(simu_params), "model": _get_model(simu_params),
+                                "dtype": _get_real_mode(simu_params),
                                 "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
                                 "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
-                                "dataset_method": f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}",
-                                "balance": f"{simu_params.split()[balance_index + 1].lower() if balance_index != -1 else 'none'}",
+                                "dataset_method": _get_dataset_method(simu_params),
+                                "balance": _get_balance(simu_params)
                             }
                         }
-                        if monte_dict[child_dir[0]]["params"]["dataset"] == "BRETIGNY":
-                            monte_dict[child_dir[0]]["params"]["dataset"] = "BRET"
                         if not os.path.isfile(monte_dict[child_dir[0]]["image"]):
                             # If I dont have the image I generate it
                             dataset_name = monte_dict[child_dir[0]]["params"]["dataset"].upper()
