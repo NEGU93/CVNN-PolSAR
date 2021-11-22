@@ -1,6 +1,5 @@
 import argparse
 from pathlib import Path
-from pdb import set_trace
 import numpy as np
 import tensorflow as tf
 import os
@@ -15,7 +14,7 @@ elif os.path.exists('/home/cfren/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
 else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
-from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
+from models.cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from bretigny_dataset import open_data, get_coherency_matrix, get_k_vector
 from dataset_reader import labels_to_rgb
 from cvnn.utils import transform_to_real_map_function

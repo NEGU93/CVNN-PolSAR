@@ -1,4 +1,3 @@
-from pdb import set_trace
 from os import path, makedirs
 import sys
 import numpy as np
@@ -23,8 +22,8 @@ else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 if NOTIFY:
     from notify_run import Notify
-from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
-from own_unet import get_my_unet_model
+from models.cao_fcnn import get_cao_cvfcn_model
+from models.own_unet import get_my_unet_model
 from bretigny_dataset import get_bret_cao_dataset, get_bret_separated_dataset
 from image_generator import save_result_image_from_saved_model
 from cvnn.utils import REAL_CAST_MODES

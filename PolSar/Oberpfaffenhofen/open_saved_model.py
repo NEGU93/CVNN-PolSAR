@@ -1,8 +1,7 @@
 import sys
-from pdb import set_trace
 import numpy as np
 sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\onera\PolSar')
-from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
+from models.cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
 from oberpfaffenhofen_dataset import get_ober_dataset_with_labels_t6
 from dataset_reader import labels_to_rgb
 
