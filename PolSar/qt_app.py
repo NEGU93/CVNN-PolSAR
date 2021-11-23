@@ -2,13 +2,17 @@ import os
 import sys
 import pandas as pd
 from pathlib import Path
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QRadioButton, QLabel, QVBoxLayout, QHBoxLayout, \
     QButtonGroup, QSlider, QTableView
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
 from typing import Dict, List
-from principal_simulation import DATASET_META, MODEL_META, save_result_image_from_saved_model, _get_dataset_handler
+from cvnn.utils import REAL_CAST_MODES
+from principal_simulation import save_result_image_from_saved_model, _get_dataset_handler
 
 BASE_PATHS = {
     "BRET": "/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/bret-2003.png",
@@ -60,15 +64,19 @@ def _get_balance(simu_params):
 
 def _get_dataset_method(simu_params):
     try:
-        dataset_method_index = simu_params.split().index('--model')
+        dataset_method_index = simu_params.split().index('--dataset_method')
     except ValueError:
         dataset_method_index = -1
     return f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}"
 
 
 def _get_real_mode(simu_params):
-    # TODO: Support other modes other than real_imag
-    return f"{'real' if 'real_mode' in simu_params else 'complex'}"
+    if 'real_mode' in simu_params:
+        real_mode_index = simu_params.split().index('--real_mode')
+        next_value = simu_params.split()[real_mode_index + 1]
+        return next_value if next_value in REAL_CAST_MODES else 'real_imag'
+    else:
+        return 'complex'
 
 
 def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-simulations") -> dict:
@@ -88,7 +96,7 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
                     if (Path(child_dir[0]) / 'history_dict.csv').is_file():
                         # TODO: Verify model and other strings are valid
                         monte_dict[child_dir[0]] = {
-                            "data": str(Path(child_dir[0]) / 'history_dict'),
+                            "data": str(Path(child_dir[0]) / 'history_dict.csv'),
                             "image": str(Path(child_dir[0]) / 'prediction.png'),
                             "params": {
                                 "dataset": _get_dataset(simu_params), "model": _get_model(simu_params),
@@ -206,14 +214,15 @@ class MainWindow(QMainWindow):
         self.image_paths = get_paths()
         self.params = START_VALUES  # start config to show
         self.params_label = QLabel(str(self.params))
-        df = pd.DataFrame()
+        self.df = pd.DataFrame()
         for img in self.image_paths.values():
-            df = pd.concat([df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
-        df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance'])
+            self.df = pd.concat([self.df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
+        self.df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance'])
         self.btngroup = []
         widget = QWidget()
         hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
 
+        lower_layout = self._get_lower_layout()
         self.get_image('')
         hlayout.addLayout(self.radiobuttons())
 
@@ -225,14 +234,30 @@ class MainWindow(QMainWindow):
 
         outer_layout = QVBoxLayout()
         outer_layout.addLayout(hlayout)
-        self.tableView = QTableView()
-        # self.verticalLayout.addWidget(self.tableView)
-        self.tableView.setModel(DataFrameModel(df))
-        outer_layout.addWidget(self.tableView)
+        outer_layout.addLayout(lower_layout)
         widget.setLayout(outer_layout)
         # widget.setLayout(hlayout)
         self.setCentralWidget(widget)
         self.show()
+
+    def _get_lower_layout(self):
+        hlayout = QHBoxLayout()
+        self.tableView = QTableView()
+        # self.verticalLayout.addWidget(self.tableView)
+        self.tableView.setModel(DataFrameModel(self.df))
+        hlayout.addWidget(self.tableView)
+
+        self.figure = plt.figure()
+        self.canvas = FigureCanvas(self.figure)
+        self.toolbar = NavigationToolbar(self.canvas, self)
+
+        vlay = QVBoxLayout()
+        vlay.addWidget(self.toolbar)
+        vlay.addWidget(self.canvas)
+
+        hlayout.addLayout(vlay)
+
+        return hlayout
 
     def radiobuttons(self):
         vlayout = QVBoxLayout()
@@ -271,16 +296,30 @@ class MainWindow(QMainWindow):
         rb1 = QRadioButton("complex")
         rb1.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
 
-        rb2 = QRadioButton("real", self)
-        rb2.toggled.connect(lambda: self.update_image("dtype", rb2.text()))
+        self.real_dtype_rb = QRadioButton("real_imag", self)
+        self.real_dtype_rb.toggled.connect(lambda: self.update_image("dtype", self.real_dtype_rb.text()))
+
+        rb2 = QRadioButton("amplitude_phase")
+        rb2.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+        rb3 = QRadioButton("amplitude_only")
+        rb3.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+        rb4 = QRadioButton("real_only")
+        rb4.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
 
         self.btngroup.append(QButtonGroup())
-        self.btngroup[-1].addButton(rb2)
+        # self.btngroup[-1].addButton(self.real_dtype_rb)
         self.btngroup[-1].addButton(rb1)
+        self.btngroup[-1].addButton(self.real_dtype_rb)
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb3)
+        self.btngroup[-1].addButton(rb4)
 
         rb1.setChecked(True)
         vlayout.addWidget(rb1)
+        vlayout.addWidget(self.real_dtype_rb)
         vlayout.addWidget(rb2)
+        vlayout.addWidget(rb3)
+        vlayout.addWidget(rb4)
         vlayout.addStretch()
 
         return vlayout
@@ -311,18 +350,18 @@ class MainWindow(QMainWindow):
 
     def library_radiobutton(self):
         vlayout = QHBoxLayout()
-        rb1 = QRadioButton("cvnn")
-        rb1.toggled.connect(lambda: self.update_image("library", rb1.text()))
+        self.cvnn_library_rb = QRadioButton("cvnn", self)
+        self.cvnn_library_rb.toggled.connect(lambda: self.update_image("library", self.cvnn_library_rb.text()))
 
         rb2 = QRadioButton("tensorflow", self)
         rb2.toggled.connect(lambda: self.update_image("library", rb2.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb2)
-        self.btngroup[-1].addButton(rb1)
+        self.btngroup[-1].addButton(self.cvnn_library_rb)
 
-        rb1.setChecked(True)
-        vlayout.addWidget(rb1)
+        self.cvnn_library_rb.setChecked(True)
+        vlayout.addWidget(self.cvnn_library_rb)
         vlayout.addWidget(rb2)
         vlayout.addStretch()
 
@@ -449,20 +488,47 @@ class MainWindow(QMainWindow):
         scaled_pixmap = pixmap.scaled(1000, 700, QtCore.Qt.KeepAspectRatio)
         self.label_image.setPixmap(scaled_pixmap)
         self.label_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
+
         # self.show()
+
+    def plot(self, history_path):
+        self.figure.clear()
+        if os.path.isfile(history_path):
+            data_pd = pd.read_csv(history_path)
+            # import pdb; pdb.set_trace()
+            ax1 = self.figure.add_subplot(121)
+            ax2 = self.figure.add_subplot(122)
+            ax1.clear()
+            ax2.clear()
+            data_pd.plot(ax=ax1, x="epoch", y=["accuracy", "val_accuracy"])
+            data_pd.plot(ax=ax2, x="epoch", y=["loss", "val_loss"])
+            ax1.grid(True, axis='both')
+            ax2.grid(True, axis='both')
+            ax1.set_xlim(left=0, right=max(data_pd['epoch']))
+            ax2.set_xlim(left=0, right=max(data_pd['epoch']))
+            self.canvas.draw()
 
     def update_image(self, key, value):
         self.params[key] = value
         self.params_label.setText(str(self.params))
-        # if value == "tensorflow":
-        #     self.rb.setChecked(True)
-        #     self.params["dtype"] = "real"       # Not sure if this is necessary but it wont hurt
+        # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
+        # if value == "complex":
+        #     if hasattr(self, 'cvnn_library_rb'):    # It wont exists if I still didnt create the radiobutton.
+        #         self.cvnn_library_rb.setChecked(True)   # Set library cvnn
+        #         self.params["library"] = "cvnn"
+        # elif value == "tensorflow":
+        #     if hasattr(self, 'real_dtype_rb'):
+        #         self.real_dtype_rb.setChecked(True)   # Set real dtype
+        #         self.params["dtype"] = "real"
         path = ""
+        hist = ""
         for img_path in self.image_paths.values():
             if self._compare_params(img_path['params']):
                 path = img_path['image']
+                hist = img_path['data']
                 break
         self.get_image(path)
+        self.plot(hist)
 
     def _compare_params(self, param: Dict[str, str]) -> bool:
         for key in param:
