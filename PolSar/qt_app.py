@@ -21,13 +21,13 @@ BASE_PATHS = {
     "SF-RS2": "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp"
 }
 START_VALUES = {
-    "dataset_method": 'random',
-    "library": "complex",
+    "dataset": 'SF-AIRSAR',
     "model": "cao",
-    "balance": 'None',
     "dtype": 'complex',
+    "library": "complex",
     "dataset_mode": 'k',
-    "dataset": 'SF-AIRSAR'
+    "dataset_method": 'random',
+    "balance": 'None',
 }
 
 
@@ -213,51 +213,58 @@ class MainWindow(QMainWindow):
         self.label_image = QLabel()
         self.image_paths = get_paths()
         self.params = START_VALUES  # start config to show
-        self.params_label = QLabel(str(self.params))
         self.df = pd.DataFrame()
         for img in self.image_paths.values():
             self.df = pd.concat([self.df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
         self.df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance'])
         self.btngroup = []
+
         widget = QWidget()
-        hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
-
-        lower_layout = self._get_lower_layout()
-        self.get_image('')
-        hlayout.addLayout(self.radiobuttons())
-
-        img_layout = QVBoxLayout()
-        self.params_label.setAlignment(Qt.AlignCenter)
-        img_layout.addWidget(self.params_label)  # Current config
-        img_layout.addWidget(self.label_image)  # Show image
-        hlayout.addLayout(img_layout)
 
         outer_layout = QVBoxLayout()
-        outer_layout.addLayout(hlayout)
+        lower_layout = self._get_lower_layout()
+        outer_layout.addLayout(self._get_upper_layout())
         outer_layout.addLayout(lower_layout)
         widget.setLayout(outer_layout)
         # widget.setLayout(hlayout)
         self.setCentralWidget(widget)
         self.show()
 
+    def _get_upper_layout(self):
+        hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
+        hlayout.addLayout(self.radiobuttons())
+        img_layout = QVBoxLayout()
+        img_layout.addWidget(self.label_image)  # Show image
+        hlayout.addLayout(img_layout)
+        return hlayout
+
     def _get_lower_layout(self):
         hlayout = QHBoxLayout()
+
+        hlayout.addLayout(self._get_dataframe_table_layout())
+        hlayout.addLayout(self._get_figure_layout())
+
+        return hlayout
+
+    def _get_dataframe_table_layout(self):
+        vlayout = QVBoxLayout()
+        self.params_label = QLabel(str(self.params))
+        self.params_label.setAlignment(Qt.AlignCenter)
         self.tableView = QTableView()
         # self.verticalLayout.addWidget(self.tableView)
         self.tableView.setModel(DataFrameModel(self.df))
-        hlayout.addWidget(self.tableView)
+        vlayout.addWidget(self.params_label)  # Current config
+        vlayout.addWidget(self.tableView)
+        return vlayout
 
+    def _get_figure_layout(self):
         self.figure = plt.figure()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self)
-
         vlay = QVBoxLayout()
         vlay.addWidget(self.toolbar)
         vlay.addWidget(self.canvas)
-
-        hlayout.addLayout(vlay)
-
-        return hlayout
+        return vlay
 
     def radiobuttons(self):
         vlayout = QVBoxLayout()
@@ -464,21 +471,6 @@ class MainWindow(QMainWindow):
         if not up:
             lay.addWidget(l1)
         return lay
-
-    # def add_radiobuttons(self, name: str, options: List[str]):
-    #     vlayout = QHBoxLayout()
-    #     radio_buttons = []
-    #     for option in options:
-    #         rb = QRadioButton(option, self)
-    #         rb.toggled.connect(lambda: self.update_image(name, rb.text()))
-    #         radio_buttons.append(rb)
-    #     self.btngroup.append(QButtonGroup())
-    #     for button in radio_buttons:
-    #         self.btngroup[-1].addButton(button)
-    #     radio_buttons[0].setChecked(True)
-    #     for button in radio_buttons:
-    #         vlayout.addWidget(button)
-    #     return vlayout
 
     def get_image(self, image_path: str):
         if image_path == '':
