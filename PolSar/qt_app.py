@@ -29,6 +29,12 @@ START_VALUES = {
     "dataset_method": 'random',
     "balance": 'None',
 }
+ACC_STRINGS = {
+    'accuracy': 'Train OA',
+    'average_accuracy': 'Train AA',
+    'val_accuracy': 'Validation OA',
+    'val_average_accuracy': 'Validation AA'
+}
 
 
 def _get_model(simu_params):
@@ -230,6 +236,26 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
         self.show()
 
+    def _get_accuracy_layout(self):
+        title = QLabel("Accuracy")
+        myFont = QFont()
+        myFont.setBold(True)
+        title.setFont(myFont)
+        self.key = []
+        self.key.append(QLabel("Train OA: "))
+        self.key.append(QLabel("Train AA: "))
+        self.key.append(QLabel("Validation OA: "))
+        self.key.append(QLabel("Validation AA: "))
+        for k in self.key:
+            k.setFont(myFont)
+        self.value = []
+        self.value.append(QLabel("00.00%"))
+        self.value.append(QLabel("00.00%"))
+        self.value.append(QLabel("00.00%"))
+        self.value.append(QLabel("00.00%"))
+
+
+
     def _get_upper_layout(self):
         hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
         hlayout.addLayout(self.radiobuttons())
@@ -301,17 +327,17 @@ class MainWindow(QMainWindow):
     def dtype_radiobuttons(self):
         vlayout = QHBoxLayout()
         rb1 = QRadioButton("complex")
-        rb1.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+        rb1.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
 
         self.real_dtype_rb = QRadioButton("real_imag", self)
-        self.real_dtype_rb.toggled.connect(lambda: self.update_image("dtype", self.real_dtype_rb.text()))
+        self.real_dtype_rb.toggled.connect(lambda state: state and self.update_image("dtype", self.real_dtype_rb.text()))
 
         rb2 = QRadioButton("amplitude_phase")
-        rb2.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+        rb2.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
         rb3 = QRadioButton("amplitude_only")
-        rb3.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+        rb3.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
         rb4 = QRadioButton("real_only")
-        rb4.toggled.connect(lambda: self.update_image("dtype", rb1.text()))
+        rb4.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
 
         self.btngroup.append(QButtonGroup())
         # self.btngroup[-1].addButton(self.real_dtype_rb)
@@ -358,10 +384,10 @@ class MainWindow(QMainWindow):
     def library_radiobutton(self):
         vlayout = QHBoxLayout()
         self.cvnn_library_rb = QRadioButton("cvnn", self)
-        self.cvnn_library_rb.toggled.connect(lambda: self.update_image("library", self.cvnn_library_rb.text()))
+        self.cvnn_library_rb.toggled.connect(lambda state: state and self.update_image("library", self.cvnn_library_rb.text()))
 
         rb2 = QRadioButton("tensorflow", self)
-        rb2.toggled.connect(lambda: self.update_image("library", rb2.text()))
+        rb2.toggled.connect(lambda state: state and self.update_image("library", rb2.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb2)
@@ -487,7 +513,7 @@ class MainWindow(QMainWindow):
         self.figure.clear()
         if os.path.isfile(history_path):
             data_pd = pd.read_csv(history_path)
-            # import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
             ax1 = self.figure.add_subplot(121)
             ax2 = self.figure.add_subplot(122)
             ax1.clear()
@@ -504,14 +530,12 @@ class MainWindow(QMainWindow):
         self.params[key] = value
         self.params_label.setText(str(self.params))
         # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
-        # if value == "complex":
-        #     if hasattr(self, 'cvnn_library_rb'):    # It wont exists if I still didnt create the radiobutton.
-        #         self.cvnn_library_rb.setChecked(True)   # Set library cvnn
-        #         self.params["library"] = "cvnn"
-        # elif value == "tensorflow":
-        #     if hasattr(self, 'real_dtype_rb'):
-        #         self.real_dtype_rb.setChecked(True)   # Set real dtype
-        #         self.params["dtype"] = "real"
+        if value == "complex":
+            if hasattr(self, 'cvnn_library_rb'):    # It wont exists if I still didnt create the radiobutton.
+                self.cvnn_library_rb.setChecked(True)   # Set library cvnn
+        elif value == "tensorflow":
+            if hasattr(self, 'real_dtype_rb'):
+                self.real_dtype_rb.setChecked(True)   # Set real dtype
         path = ""
         hist = ""
         for img_path in self.image_paths.values():
