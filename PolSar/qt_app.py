@@ -6,7 +6,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QRadioButton, QLabel, QVBoxLayout, QHBoxLayout, \
-    QButtonGroup, QSlider, QTableView
+    QButtonGroup, QSlider, QTableView, QHeaderView, QSizePolicy
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
@@ -213,6 +213,8 @@ class MainWindow(QMainWindow):
         self.label_image = QLabel()
         self.image_paths = get_paths()
         self.params = START_VALUES  # start config to show
+        self.params_label = QLabel(str(self.params))
+        self.params_label.setAlignment(Qt.AlignCenter)
         self.df = pd.DataFrame()
         for img in self.image_paths.values():
             self.df = pd.concat([self.df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
@@ -261,6 +263,7 @@ class MainWindow(QMainWindow):
         hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
         hlayout.addLayout(self.radiobuttons())
         img_layout = QVBoxLayout()
+        img_layout.addWidget(self.params_label)  # Current config
         img_layout.addWidget(self.label_image)  # Show image
         hlayout.addLayout(img_layout)
         return hlayout
@@ -268,24 +271,30 @@ class MainWindow(QMainWindow):
     def _get_lower_layout(self):
         hlayout = QHBoxLayout()
 
-        hlayout.addLayout(self._get_dataframe_table_layout())
+        hlayout.addWidget(self._get_dataframe_table_layout())
         hlayout.addLayout(self._get_figure_layout())
 
         return hlayout
 
     def _get_dataframe_table_layout(self):
-        vlayout = QVBoxLayout()
-        self.params_label = QLabel(str(self.params))
-        self.params_label.setAlignment(Qt.AlignCenter)
+        # layout = QHBoxLayout()
         self.tableView = QTableView()
         # self.verticalLayout.addWidget(self.tableView)
         self.tableView.setModel(DataFrameModel(self.df))
-        vlayout.addWidget(self.params_label)  # Current config
-        vlayout.addWidget(self.tableView)
-        return vlayout
+        self.tableView.setAlternatingRowColors(True)
+        self.tableView.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        for i in range(len(self.df.keys())):
+            self.tableView.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        self.tableView.setMinimumWidth(600)
+        sp = self.tableView.sizePolicy()
+        sp.setHorizontalPolicy(QSizePolicy.Minimum)
+        self.tableView.setSizePolicy(sp)
+        # layout.addWidget(self.tableView)
+        return self.tableView
 
     def _get_figure_layout(self):
         self.figure = plt.figure()
+        self.figure.tight_layout()
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self)
         vlay = QVBoxLayout()
