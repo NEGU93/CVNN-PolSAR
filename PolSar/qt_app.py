@@ -29,12 +29,6 @@ START_VALUES = {
     "dataset_method": 'random',
     "balance": 'None',
 }
-ACC_STRINGS = {
-    'accuracy': 'Train OA',
-    'average_accuracy': 'Train AA',
-    'val_accuracy': 'Validation OA',
-    'val_average_accuracy': 'Validation AA'
-}
 
 
 def _get_model(simu_params):
@@ -241,20 +235,27 @@ class MainWindow(QMainWindow):
         myFont = QFont()
         myFont.setBold(True)
         title.setFont(myFont)
-        self.key = []
-        self.key.append(QLabel("Train OA: "))
-        self.key.append(QLabel("Train AA: "))
-        self.key.append(QLabel("Validation OA: "))
-        self.key.append(QLabel("Validation AA: "))
-        for k in self.key:
+        key = []
+        key.append(QLabel("Train OA: "))
+        key.append(QLabel("Train AA: "))
+        key.append(QLabel("Validation OA: "))
+        key.append(QLabel("Validation AA: "))
+        for k in key:
             k.setFont(myFont)
-        self.value = []
-        self.value.append(QLabel("00.00%"))
-        self.value.append(QLabel("00.00%"))
-        self.value.append(QLabel("00.00%"))
-        self.value.append(QLabel("00.00%"))
-
-
+        self.acc_values = []
+        self.acc_values.append(QLabel("00.00%"))
+        self.acc_values.append(QLabel("00.00%"))
+        self.acc_values.append(QLabel("00.00%"))
+        self.acc_values.append(QLabel("00.00%"))
+        vbox = QVBoxLayout()
+        vbox.addWidget(title)
+        for i in range(len(key)):
+            hbox = QHBoxLayout()
+            hbox.addWidget(key[i])
+            hbox.addWidget(self.acc_values[i])
+            hbox.setAlignment(Qt.AlignLeft)
+            vbox.addLayout(hbox)
+        return vbox
 
     def _get_upper_layout(self):
         hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
@@ -303,6 +304,7 @@ class MainWindow(QMainWindow):
         vlayout.addLayout(self.add_title(self.model_method_radiobutton(), "Dataset Method"))
         vlayout.addLayout(self.add_title(self.balance_radiobuttons(), "Balance"))
         vlayout.addStretch()
+        vlayout.addLayout(self._get_accuracy_layout())
         return vlayout
 
     def dataset_mode_radiobuttons(self):
@@ -513,7 +515,7 @@ class MainWindow(QMainWindow):
         self.figure.clear()
         if os.path.isfile(history_path):
             data_pd = pd.read_csv(history_path)
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             ax1 = self.figure.add_subplot(121)
             ax2 = self.figure.add_subplot(122)
             ax1.clear()
@@ -525,6 +527,17 @@ class MainWindow(QMainWindow):
             ax1.set_xlim(left=0, right=max(data_pd['epoch']))
             ax2.set_xlim(left=0, right=max(data_pd['epoch']))
             self.canvas.draw()
+
+            # import pdb; pdb.set_trace()
+            self.acc_values[0].setText(f"{max(data_pd['accuracy']):.2%}")
+            self.acc_values[1].setText(f"{max(data_pd['average_accuracy']):.2%}")
+            self.acc_values[2].setText(f"{max(data_pd['val_accuracy']):.2%}")
+            self.acc_values[3].setText(f"{max(data_pd['val_average_accuracy']):.2%}")
+        elif hasattr(self, 'acc_values'):
+            self.acc_values[0].setText("00.00%")
+            self.acc_values[1].setText("00.00%")
+            self.acc_values[2].setText("00.00%")
+            self.acc_values[3].setText("00.00%")
 
     def update_image(self, key, value):
         self.params[key] = value
