@@ -3,7 +3,6 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import SGD
 from tensorflow.keras.losses import MeanSquaredError
-from tensorflow.keras.metrics import CategoricalAccuracy
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Input, AveragePooling2D
 from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, ComplexFlatten, ComplexDense
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy

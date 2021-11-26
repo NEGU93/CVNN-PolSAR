@@ -13,6 +13,8 @@ from sklearn.model_selection import train_test_split
 import sklearn
 from cvnn.utils import standarize, randomize, transform_to_real_map_function
 
+BUFFER_SIZE = 32000
+
 cao_dataset_parameters = {
     'validation_split': 0.1,  # Section 3.3.2
     'batch_size': 30,  # Section 3.3.2
@@ -30,7 +32,7 @@ zhang_dataset_parameters = {
 }
 
 OBER_COLORS = np.array([
-    [1, 0.349, 0.392],  # Red; Built-up Area
+    [1, 0.349, 0.392],      # Red; Built-up Area
     [0.086, 0.858, 0.576],  # Green; Wood Land
     [0.937, 0.917, 0.352],  # Yellow; Open Area
     [0, 0.486, 0.745]
@@ -256,11 +258,11 @@ class PolsarDatasetHandler(ABC):
                     batch_size: int = cao_dataset_parameters['batch_size'], task: str = "segmentation"):
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
-                                                              shuffle=shuffle)
+                                                              shuffle=False)
         elif method == "separate":
             x_patches, y_patches = self._get_separated_dataset(percentage=percentage, size=size, stride=stride, pad=pad,
                                                                savefig=savefig, orientation=orientation,
-                                                               shuffle=shuffle)
+                                                               shuffle=False)
         elif method == "single_separated_image":
             x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
                                                                             orientation=orientation, pad=True)
@@ -272,7 +274,7 @@ class PolsarDatasetHandler(ABC):
             y_patches = [np.reshape(y[:, size // 2, size // 2, :],
                                     newshape=(y.shape[0], y.shape[-1])) for y in y_patches]
         ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
-                                             data_augment=data_augment if i == 0 else False)
+                                             data_augment=data_augment if i == 0 else False, shuffle=shuffle)
                    for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return ds_list
 
@@ -345,8 +347,10 @@ class PolsarDatasetHandler(ABC):
                 self.print_ground_truth(label=y, t=x_slice[i], mask=mask_slice[i], path=str(savefig) + slices_names[i])
         return x_slice, y_slice
 
-    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False):
+    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False, shuffle=True):
         ds = tf.data.Dataset.from_tensor_slices((x, y))
+        if shuffle:
+            ds = ds.shuffle(buffer_size=BUFFER_SIZE)
         ds = ds.batch(batch_size)
         if data_augment:
             ds = ds.map(flip)
@@ -406,10 +410,9 @@ class PolsarDatasetHandler(ABC):
         for i in range(0, len(labels)):
             images[i], labels[i] = self.sliding_window_operation(images[i], labels[i],
                                                                  size=size, stride=stride, pad=pad)
-            if i == 0:
-                images[i], labels[i] = self._remove_empty_image(data=images[i], labels=labels[i])
-                if shuffle:  # No need to shuffle the rest
-                    images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
+            images[i], labels[i] = self._remove_empty_image(data=images[i], labels=labels[i])
+            if shuffle:  # No need to shuffle the rest
+                images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,

@@ -5,8 +5,8 @@ from tensorflow.keras.initializers import HeNormal
 from tensorflow.keras.layers import concatenate, Add, Activation, Input
 from tensorflow.keras.layers import Conv2D, Dropout, Conv2DTranspose, BatchNormalization, MaxPooling2D, UpSampling2D
 from tensorflow.keras.losses import CategoricalCrossentropy
-from tensorflow.keras.metrics import CategoricalAccuracy, Recall, Precision
 from tensorflow.keras import Model, Sequential
+from tensorflow.keras.metrics import Recall, Precision, CategoricalAccuracy
 from typing import Dict, Optional
 from cvnn.losses import ComplexAverageCrossEntropy, ComplexWeightedAverageCrossEntropy
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy, ComplexPrecision, ComplexRecall
@@ -218,11 +218,13 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
 
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=tf_hyper_params['optimizer'], loss=loss,
-                  metrics=[CategoricalAccuracy(name='accuracy'),
-                           ComplexAverageAccuracy(name='average_accuracy'),
-                           # Precision(name='precision'),
-                           # Recall(name='recall')
-                           ])
+                  metrics=[
+                      CategoricalAccuracy(name='accuracy'),
+                      ComplexCategoricalAccuracy(name='complex_accuracy'),
+                      ComplexAverageAccuracy(name='average_accuracy'),
+                      Precision(name='precision'),
+                      Recall(name='recall')
+                  ])
     return model
 
 

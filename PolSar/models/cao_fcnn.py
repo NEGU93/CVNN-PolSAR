@@ -1,7 +1,6 @@
 import numpy as np
 from tensorflow.keras.layers import concatenate, Add, Activation
 from tensorflow.keras import Model, Sequential
-from tensorflow.keras.metrics import Accuracy, CategoricalAccuracy
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.optimizers import Adam
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy, ComplexPrecision, ComplexRecall
