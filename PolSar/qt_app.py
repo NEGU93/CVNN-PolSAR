@@ -345,7 +345,15 @@ class MainWindow(QMainWindow):
         # layout = QHBoxLayout()
         self.tableView = QTableView()
         # self.verticalLayout.addWidget(self.tableView)
-        self.tableView.setModel(DataFrameModel(self.df))
+        # set_trace()
+        self.tableView.setModel(
+            DataFrameModel(self.df
+                           .drop_duplicates()
+                           .sort_values(by=['dataset', 'model', 'dtype', 'library',
+                                            'dataset_mode', 'dataset_method', 'balance'])
+                           .reset_index(drop=True)
+                           )
+        )
         self.tableView.setAlternatingRowColors(True)
         self.tableView.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         for i in range(len(self.df.keys())):
