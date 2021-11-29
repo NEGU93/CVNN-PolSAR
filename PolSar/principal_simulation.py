@@ -30,13 +30,13 @@ DATASET_META = {
 }
 
 MODEL_META = {
-    "cao": {"size": 128, "stride": 25, "pad": 0, "batch_size": 30, "data_augment": True,
+    "cao": {"size": 128, "stride": 25, "pad": 0, "batch_size": 30,
             "percentage": (0.9, 0.1), "task": "segmentation"},
-    "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32, "data_augment": True,
+    "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
             "percentage": (0.9, 0.1), "task": "segmentation"},
-    "zhang": {"size": 12, "stride": 1, "pad": 6, "batch_size": 100, "data_augment": False,
+    "zhang": {"size": 12, "stride": 1, "pad": 6, "batch_size": 100,
               "percentage": (0.09, 0.01, 0.9), "task": "classification"},
-    "haensch": {"size": 1, "stride": 1, "pad": 0, "batch_size": 100, "data_augment": False,
+    "haensch": {"size": 1, "stride": 1, "pad": 0, "batch_size": 100,
                 "percentage": (0.02, 0.08, 0.9), "task": "classification"}
 }
 
