@@ -147,29 +147,22 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
 
 class MonteCarloPlotter:
 
-    def plot(self, paths: List[str], keys: List[str], ax=None):
+    def plot(self, data, keys: List[str], ax=None):
         """
-        :param paths: list of history dictionaries (output of Model.fit())
+        :param data:
         :param ax: (Optional) axis on which to plot the data
         :param keys:
         :return:
         """
-        pandas_dict = pd.DataFrame()
-        for data_results_dict in paths:
-            result_pandas = pd.read_csv(data_results_dict, index_col=False)
-            pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
-        self._plot_line_confidence_interval_matplotlib(ax=ax, keys=keys, data=pandas_dict)
-        return pandas_dict
+        self._plot_line_confidence_interval_matplotlib(ax=ax, keys=keys, stats=data)
 
-    def _plot_line_confidence_interval_matplotlib(self, keys: List[str], data, ax=None, showfig=False, x_axis='epoch'):
+    def _plot_line_confidence_interval_matplotlib(self, keys: List[str], stats, ax=None, showfig=False, x_axis='epoch'):
         if ax is None:
             fig, ax = plt.subplots()
         else:
             fig = None
         for i, key in enumerate(keys):
-            x = data[x_axis].unique().tolist()
-            # set_trace()
-            stats = data.groupby('epoch').describe()
+            x = stats.index.values.tolist()
             data_mean = stats[key]['mean'].tolist()
             data_max = stats[key]['max'].tolist()
             data_min = stats[key]['min'].tolist()
@@ -603,33 +596,12 @@ class MainWindow(QMainWindow):
         ax2 = self.figure.add_subplot(122)
         ax1.clear()
         ax2.clear()
-        if len(history_path) == 1:
-            history_path = history_path[0]
-            if os.path.isfile(history_path):
-                data_pd = pd.read_csv(history_path)
-                # import pdb; pdb.set_trace()
-                data_pd.plot(ax=ax1, x="epoch", y=["accuracy", "val_accuracy"])
-                data_pd.plot(ax=ax2, x="epoch", y=["loss", "val_loss"])
-                ax1.set_xlim(left=0, right=max(data_pd['epoch']))
-                ax2.set_xlim(left=0, right=max(data_pd['epoch']))
-
-                # import pdb; pdb.set_trace()
-                self.acc_values[0].setText(f"{data_pd['accuracy'].iloc[-1]:.2%}")
-                self.acc_values[1].setText(f"{data_pd['average_accuracy'].iloc[-1]:.2%}")
-                self.acc_values[2].setText(f"{data_pd['val_accuracy'].iloc[-1]:.2%}")
-                self.acc_values[3].setText(f"{data_pd['val_average_accuracy'].iloc[-1]:.2%}")
-            elif hasattr(self, 'acc_values'):
-                self.acc_values[0].setText("00.00%")
-                self.acc_values[1].setText("00.00%")
-                self.acc_values[2].setText("00.00%")
-                self.acc_values[3].setText("00.00%")
-        elif history_path:  # Not empty
-            data_pd = self.plotter.plot(paths=history_path, ax=ax1, keys=["accuracy", "val_accuracy"])
-            self.plotter.plot(paths=history_path, ax=ax2, keys=["loss", "val_loss"])
-            self.acc_values[0].setText(f"{data_pd.groupby('epoch').describe()['accuracy']['mean'].iloc[-1]:.2%}")
-            self.acc_values[1].setText(f"{data_pd.groupby('epoch').describe()['average_accuracy']['mean'].iloc[-1]:.2%}")
-            self.acc_values[2].setText(f"{data_pd.groupby('epoch').describe()['val_accuracy']['mean'].iloc[-1]:.2%}")
-            self.acc_values[3].setText(f"{data_pd.groupby('epoch').describe()['val_average_accuracy']['mean'].iloc[-1]:.2%}")
+        self.plotter.plot(data=history_path, ax=ax1, keys=["accuracy", "val_accuracy"])
+        self.plotter.plot(data=history_path, ax=ax2, keys=["loss", "val_loss"])
+        self.acc_values[0].setText(f"{history_path['accuracy']['mean'].iloc[-1]:.2%}")
+        self.acc_values[1].setText(f"{history_path['average_accuracy']['mean'].iloc[-1]:.2%}")
+        self.acc_values[2].setText(f"{history_path['val_accuracy']['mean'].iloc[-1]:.2%}")
+        self.acc_values[3].setText(f"{history_path['val_average_accuracy']['mean'].iloc[-1]:.2%}")
         ax1.grid(True, axis='both')
         ax2.grid(True, axis='both')
         self.canvas.draw()
@@ -648,7 +620,14 @@ class MainWindow(QMainWindow):
             if hasattr(self, 'coh_rb'):
                 self.coh_rb.setChecked(True)   # Set real dtype
         self.get_image(self.simulation_results[json.dumps(self.params, sort_keys=True)]['image'])
-        self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['data'])
+        if self.simulation_results[json.dumps(self.params, sort_keys=True)]['data']:
+            if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats']) == 0:
+                pandas_dict = pd.DataFrame()
+                for data_results_dict in self.simulation_results[json.dumps(self.params, sort_keys=True)]['data']:
+                    result_pandas = pd.read_csv(data_results_dict, index_col=False)
+                    pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+                self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'] = pandas_dict.groupby('epoch').describe()
+            self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
 
 
 if __name__ == '__main__':
