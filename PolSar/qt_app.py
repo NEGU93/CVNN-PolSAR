@@ -598,13 +598,21 @@ class MainWindow(QMainWindow):
         ax2.clear()
         self.plotter.plot(data=history_path, ax=ax1, keys=["accuracy", "val_accuracy"])
         self.plotter.plot(data=history_path, ax=ax2, keys=["loss", "val_loss"])
-        self.acc_values[0].setText(f"{history_path['accuracy']['mean'].iloc[-1]:.2%}")
-        self.acc_values[1].setText(f"{history_path['average_accuracy']['mean'].iloc[-1]:.2%}")
-        self.acc_values[2].setText(f"{history_path['val_accuracy']['mean'].iloc[-1]:.2%}")
-        self.acc_values[3].setText(f"{history_path['val_average_accuracy']['mean'].iloc[-1]:.2%}")
         ax1.grid(True, axis='both')
         ax2.grid(True, axis='both')
         self.canvas.draw()
+
+    def print_values(self, history_path):
+        if history_path is None:
+            self.acc_values[0].setText(f"00.00%")
+            self.acc_values[1].setText(f"00.00%")
+            self.acc_values[2].setText(f"00.00%")
+            self.acc_values[3].setText(f"00.00%")
+        else:
+            self.acc_values[0].setText(f"{history_path['accuracy']['mean'].iloc[-1]:.2%}")
+            self.acc_values[1].setText(f"{history_path['average_accuracy']['mean'].iloc[-1]:.2%}")
+            self.acc_values[2].setText(f"{history_path['val_accuracy']['mean'].iloc[-1]:.2%}")
+            self.acc_values[3].setText(f"{history_path['val_average_accuracy']['mean'].iloc[-1]:.2%}")
 
     def update_information(self, key, value):
         self.params[key] = value
@@ -628,6 +636,9 @@ class MainWindow(QMainWindow):
                     pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
                 self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'] = pandas_dict.groupby('epoch').describe()
             self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
+            self.print_values(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
+        else:
+            self.print_values(None)
 
 
 if __name__ == '__main__':
