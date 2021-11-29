@@ -1,8 +1,10 @@
 import os
 import sys
 import random
+import json
 import pandas as pd
 from pathlib import Path
+from collections import defaultdict
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
@@ -93,7 +95,7 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
     :return:
     """
     child_dirs = os.walk(root_dir)
-    monte_dict = {}
+    monte_dict = defaultdict(lambda: defaultdict(list))
     for child_dir in child_dirs:
         if "run-" in child_dir[0].split('/')[-1]:
             file_path = Path(child_dir[0]) / "model_summary.txt"
@@ -102,10 +104,7 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
                     simu_params = txt_sum_file.readline()
                     if (Path(child_dir[0]) / 'history_dict.csv').is_file():
                         # TODO: Verify model and other strings are valid
-                        monte_dict[child_dir[0]] = {
-                            "data": str(Path(child_dir[0]) / 'history_dict.csv'),
-                            "image": str(Path(child_dir[0]) / 'prediction.png'),
-                            "params": {
+                        params = {
                                 "dataset": _get_dataset(simu_params), "model": _get_model(simu_params),
                                 "dtype": _get_real_mode(simu_params),
                                 "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
@@ -113,25 +112,27 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
                                 "dataset_method": _get_dataset_method(simu_params),
                                 "balance": _get_balance(simu_params)
                             }
-                        }
-                        if not os.path.isfile(monte_dict[child_dir[0]]["image"]):
+                        monte_dict[json.dumps(params, sort_keys=True)]["data"].append(str(Path(child_dir[0]) / 'history_dict.csv'))
+                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(str(Path(child_dir[0]) / 'prediction.png'))
+                        if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
+                            print("Generating picture predicted figure. "
+                                  "This will take a while but will only be done once")
                             # If I dont have the image I generate it
-                            dataset_name = monte_dict[child_dir[0]]["params"]["dataset"].upper()
-                            if dataset_name == "BRETIGNY":
+                            dataset_name = params["dataset"].upper()
+                            if dataset_name == "BRETIGNY":      # For version compatibility
                                 dataset_name = "BRET"
                             mode = "t" if 'coherency' in simu_params else "s"
                             dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
                                                                    complex_mode='real_mode' not in simu_params,
                                                                    normalize=False, real_mode="real_imag",
-                                                                   balance=(monte_dict[child_dir[0]]["params"][
-                                                                                'balance'] == "dataset"))
+                                                                   balance=(params['balance'] == "dataset"))
                             save_result_image_from_saved_model(Path(child_dir[0]), dataset_handler=dataset_handler,
-                                                               model_name=monte_dict[child_dir[0]]["params"]["model"],
+                                                               model_name=params["model"],
                                                                tensorflow='tensorflow' in simu_params,
                                                                complex_mode='real_mode' not in simu_params,
                                                                channels=6 if 'coherency' in simu_params else 3,
-                                                               weights=monte_dict[child_dir[0]]["params"] if
-                                                               monte_dict[child_dir[0]]["params"] != "None" else None)
+                                                               weights=dataset_handler.weights if
+                                                               params['balance'] == "loss" else None)
                     else:
                         print("No history_dict found on path " + child_dir[0])
             else:
@@ -273,17 +274,21 @@ class DataFrameModel(QtCore.QAbstractTableModel):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # Variables
+        self.simulation_results = get_paths()
+        self.params = START_VALUES  # start config to show
+        self.df = pd.DataFrame()
+        for params in self.simulation_results.keys():
+            self.df = pd.concat([self.df, pd.DataFrame(json.loads(params), index=[0])], ignore_index=True)
+        self.df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance']).reset_index(drop=True)
+        self.plotter = MonteCarloPlotter()
+
+        # Qt objects
         self.setWindowTitle("Results")
         self.label_image = QLabel()
-        self.image_paths = get_paths()
-        self.params = START_VALUES  # start config to show
         self.params_label = QLabel(str(self.params))
         self.params_label.setAlignment(Qt.AlignCenter)
-        self.df = pd.DataFrame()
-        self.plotter = MonteCarloPlotter()
-        for img in self.image_paths.values():
-            self.df = pd.concat([self.df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
-        self.df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance'])
         self.btngroup = []
 
         widget = QWidget()
@@ -392,10 +397,10 @@ class MainWindow(QMainWindow):
     def dataset_mode_radiobuttons(self):
         vlayout = QHBoxLayout()
         self.coh_rb = QRadioButton("coh")
-        self.coh_rb.toggled.connect(lambda: self.update_image("dataset_mode", self.coh_rb.text()))
+        self.coh_rb.toggled.connect(lambda: self.update_information("dataset_mode", self.coh_rb.text()))
 
         rb2 = QRadioButton("k", self)
-        rb2.toggled.connect(lambda: self.update_image("dataset_mode", rb2.text()))
+        rb2.toggled.connect(lambda: self.update_information("dataset_mode", rb2.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb2)
@@ -411,17 +416,17 @@ class MainWindow(QMainWindow):
     def dtype_radiobuttons(self):
         vlayout = QHBoxLayout()
         rb1 = QRadioButton("complex")
-        rb1.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
+        rb1.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
 
         self.real_dtype_rb = QRadioButton("real_imag", self)
-        self.real_dtype_rb.toggled.connect(lambda state: state and self.update_image("dtype", self.real_dtype_rb.text()))
+        self.real_dtype_rb.toggled.connect(lambda state: state and self.update_information("dtype", self.real_dtype_rb.text()))
 
         rb2 = QRadioButton("amplitude_phase")
-        rb2.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
+        rb2.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
         rb3 = QRadioButton("amplitude_only")
-        rb3.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
+        rb3.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
         rb4 = QRadioButton("real_only")
-        rb4.toggled.connect(lambda state: state and self.update_image("dtype", rb1.text()))
+        rb4.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
 
         self.btngroup.append(QButtonGroup())
         # self.btngroup[-1].addButton(self.real_dtype_rb)
@@ -444,13 +449,13 @@ class MainWindow(QMainWindow):
     def balance_radiobuttons(self):
         vlayout = QHBoxLayout()
         rb1 = QRadioButton("none")
-        rb1.toggled.connect(lambda: self.update_image("balance", rb1.text()))
+        rb1.toggled.connect(lambda: self.update_information("balance", rb1.text()))
 
         rb2 = QRadioButton("loss", self)
-        rb2.toggled.connect(lambda: self.update_image("balance", rb2.text()))
+        rb2.toggled.connect(lambda: self.update_information("balance", rb2.text()))
 
         rb3 = QRadioButton("dataset")
-        rb3.toggled.connect(lambda: self.update_image("balance", rb3.text()))
+        rb3.toggled.connect(lambda: self.update_information("balance", rb3.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb3)
@@ -468,10 +473,10 @@ class MainWindow(QMainWindow):
     def library_radiobutton(self):
         vlayout = QHBoxLayout()
         self.cvnn_library_rb = QRadioButton("cvnn", self)
-        self.cvnn_library_rb.toggled.connect(lambda state: state and self.update_image("library", self.cvnn_library_rb.text()))
+        self.cvnn_library_rb.toggled.connect(lambda state: state and self.update_information("library", self.cvnn_library_rb.text()))
 
         rb2 = QRadioButton("tensorflow", self)
-        rb2.toggled.connect(lambda state: state and self.update_image("library", rb2.text()))
+        rb2.toggled.connect(lambda state: state and self.update_information("library", rb2.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb2)
@@ -487,13 +492,13 @@ class MainWindow(QMainWindow):
     def model_method_radiobutton(self):
         vlayout = QHBoxLayout()
         rb1 = QRadioButton("random")
-        rb1.toggled.connect(lambda: self.update_image("dataset_method", rb1.text()))
+        rb1.toggled.connect(lambda: self.update_information("dataset_method", rb1.text()))
 
         rb2 = QRadioButton("separate", self)
-        rb2.toggled.connect(lambda: self.update_image("dataset_method", rb2.text()))
+        rb2.toggled.connect(lambda: self.update_information("dataset_method", rb2.text()))
 
         rb3 = QRadioButton("single_separated_image")
-        rb3.toggled.connect(lambda: self.update_image("dataset_method", rb3.text()))
+        rb3.toggled.connect(lambda: self.update_information("dataset_method", rb3.text()))
 
 
         self.btngroup.append(QButtonGroup())
@@ -512,16 +517,16 @@ class MainWindow(QMainWindow):
     def model_radiobutton(self):
         vlayout = QHBoxLayout()
         rb1 = QRadioButton("cao")
-        rb1.toggled.connect(lambda: self.update_image("model", rb1.text()))
+        rb1.toggled.connect(lambda: self.update_information("model", rb1.text()))
 
         rb2 = QRadioButton("own", self)
-        rb2.toggled.connect(lambda: self.update_image("model", rb2.text()))
+        rb2.toggled.connect(lambda: self.update_information("model", rb2.text()))
 
         rb3 = QRadioButton("zhang")
-        rb3.toggled.connect(lambda: self.update_image("model", rb3.text()))
+        rb3.toggled.connect(lambda: self.update_information("model", rb3.text()))
 
         rb4 = QRadioButton("haensch", self)
-        rb4.toggled.connect(lambda: self.update_image("model", rb4.text()))
+        rb4.toggled.connect(lambda: self.update_information("model", rb4.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb4)
@@ -541,16 +546,16 @@ class MainWindow(QMainWindow):
     def dataset_radiobutton(self):
         vlayout = QHBoxLayout()
         rb1 = QRadioButton("SF-AIRSAR")
-        rb1.toggled.connect(lambda: self.update_image("dataset", rb1.text()))
+        rb1.toggled.connect(lambda: self.update_information("dataset", rb1.text()))
 
         rb2 = QRadioButton("SF-RS2", self)
-        rb2.toggled.connect(lambda: self.update_image("dataset", rb2.text()))
+        rb2.toggled.connect(lambda: self.update_information("dataset", rb2.text()))
 
         rb3 = QRadioButton("OBER")
-        rb3.toggled.connect(lambda: self.update_image("dataset", rb3.text()))
+        rb3.toggled.connect(lambda: self.update_information("dataset", rb3.text()))
 
         rb4 = QRadioButton("BRET", self)
-        rb4.toggled.connect(lambda: self.update_image("dataset", rb4.text()))
+        rb4.toggled.connect(lambda: self.update_information("dataset", rb4.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb4)
@@ -629,7 +634,7 @@ class MainWindow(QMainWindow):
         ax2.grid(True, axis='both')
         self.canvas.draw()
 
-    def update_image(self, key, value):
+    def update_information(self, key, value):
         self.params[key] = value
         self.params_label.setText(str(self.params))
         # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
@@ -642,20 +647,8 @@ class MainWindow(QMainWindow):
         elif value == "OBER":
             if hasattr(self, 'coh_rb'):
                 self.coh_rb.setChecked(True)   # Set real dtype
-        path = []
-        hist = []
-        for img_path in self.image_paths.values():
-            if self._compare_params(img_path['params']):
-                path.append(img_path['image'])
-                hist.append(img_path['data'])
-        self.get_image(path)
-        self.plot(hist)
-
-    def _compare_params(self, param: Dict[str, str]) -> bool:
-        for key in param:
-            if param[key] != self.params[key]:
-                return False
-        return True
+        self.get_image(self.simulation_results[json.dumps(self.params, sort_keys=True)]['image'])
+        self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['data'])
 
 
 if __name__ == '__main__':
