@@ -8,9 +8,7 @@ import traceback
 from os import path
 import numpy as np
 import argparse
-from typing import Optional
-import scipy.io
-from pdb import set_trace
+
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
     NOTIFY = True
@@ -29,12 +27,11 @@ if NOTIFY:
     from notify_run import Notify
 from oberpfaffenhofen_dataset import get_ober_dataset_for_segmentation, get_ober_dataset_with_labels_t6, get_mask, \
     get_ober_dataset_for_classification
-from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
-from zhang_cnn import get_zhang_cnn_model
+from models.cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model, get_debug_tf_models
+from models.zhang_cnn import get_zhang_cnn_model
 from dataset_reader import labels_to_rgb
 from cvnn.utils import create_folder
 from cvnn.montecarlo import MonteCarlo
-from tensorflow.keras.utils import plot_model
 
 AVAILABLE_MODELS = {
     "cao", "zhang"

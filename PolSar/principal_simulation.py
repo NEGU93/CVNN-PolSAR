@@ -1,13 +1,11 @@
 import argparse
 from argparse import RawTextHelpFormatter
+from pathlib import Path
 import sys
 import numpy as np
-import traceback
 from pandas import DataFrame
 from os import makedirs
-from pdb import set_trace
 from tensorflow.keras import callbacks
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from typing import Optional, List, Union, Tuple
 from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
@@ -15,10 +13,10 @@ from dataset_reader import labels_to_rgb, COLORS
 from Oberpfaffenhofen.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from San_Francisco.sf_data_reader import SanFranciscoDataset
 from Bretigny_ONERA.bretigny_dataset import BretignyDataset
-from cao_fcnn import get_cao_fcnn_model
-from zhang_cnn import get_zhang_cnn_model
-from own_unet import get_my_unet_model
-from haensch_mlp import get_haensch_mlp_model
+from models.cao_fcnn import get_cao_fcnn_model
+from models.zhang_cnn import get_zhang_cnn_model
+from models.own_unet import get_my_unet_model
+from models.haensch_mlp import get_haensch_mlp_model
 
 EPOCHS = 1
 DATASET_META = {
@@ -84,7 +82,6 @@ def parse_input():
                         help='run real model instead of complex.\nIf [REAL_MODE] is used it should be one of:\n'
                              '\t- real_imag\n\t- amplitude_phase\n\t- amplitude_only\n\t- real_only')
     parser.add_argument('--coherency', action='store_true', help='Use coherency matrix instead of s')
-
     parser.add_argument("--dataset", nargs=1, type=str, default=["SF-AIRSAR"],
                         help="dataset to be used. Available options:\n" +
                              "".join([f"\t- {dataset}\n" for dataset in DATASET_META.keys()]))
@@ -156,6 +153,8 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
 
 def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, channels: int,
                      real_mode: str, tensorflow: bool, num_classes: int):
+    if isinstance(root_path, str):
+        root_path = Path(root_path)
     model = _get_model(model_name=model_name, tensorflow=tensorflow,
                        channels=channels, weights=weights, real_mode=real_mode,
                        complex_mode=complex_mode, num_classes=num_classes)
@@ -237,7 +236,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Model
     weights = dataset_handler.weights
     model = _get_model(model_name=model_name,
-                       channels=3 if mode == "s" else 6,
+                       channels=3 if mode == "s" else 6,    # TODO: isn't 'k' an option?
                        weights=weights if balance == "loss" else None,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
                        complex_mode=complex_mode, tensorflow=tensorflow)
@@ -245,6 +244,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Training
     history = model.fit(x=train_ds, epochs=epochs,
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
+    # import pdb; pdb.set_trace()
+    # model.evaluate(train_ds)
+    # model.evaluate(val_ds)
+    # history = model.fit(x=train_ds, epochs=1, validation_data=val_ds, shuffle=True)
     # Save results
     df = DataFrame.from_dict(history.history)
     return df, dataset_handler, weights
@@ -285,4 +288,5 @@ if __name__ == "__main__":
                 mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
                 real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
                 dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None)
+
 

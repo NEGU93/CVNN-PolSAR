@@ -581,18 +581,18 @@ class MainWindow(QMainWindow):
 
     def library_radiobuttons(self):
         vlayout = QHBoxLayout()
-        rb1 = QRadioButton("cvnn", self)
-        rb1.toggled.connect(lambda: self.update_image("library", rb1.text()))
+        self.rb1 = QRadioButton("cvnn", self)
+        self.rb1.toggled.connect(lambda: self.update_image("library", self.rb1.text()))
 
         rb2 = QRadioButton("tensorflow", self)
         rb2.toggled.connect(lambda: self.update_image("library", rb2.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb2)
-        self.btngroup[-1].addButton(rb1)
+        self.btngroup[-1].addButton(self.rb1)
 
-        rb1.setChecked(True)
-        vlayout.addWidget(rb1)
+        self.rb1.setChecked(True)
+        vlayout.addWidget(self.rb1)
         vlayout.addWidget(rb2)
 
         return vlayout

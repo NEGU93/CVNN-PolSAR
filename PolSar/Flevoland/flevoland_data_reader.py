@@ -3,7 +3,6 @@ import sys
 from os import path
 from notify_run import Notify
 import traceback
-from pdb import set_trace
 from cvnn.montecarlo import MonteCarlo
 if path.exists('/home/barrachina/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
@@ -19,7 +18,7 @@ else:
     raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
 from dataset_reader import get_dataset_with_labels_t3, get_dataset_for_cao_segmentation, \
     get_dataset_for_cao_classification
-from cao_fcnn import get_cao_mlp_models
+from models.cao_fcnn import get_cao_mlp_models
 
 
 def get_dataset_for_segmentation_cao():

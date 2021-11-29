@@ -1,7 +1,5 @@
 import numpy as np
 from os import makedirs
-from pdb import set_trace
-from pathlib import Path
 import sys
 import argparse
 from tensorflow.keras import callbacks
@@ -12,8 +10,8 @@ from typing import Optional, List
 import os
 from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
 sys.path.insert(1, "/".join(os.path.abspath(__file__).split('/')[:-2]))
-from cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
-from own_unet import get_my_unet_model
+from models.cao_fcnn import get_cao_cvfcn_model, get_tf_real_cao_model
+from models.own_unet import get_my_unet_model
 from dataset_reader import labels_to_rgb, SF_COLORS
 from sf_data_reader import get_sf_cao_segmentation, open_image, get_labels, pauli_rgb_map_plot, get_sf_separated
 
