@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 import pandas as pd
 from pathlib import Path
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -13,6 +14,8 @@ from PyQt5 import QtCore
 from typing import Dict, List
 from cvnn.utils import REAL_CAST_MODES
 from principal_simulation import save_result_image_from_saved_model, _get_dataset_handler
+
+from pdb import set_trace
 
 BASE_PATHS = {
     "BRET": "/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/bret-2003.png",
@@ -29,6 +32,8 @@ START_VALUES = {
     "dataset_method": 'random',
     "balance": 'None',
 }
+
+DEFAULT_MATPLOTLIB_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 def _get_model(simu_params):
@@ -52,7 +57,7 @@ def _get_dataset(simu_params):
 
 def _get_balance(simu_params):
     try:
-        balance_index = simu_params.split().index('--model')
+        balance_index = simu_params.split().index('--balance')
         value = simu_params.split()[balance_index + 1].lower()
         if value in {'loss', 'dataset'}:
             return value
@@ -75,6 +80,8 @@ def _get_real_mode(simu_params):
         real_mode_index = simu_params.split().index('--real_mode')
         next_value = simu_params.split()[real_mode_index + 1]
         return next_value if next_value in REAL_CAST_MODES else 'real_imag'
+    elif 'tensorflow' in simu_params:
+        return 'real_imag'
     else:
         return 'complex'
 
@@ -130,6 +137,63 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/During-Marriage-si
             else:
                 print("No model_summary.txt found in " + child_dir[0])
     return monte_dict
+
+
+"""
+    MonteCarlo Plotter
+"""
+
+
+class MonteCarloPlotter:
+
+    def plot(self, paths: List[str], keys: List[str], ax=None):
+        """
+        :param paths: list of history dictionaries (output of Model.fit())
+        :param ax: (Optional) axis on which to plot the data
+        :param keys:
+        :return:
+        """
+        pandas_dict = pd.DataFrame()
+        for data_results_dict in paths:
+            result_pandas = pd.read_csv(data_results_dict, index_col=False)
+            pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+        self._plot_line_confidence_interval_matplotlib(ax=ax, keys=keys, data=pandas_dict)
+        return pandas_dict
+
+    def _plot_line_confidence_interval_matplotlib(self, keys: List[str], data, ax=None, showfig=False, x_axis='epoch'):
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = None
+        for i, key in enumerate(keys):
+            x = data[x_axis].unique().tolist()
+            # set_trace()
+            stats = data.groupby('epoch').describe()
+            data_mean = stats[key]['mean'].tolist()
+            data_max = stats[key]['max'].tolist()
+            data_min = stats[key]['min'].tolist()
+            data_50 = stats[key]['50%'].tolist()
+            data_25 = stats[key]['25%'].tolist()
+            data_75 = stats[key]['75%'].tolist()
+            ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)],
+                    label=key)
+            ax.plot(x, data_50, '--', color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)])
+                    # label=key + ' median')
+            ax.fill_between(x, data_25, data_75, color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)],
+                            alpha=.4)   # , label=key + ' interquartile')
+            ax.fill_between(x, data_min, data_max, color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)],
+                            alpha=.15)  # , label=key + ' border')
+        # title = title[:-3] + key
+        #
+        # ax.set_title(title)
+        ax.set_xlabel(x_axis)
+        # ax.set_ylabel(key)
+        ax.grid()
+        ax.legend()
+        # set_trace()
+        if showfig and fig:
+            fig.show()
+
 
 
 """
@@ -216,6 +280,7 @@ class MainWindow(QMainWindow):
         self.params_label = QLabel(str(self.params))
         self.params_label.setAlignment(Qt.AlignCenter)
         self.df = pd.DataFrame()
+        self.plotter = MonteCarloPlotter()
         for img in self.image_paths.values():
             self.df = pd.concat([self.df, pd.DataFrame(img['params'], index=[0])], ignore_index=True)
         self.df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance'])
@@ -318,18 +383,18 @@ class MainWindow(QMainWindow):
 
     def dataset_mode_radiobuttons(self):
         vlayout = QHBoxLayout()
-        rb1 = QRadioButton("coh")
-        rb1.toggled.connect(lambda: self.update_image("dataset_mode", rb1.text()))
+        self.coh_rb = QRadioButton("coh")
+        self.coh_rb.toggled.connect(lambda: self.update_image("dataset_mode", self.coh_rb.text()))
 
         rb2 = QRadioButton("k", self)
         rb2.toggled.connect(lambda: self.update_image("dataset_mode", rb2.text()))
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb2)
-        self.btngroup[-1].addButton(rb1)
+        self.btngroup[-1].addButton(self.coh_rb)
 
-        rb1.setChecked(True)
-        vlayout.addWidget(rb1)
+        self.coh_rb.setChecked(True)
+        vlayout.addWidget(self.coh_rb)
         vlayout.addWidget(rb2)
         vlayout.addStretch()
 
@@ -509,44 +574,52 @@ class MainWindow(QMainWindow):
             lay.addWidget(l1)
         return lay
 
-    def get_image(self, image_path: str):
-        if image_path == '':
+    def get_image(self, image_path: List[str]):
+        if not image_path:
             pixmap = QPixmap(BASE_PATHS[self.params["dataset"]])
         else:
+            image_path = random.choice(image_path)
             pixmap = QPixmap(image_path)
         scaled_pixmap = pixmap.scaled(1000, 700, QtCore.Qt.KeepAspectRatio)
         self.label_image.setPixmap(scaled_pixmap)
         self.label_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
 
-        # self.show()
-
     def plot(self, history_path):
         self.figure.clear()
-        if os.path.isfile(history_path):
-            data_pd = pd.read_csv(history_path)
-            # import pdb; pdb.set_trace()
-            ax1 = self.figure.add_subplot(121)
-            ax2 = self.figure.add_subplot(122)
-            ax1.clear()
-            ax2.clear()
-            data_pd.plot(ax=ax1, x="epoch", y=["accuracy", "val_accuracy"])
-            data_pd.plot(ax=ax2, x="epoch", y=["loss", "val_loss"])
-            ax1.grid(True, axis='both')
-            ax2.grid(True, axis='both')
-            ax1.set_xlim(left=0, right=max(data_pd['epoch']))
-            ax2.set_xlim(left=0, right=max(data_pd['epoch']))
-            self.canvas.draw()
+        ax1 = self.figure.add_subplot(121)
+        ax2 = self.figure.add_subplot(122)
+        ax1.clear()
+        ax2.clear()
+        if len(history_path) == 1:
+            history_path = history_path[0]
+            if os.path.isfile(history_path):
+                data_pd = pd.read_csv(history_path)
+                # import pdb; pdb.set_trace()
+                data_pd.plot(ax=ax1, x="epoch", y=["accuracy", "val_accuracy"])
+                data_pd.plot(ax=ax2, x="epoch", y=["loss", "val_loss"])
+                ax1.set_xlim(left=0, right=max(data_pd['epoch']))
+                ax2.set_xlim(left=0, right=max(data_pd['epoch']))
 
-            # import pdb; pdb.set_trace()
-            self.acc_values[0].setText(f"{max(data_pd['accuracy']):.2%}")
-            self.acc_values[1].setText(f"{max(data_pd['average_accuracy']):.2%}")
-            self.acc_values[2].setText(f"{max(data_pd['val_accuracy']):.2%}")
-            self.acc_values[3].setText(f"{max(data_pd['val_average_accuracy']):.2%}")
-        elif hasattr(self, 'acc_values'):
-            self.acc_values[0].setText("00.00%")
-            self.acc_values[1].setText("00.00%")
-            self.acc_values[2].setText("00.00%")
-            self.acc_values[3].setText("00.00%")
+                # import pdb; pdb.set_trace()
+                self.acc_values[0].setText(f"{data_pd['accuracy'].iloc[-1]:.2%}")
+                self.acc_values[1].setText(f"{data_pd['average_accuracy'].iloc[-1]:.2%}")
+                self.acc_values[2].setText(f"{data_pd['val_accuracy'].iloc[-1]:.2%}")
+                self.acc_values[3].setText(f"{data_pd['val_average_accuracy'].iloc[-1]:.2%}")
+            elif hasattr(self, 'acc_values'):
+                self.acc_values[0].setText("00.00%")
+                self.acc_values[1].setText("00.00%")
+                self.acc_values[2].setText("00.00%")
+                self.acc_values[3].setText("00.00%")
+        elif history_path:  # Not empty
+            data_pd = self.plotter.plot(paths=history_path, ax=ax1, keys=["accuracy", "val_accuracy"])
+            self.plotter.plot(paths=history_path, ax=ax2, keys=["loss", "val_loss"])
+            self.acc_values[0].setText(f"{data_pd.groupby('epoch').describe()['accuracy']['mean'].iloc[-1]:.2%}")
+            self.acc_values[1].setText(f"{data_pd.groupby('epoch').describe()['average_accuracy']['mean'].iloc[-1]:.2%}")
+            self.acc_values[2].setText(f"{data_pd.groupby('epoch').describe()['val_accuracy']['mean'].iloc[-1]:.2%}")
+            self.acc_values[3].setText(f"{data_pd.groupby('epoch').describe()['val_average_accuracy']['mean'].iloc[-1]:.2%}")
+        ax1.grid(True, axis='both')
+        ax2.grid(True, axis='both')
+        self.canvas.draw()
 
     def update_image(self, key, value):
         self.params[key] = value
@@ -558,13 +631,15 @@ class MainWindow(QMainWindow):
         elif value == "tensorflow":
             if hasattr(self, 'real_dtype_rb'):
                 self.real_dtype_rb.setChecked(True)   # Set real dtype
-        path = ""
-        hist = ""
+        elif value == "OBER":
+            if hasattr(self, 'coh_rb'):
+                self.coh_rb.setChecked(True)   # Set real dtype
+        path = []
+        hist = []
         for img_path in self.image_paths.values():
             if self._compare_params(img_path['params']):
-                path = img_path['image']
-                hist = img_path['data']
-                break
+                path.append(img_path['image'])
+                hist.append(img_path['data'])
         self.get_image(path)
         self.plot(hist)
 
