@@ -9,11 +9,11 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QRadioButton, QLabel, QVBoxLayout, QHBoxLayout, \
-    QButtonGroup, QSlider, QTableView, QHeaderView, QSizePolicy
+    QButtonGroup, QTableView, QHeaderView, QSizePolicy
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
-from typing import Dict, List
+from typing import List
 from cvnn.utils import REAL_CAST_MODES
 from principal_simulation import save_result_image_from_saved_model, _get_dataset_handler
 
@@ -187,7 +187,6 @@ class MonteCarloPlotter:
         # set_trace()
         if showfig and fig:
             fig.show()
-
 
 
 """
@@ -603,16 +602,17 @@ class MainWindow(QMainWindow):
         self.canvas.draw()
 
     def print_values(self, history_path):
-        if history_path is None:
-            self.acc_values[0].setText(f"00.00%")
-            self.acc_values[1].setText(f"00.00%")
-            self.acc_values[2].setText(f"00.00%")
-            self.acc_values[3].setText(f"00.00%")
-        else:
-            self.acc_values[0].setText(f"{history_path['accuracy']['mean'].iloc[-1]:.2%}")
-            self.acc_values[1].setText(f"{history_path['average_accuracy']['mean'].iloc[-1]:.2%}")
-            self.acc_values[2].setText(f"{history_path['val_accuracy']['mean'].iloc[-1]:.2%}")
-            self.acc_values[3].setText(f"{history_path['val_average_accuracy']['mean'].iloc[-1]:.2%}")
+        if hasattr(self, "acc_values"):
+            if history_path is None:
+                self.acc_values[0].setText(f"00.00%")
+                self.acc_values[1].setText(f"00.00%")
+                self.acc_values[2].setText(f"00.00%")
+                self.acc_values[3].setText(f"00.00%")
+            else:
+                self.acc_values[0].setText(f"{history_path['accuracy']['mean'].iloc[-1]:.2%}")
+                self.acc_values[1].setText(f"{history_path['average_accuracy']['mean'].iloc[-1]:.2%}")
+                self.acc_values[2].setText(f"{history_path['val_accuracy']['mean'].iloc[-1]:.2%}")
+                self.acc_values[3].setText(f"{history_path['val_average_accuracy']['mean'].iloc[-1]:.2%}")
 
     def update_information(self, key, value):
         self.params[key] = value

@@ -244,6 +244,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Training
     history = model.fit(x=train_ds, epochs=epochs,
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
+    # import pdb; pdb.set_trace()
     # model.evaluate(train_ds)
     # model.evaluate(val_ds)
     # history = model.fit(x=train_ds, epochs=1, validation_data=val_ds, shuffle=True)
