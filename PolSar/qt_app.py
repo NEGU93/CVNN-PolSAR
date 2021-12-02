@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
 from typing import List
 from cvnn.utils import REAL_CAST_MODES
-from principal_simulation import save_result_image_from_saved_model, _get_dataset_handler
+from principal_simulation import get_final_model_results, _get_dataset_handler
 
 from pdb import set_trace
 
@@ -88,7 +88,7 @@ def _get_real_mode(simu_params):
         return 'complex'
 
 
-def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/") -> dict:
+def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/11November") -> dict:
     """
     Finds all paths in a given `root_dir` directory
     :param root_dir:
@@ -105,34 +105,36 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/") ->
                     if (Path(child_dir[0]) / 'history_dict.csv').is_file():
                         # TODO: Verify model and other strings are valid
                         params = {
-                                "dataset": _get_dataset(simu_params), "model": _get_model(simu_params),
-                                "dtype": _get_real_mode(simu_params),
-                                "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
-                                "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
-                                "dataset_method": _get_dataset_method(simu_params),
-                                "balance": _get_balance(simu_params)
-                            }
-                        monte_dict[json.dumps(params, sort_keys=True)]["data"].append(str(Path(child_dir[0]) / 'history_dict.csv'))
-                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(str(Path(child_dir[0]) / 'prediction.png'))
+                            "dataset": _get_dataset(simu_params), "model": _get_model(simu_params),
+                            "dtype": _get_real_mode(simu_params),
+                            "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
+                            "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
+                            "dataset_method": _get_dataset_method(simu_params),
+                            "balance": _get_balance(simu_params)
+                        }
+                        monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
+                            str(Path(child_dir[0]) / 'history_dict.csv'))
+                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
+                            str(Path(child_dir[0]) / 'prediction.png'))
                         if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
                             print("Generating picture predicted figure. "
                                   "This will take a while but will only be done once")
                             # If I dont have the image I generate it
                             dataset_name = params["dataset"].upper()
-                            if dataset_name == "BRETIGNY":      # For version compatibility
+                            if dataset_name == "BRETIGNY":  # For version compatibility
                                 dataset_name = "BRET"
                             mode = "t" if 'coherency' in simu_params else "s"
                             dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
                                                                    complex_mode='real_mode' not in simu_params,
                                                                    normalize=False, real_mode="real_imag",
                                                                    balance=(params['balance'] == "dataset"))
-                            save_result_image_from_saved_model(Path(child_dir[0]), dataset_handler=dataset_handler,
-                                                               model_name=params["model"],
-                                                               tensorflow='tensorflow' in simu_params,
-                                                               complex_mode='real_mode' not in simu_params,
-                                                               channels=6 if 'coherency' in simu_params else 3,
-                                                               weights=dataset_handler.weights if
-                                                               params['balance'] == "loss" else None)
+                            get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
+                                                    model_name=params["model"],
+                                                    tensorflow='tensorflow' in simu_params,
+                                                    complex_mode='real_mode' not in simu_params,
+                                                    channels=6 if 'coherency' in simu_params else 3,
+                                                    weights=dataset_handler.weights if
+                                                    params['balance'] == "loss" else None, dropout=None)
                     else:
                         print("No history_dict found on path " + child_dir[0])
             else:
@@ -169,13 +171,13 @@ class MonteCarloPlotter:
             data_50 = stats[key]['50%'].tolist()
             data_25 = stats[key]['25%'].tolist()
             data_75 = stats[key]['75%'].tolist()
-            ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)],
+            ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[i % len(DEFAULT_MATPLOTLIB_COLORS)],
                     label=key)
-            ax.plot(x, data_50, '--', color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)])
-                    # label=key + ' median')
-            ax.fill_between(x, data_25, data_75, color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)],
-                            alpha=.4)   # , label=key + ' interquartile')
-            ax.fill_between(x, data_min, data_max, color=DEFAULT_MATPLOTLIB_COLORS[i%len(DEFAULT_MATPLOTLIB_COLORS)],
+            ax.plot(x, data_50, '--', color=DEFAULT_MATPLOTLIB_COLORS[i % len(DEFAULT_MATPLOTLIB_COLORS)])
+            # label=key + ' median')
+            ax.fill_between(x, data_25, data_75, color=DEFAULT_MATPLOTLIB_COLORS[i % len(DEFAULT_MATPLOTLIB_COLORS)],
+                            alpha=.4)  # , label=key + ' interquartile')
+            ax.fill_between(x, data_min, data_max, color=DEFAULT_MATPLOTLIB_COLORS[i % len(DEFAULT_MATPLOTLIB_COLORS)],
                             alpha=.15)  # , label=key + ' border')
         # title = title[:-3] + key
         #
@@ -273,7 +275,9 @@ class MainWindow(QMainWindow):
         self.df = pd.DataFrame()
         for params in self.simulation_results.keys():
             self.df = pd.concat([self.df, pd.DataFrame(json.loads(params), index=[0])], ignore_index=True)
-        self.df.sort_values(by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance']).reset_index(drop=True)
+        self.df.sort_values(
+            by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance']).reset_index(
+            drop=True)
         self.plotter = MonteCarloPlotter()
 
         # Qt objects
@@ -411,7 +415,8 @@ class MainWindow(QMainWindow):
         rb1.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
 
         self.real_dtype_rb = QRadioButton("real_imag", self)
-        self.real_dtype_rb.toggled.connect(lambda state: state and self.update_information("dtype", self.real_dtype_rb.text()))
+        self.real_dtype_rb.toggled.connect(
+            lambda state: state and self.update_information("dtype", self.real_dtype_rb.text()))
 
         rb2 = QRadioButton("amplitude_phase")
         rb2.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
@@ -465,7 +470,8 @@ class MainWindow(QMainWindow):
     def library_radiobutton(self):
         vlayout = QHBoxLayout()
         self.cvnn_library_rb = QRadioButton("cvnn", self)
-        self.cvnn_library_rb.toggled.connect(lambda state: state and self.update_information("library", self.cvnn_library_rb.text()))
+        self.cvnn_library_rb.toggled.connect(
+            lambda state: state and self.update_information("library", self.cvnn_library_rb.text()))
 
         rb2 = QRadioButton("tensorflow", self)
         rb2.toggled.connect(lambda state: state and self.update_information("library", rb2.text()))
@@ -491,7 +497,6 @@ class MainWindow(QMainWindow):
 
         rb3 = QRadioButton("single_separated_image")
         rb3.toggled.connect(lambda: self.update_information("dataset_method", rb3.text()))
-
 
         self.btngroup.append(QButtonGroup())
         self.btngroup[-1].addButton(rb3)
@@ -619,14 +624,14 @@ class MainWindow(QMainWindow):
         self.params_label.setText(str(self.params))
         # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
         if value == "complex":
-            if hasattr(self, 'cvnn_library_rb'):    # It wont exists if I still didnt create the radiobutton.
-                self.cvnn_library_rb.setChecked(True)   # Set library cvnn
+            if hasattr(self, 'cvnn_library_rb'):  # It wont exists if I still didnt create the radiobutton.
+                self.cvnn_library_rb.setChecked(True)  # Set library cvnn
         elif value == "tensorflow":
             if hasattr(self, 'real_dtype_rb'):
-                self.real_dtype_rb.setChecked(True)   # Set real dtype
+                self.real_dtype_rb.setChecked(True)  # Set real dtype
         elif value == "OBER":
             if hasattr(self, 'coh_rb'):
-                self.coh_rb.setChecked(True)   # Set real dtype
+                self.coh_rb.setChecked(True)  # Set real dtype
         self.get_image(self.simulation_results[json.dumps(self.params, sort_keys=True)]['image'])
         if self.simulation_results[json.dumps(self.params, sort_keys=True)]['data']:
             if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats']) == 0:
@@ -634,7 +639,8 @@ class MainWindow(QMainWindow):
                 for data_results_dict in self.simulation_results[json.dumps(self.params, sort_keys=True)]['data']:
                     result_pandas = pd.read_csv(data_results_dict, index_col=False)
                     pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
-                self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'] = pandas_dict.groupby('epoch').describe()
+                self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'] = pandas_dict.groupby(
+                    'epoch').describe()
             self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
             self.print_values(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
         else:
