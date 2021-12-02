@@ -15,7 +15,7 @@ import tensorflow as tf
 IMG_HEIGHT = None  # 128
 IMG_WIDTH = None  # 128
 
-DROPOUT_DEFAULT = {     # TODO: Not found yet where
+DROPOUT_DEFAULT = {
     "downsampling": None,
     "bottle_neck": None,
     "upsampling": None

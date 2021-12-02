@@ -71,7 +71,9 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_zhang_cnn'):
 
 
 def get_zhang_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, dtype=np.complex64,
-                        tensorflow: bool = False, name="my_model"):
+                        tensorflow: bool = False, name="my_model", dropout=None):
+    if dropout is not None:
+        raise ValueError("Dropout for zhang model not yet implemented")
     if not tensorflow:
         return _get_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
                           name=name)

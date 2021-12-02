@@ -50,7 +50,9 @@ def _get_tf_mlp_model(input_shape, num_classes, dtype, name='zhang_cnn'):
 
 
 def get_haensch_mlp_model(input_shape=(1, 1, 6), num_classes=6, dtype=np.complex64,
-                          tensorflow: bool = False, name="my_model"):
+                          tensorflow: bool = False, name="my_model", dropout=None):
+    if dropout is not None:
+        raise ValueError("Dropout for zhang model not yet implemented")
     if not tensorflow:
         return _get_mlp_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
                               name=name)
