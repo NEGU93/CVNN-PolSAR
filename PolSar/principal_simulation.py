@@ -193,11 +193,11 @@ def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, ch
     return model
 
 
-def save_result_image_from_saved_model(root_path, model_name: str,
-                                       dataset_handler,  # dataset parameters
-                                       weights, dropout, channels: int = 3,  # model hyper-parameters
-                                       complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
-                                       use_mask: bool = True, tensorflow: bool = False):
+def get_final_model_results(root_path, model_name: str,
+                            dataset_handler,  # dataset parameters
+                            weights, dropout, channels: int = 3,  # model hyper-parameters
+                            complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
+                            use_mask: bool = True, tensorflow: bool = False):
     full_image = dataset_handler.image
     seg = dataset_handler.labels
     if not complex_mode:
@@ -231,7 +231,8 @@ def save_result_image_from_saved_model(root_path, model_name: str,
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
+    if MODEL_META[model_name]["task"] != "classification":  # TODO: Make it work for non segmentation cases
+        labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
 
 
 def _eval_list_to_dict(evaluate, metrics):
@@ -387,10 +388,9 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                                                       percentage=percentage, debug=debug, dropout=dropout)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
-    if MODEL_META[model_name]["task"] != "classification":
-        save_result_image_from_saved_model(temp_path, dataset_handler=dataset_handler, model_name=model_name,
-                                           tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
-                                           channels=3 if mode == "s" else 6, weights=weights, dropout=dropout)
+    get_final_model_results(temp_path, dataset_handler=dataset_handler, model_name=model_name,
+                            tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
+                            channels=3 if mode == "s" else 6, weights=weights, dropout=dropout)
 
 
 if __name__ == "__main__":

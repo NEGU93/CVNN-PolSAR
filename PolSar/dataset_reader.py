@@ -429,15 +429,21 @@ class PolsarDatasetHandler(ABC):
 
     @staticmethod
     def _remove_empty_image(data, labels):
-        filtered_data = []
-        filtered_labels = []
-        for i in range(0, len(labels)):
-            if not np.all(labels[i] == 0):
-                filtered_data.append(data[i])
-                filtered_labels.append(labels[i])
-        filtered_data = np.array(filtered_data)
-        filtered_labels = np.array(filtered_labels)
-        return filtered_data, filtered_labels
+        mask = np.invert(np.all(np.all(labels == 0, axis=-1), axis=(1, 2)))
+        masked_filtered_data = tf.reshape(tf.boolean_mask(data, mask), shape=(-1,) + data.shape[1:])
+        masked_filtered_labels = tf.boolean_mask(labels, mask)
+        # filtered_data = []
+        # filtered_labels = []
+        # for i in range(0, len(labels)):
+        #     if not np.all(labels[i] == 0):
+        #         filtered_data.append(data[i])
+        #         filtered_labels.append(labels[i])
+        # filtered_data = np.array(filtered_data)
+        # filtered_labels = np.array(filtered_labels)
+        # assert np.all(masked_filtered_data.numpy() == filtered_data)
+        # assert np.all(masked_filtered_labels.numpy() == filtered_labels)
+        # set_trace()
+        return masked_filtered_data, masked_filtered_labels
 
     # BALANCE DATASET
     @staticmethod
