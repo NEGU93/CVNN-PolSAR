@@ -1,12 +1,15 @@
 import argparse
+import os.path
 from argparse import RawTextHelpFormatter
 from pathlib import Path
 import sys
 import numpy as np
+import pandas as pd
 from pandas import DataFrame
 from os import makedirs
 from tensorflow.keras import callbacks
 import tensorflow as tf
+import tensorflow_datasets as tfds
 from typing import Optional, List, Union, Tuple
 from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
 from dataset_reader import labels_to_rgb, COLORS
@@ -18,7 +21,15 @@ from models.zhang_cnn import get_zhang_cnn_model
 from models.own_unet import get_my_unet_model
 from models.haensch_mlp import get_haensch_mlp_model
 
+from pdb import set_trace
+
 EPOCHS = 1
+DROPOUT_DEFAULT = {
+    "downsampling": None,
+    "bottle_neck": None,
+    "upsampling": None
+}
+
 DATASET_META = {
     "SF-AIRSAR": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
     # "SF-ALOS2": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
@@ -57,6 +68,19 @@ def get_callbacks_list(early_stop, temp_path):
     return callback_list
 
 
+def dropout_type(arg):
+    if arg == 'None' or arg == 'none':
+        f = None
+    else:
+        try:
+            f = float(arg)
+        except ValueError:
+            raise argparse.ArgumentTypeError("Must be a floating point number")
+        if f > 1. or f < 0.:
+            raise argparse.ArgumentTypeError("Argument must be < " + str(1) + " and > " + str(0))
+    return f
+
+
 def parse_input():
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('--dataset_method', nargs=1, default=["random"], type=str,
@@ -81,6 +105,11 @@ def parse_input():
     parser.add_argument('--real_mode', type=str, nargs='?', const='real_imag', default='complex',
                         help='run real model instead of complex.\nIf [REAL_MODE] is used it should be one of:\n'
                              '\t- real_imag\n\t- amplitude_phase\n\t- amplitude_only\n\t- real_only')
+    parser.add_argument('--dropout', nargs=3, type=dropout_type, default=[None, None, None],
+                        help='dropout rate to be used on '
+                             'downsampling, bottle neck, upsampling sections (in order). '
+                             'Example: `python main.py --dropout 0.1 None 0.3` will use 10%% dropout on the '
+                             'downsampling part and 30%% on the upsamlpling part and no dropout on the bottle neck.')
     parser.add_argument('--coherency', action='store_true', help='Use coherency matrix instead of s')
     parser.add_argument("--dataset", nargs=1, type=str, default=["SF-AIRSAR"],
                         help="dataset to be used. Available options:\n" +
@@ -114,7 +143,7 @@ def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balan
 
 
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
-               complex_mode: bool = True, tensorflow: bool = False):
+               dropout, complex_mode: bool = True, tensorflow: bool = False):
     model_name = model_name.lower()
     if complex_mode:
         name_prefix = "cv-"
@@ -127,17 +156,18 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
         channels = REAL_CAST_MODES[real_mode] * channels
     if model_name == "cao":
         model = get_cao_fcnn_model(input_shape=(None, None, channels), num_classes=num_classes,
-                                   tensorflow=tensorflow,
+                                   tensorflow=tensorflow, dropout_dict=dropout,
                                    dtype=dtype, name=name_prefix + model_name, weights=weights)
     elif model_name == "own":
         model = get_my_unet_model(input_shape=(None, None, channels), num_classes=num_classes,
-                                  tensorflow=tensorflow,
+                                  tensorflow=tensorflow, dropout_dict=dropout,
                                   dtype=dtype, name=name_prefix + model_name, weights=weights)
     elif model_name == "zhang":
         if weights is not None:
             print("WARNING: Zhang model does not support weighted loss")
         model = get_zhang_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
                                     num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                                    dropout=dropout["downsampling"],
                                     name=name_prefix + model_name)
     elif model_name == 'haensch':
         if weights is not None:
@@ -145,17 +175,18 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
         model = get_haensch_mlp_model(input_shape=(MODEL_META["haensch"]["size"],
                                                    MODEL_META["haensch"]["size"], channels),
                                       num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                                      dropout=dropout["downsampling"],
                                       name=name_prefix + model_name)
     else:
         raise ValueError(f"Unknown model {model_name}")
     return model
 
 
-def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, channels: int,
+def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, channels: int, dropout,
                      real_mode: str, tensorflow: bool, num_classes: int):
     if isinstance(root_path, str):
         root_path = Path(root_path)
-    model = _get_model(model_name=model_name, tensorflow=tensorflow,
+    model = _get_model(model_name=model_name, tensorflow=tensorflow, dropout=dropout,
                        channels=channels, weights=weights, real_mode=real_mode,
                        complex_mode=complex_mode, num_classes=num_classes)
     model.load_weights(str(root_path / "checkpoints/cp.ckpt"))
@@ -164,8 +195,8 @@ def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, ch
 
 def save_result_image_from_saved_model(root_path, model_name: str,
                                        dataset_handler,  # dataset parameters
-                                       weights, channels: int = 3,     # model hyper-parameters
-                                       complex_mode: bool = True, real_mode: str = "real_imag",     # cv / rv format
+                                       weights, dropout, channels: int = 3,  # model hyper-parameters
+                                       complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
                                        use_mask: bool = True, tensorflow: bool = False):
     full_image = dataset_handler.image
     seg = dataset_handler.labels
@@ -185,21 +216,53 @@ def save_result_image_from_saved_model(root_path, model_name: str,
     else:
         mask = None
     full_image = tf.pad(full_image, paddings)
-    full_image = tf.expand_dims(full_image, axis=0)   # add batch axis
+    seg = tf.pad(seg, paddings)
+    full_image = tf.expand_dims(full_image, axis=0)  # add batch axis
+    seg = tf.expand_dims(seg, axis=0)
 
     model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
-                             weights=weights, channels=channels, real_mode=real_mode,
+                             weights=weights, channels=channels, real_mode=real_mode, dropout=dropout,
                              tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
     prediction = model.predict(full_image)[0]
+    if os.path.isfile(str(root_path / 'evaluate.csv')):
+        evaluate = _eval_list_to_dict(model.evaluate(full_image, seg), model.metrics_names)
+        eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
+        eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
+        eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask,
-                  colors=COLORS[dataset_handler.name])
+    labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
+
+
+def _eval_list_to_dict(evaluate, metrics):
+    return_dict = {}
+    for i, m in enumerate(metrics):
+        return_dict[m] = evaluate[i]
+    return return_dict
+
+
+def _get_confusion_matrix(ds, model, num_classes):
+    x_input, y_true = np.concatenate([x for x, y in ds], axis=0), np.concatenate([y for x, y in ds], axis=0)
+    prediction = model.predict(x_input)
+    if tf.dtypes.as_dtype(prediction.dtype).is_complex:
+        prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
+    prediction = tf.reshape(prediction, shape=[-1, num_classes])
+    y_true = tf.reshape(y_true, shape=[-1, num_classes])
+    mask = np.invert(np.all(y_true == 0, axis=1))
+    filtered_y_true = tf.boolean_mask(y_true, mask)
+    filtered_y_pred = tf.boolean_mask(prediction, mask)
+    flatten_filtered_y_true = tf.argmax(filtered_y_pred, axis=-1)
+    flatten_filtered_y_pred = tf.argmax(filtered_y_true, axis=-1)
+    conf = tf.math.confusion_matrix(labels=flatten_filtered_y_true, predictions=flatten_filtered_y_pred)
+    conf_df = DataFrame(data=conf.numpy())
+    conf_df['Total'] = conf_df.sum(axis=1)
+    conf_df.loc['Total'] = conf_df.sum(axis=0)
+    return conf_df
 
 
 def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str,
-              early_stop: Union[bool, int], epochs: int, temp_path,
+              early_stop: Union[bool, int], epochs: int, temp_path, dropout,
               dataset_name: str, dataset_method: str, percentage: Optional[Union[Tuple[float], float]] = None,
               debug: bool = False):
     if percentage is None:
@@ -236,30 +299,77 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Model
     weights = dataset_handler.weights
     model = _get_model(model_name=model_name,
-                       channels=3 if mode == "s" else 6,    # TODO: isn't 'k' an option?
+                       channels=3 if mode == "s" else 6,  # TODO: isn't 'k' an option?
                        weights=weights if balance == "loss" else None,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
-                       complex_mode=complex_mode, tensorflow=tensorflow)
+                       complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
     callbacks = get_callbacks_list(early_stop, temp_path)
     # Training
     history = model.fit(x=train_ds, epochs=epochs,
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
-    # import pdb; pdb.set_trace()
-    # model.evaluate(train_ds)
-    # model.evaluate(val_ds)
-    # history = model.fit(x=train_ds, epochs=1, validation_data=val_ds, shuffle=True)
-    # Save results
     df = DataFrame.from_dict(history.history)
-    return df, dataset_handler, weights
+    # Get best model
+    checkpoint_model = open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                        weights=weights if balance == "loss" else None,
+                                        channels=3 if mode == "s" else 6, dropout=dropout, real_mode=real_mode,
+                                        tensorflow=tensorflow, num_classes=DATASET_META[dataset_name]["classes"])
+    evaluate = {'train': _eval_list_to_dict(evaluate=checkpoint_model.evaluate(train_ds),
+                                            metrics=checkpoint_model.metrics_names)}
+    train_confusion_matrix = _get_confusion_matrix(train_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
+    train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
+    if val_ds:
+        evaluate['val'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(val_ds),
+                                             metrics=checkpoint_model.metrics_names)
+        val_confusion_matrix = _get_confusion_matrix(val_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
+        val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
+    if test_ds:
+        evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_ds),
+                                              metrics=checkpoint_model.metrics_names)
+        test_confusion_matrix = _get_confusion_matrix(test_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
+        test_confusion_matrix.to_csv(str(temp_path / 'test_confusion_matrix.csv'))
+    eval_df = DataFrame.from_dict(evaluate)
+    return df, dataset_handler, weights, eval_df
+
+
+def parse_dropout(dropout):
+    if dropout is None:
+        dropout = {
+            "downsampling": None,
+            "bottle_neck": None,
+            "upsampling": None
+        }
+    elif isinstance(dropout, float):
+        dropout = {
+            "downsampling": dropout,
+            "bottle_neck": dropout,
+            "upsampling": dropout
+        }
+    elif isinstance(dropout, list):
+        assert len(dropout) == 3, f"Dropout list should be of length 3, received {len(dropout)}"
+        dropout = {
+            "downsampling": dropout[0],
+            "bottle_neck": dropout[1],
+            "upsampling": dropout[2]
+        }
+    elif not isinstance(dropout, dict):
+        raise ValueError(f"Unknown dataset format {dropout}")
+    if "downsampling" not in dropout.keys():
+        raise ValueError(f"downsampling should be a dropout key. dropout keys: {dropout.keys()}")
+    if "bottle_neck" not in dropout.keys():
+        raise ValueError(f"bottle_neck should be a dropout key. dropout keys: {dropout.keys()}")
+    if "upsampling" not in dropout.keys():
+        raise ValueError(f"upsampling should be a dropout key. dropout keys: {dropout.keys()}")
+    return dropout
 
 
 def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                 mode: str, complex_mode: bool, real_mode: str,
                 early_stop: Union[int, bool], epochs: int,
-                dataset_name: str, dataset_method: str,
+                dataset_name: str, dataset_method: str, dropout,
                 percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False):
     temp_path = create_folder("./log/")
     makedirs(temp_path, exist_ok=True)
+    dropout = parse_dropout(dropout=dropout)
     with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
         summary_file.write(" ".join(sys.argv[1:]) + "\n")
         summary_file.write(f"Model: {'cv-' if complex_mode else 'rv-'}{model_name}\n")
@@ -270,16 +380,17 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
         summary_file.write(f"\tepochs: {epochs}\n")
         summary_file.write(f"\t{'' if early_stop else 'no'} early stop\n")
         summary_file.write(f"\tweighted {balance}\n")
-    df, dataset_handler, weights = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
-                                             mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                             early_stop=early_stop, temp_path=temp_path, epochs=epochs,
-                                             dataset_name=dataset_name, dataset_method=dataset_method,
-                                             percentage=percentage, debug=debug)
+    df, dataset_handler, weights, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
+                                                      mode=mode, complex_mode=complex_mode, real_mode=real_mode,
+                                                      early_stop=early_stop, temp_path=temp_path, epochs=epochs,
+                                                      dataset_name=dataset_name, dataset_method=dataset_method,
+                                                      percentage=percentage, debug=debug, dropout=dropout)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
+    eval_df.to_csv(str(temp_path / 'evaluate.csv'))
     if MODEL_META[model_name]["task"] != "classification":
         save_result_image_from_saved_model(temp_path, dataset_handler=dataset_handler, model_name=model_name,
                                            tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
-                                           channels=3 if mode == "s" else 6, weights=weights)
+                                           channels=3 if mode == "s" else 6, weights=weights, dropout=dropout)
 
 
 if __name__ == "__main__":
@@ -287,6 +398,5 @@ if __name__ == "__main__":
     run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
                 mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
                 real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
-                dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None)
-
-
+                dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
+                dropout=args.dropout)
