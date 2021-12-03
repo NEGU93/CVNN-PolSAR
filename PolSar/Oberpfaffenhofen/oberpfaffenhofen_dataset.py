@@ -15,6 +15,9 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
 elif path.exists('/home/cfren/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
     NOTIFY = False
+elif path.exists('/scratchm/jbarrach/'):
+    sys.path.insert(1, '/scratchm/jbarrach/onera/Polsar')
+    NOTIFY = False
 else:
     raise FileNotFoundError("path of the dataset reader not found")
 from dataset_reader import PolsarDatasetHandler
@@ -35,6 +38,10 @@ elif path.exists("/home/cfren/Documents/onera/PolSar/Oberpfaffenhofen"):
     labels_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/Label_Germany.mat'
     t_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
     s_path = '/home/cfren/Documents/data/PolSAR/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
+elif path.exists("/scratchm/jbarrach/onera/PolSar/Oberpfaffenhofen"):
+    labels_path = '/scratchm/jbarrach/Oberpfaffenhofen/Label_Germany.mat'
+    t_path = '/scratchm/jbarrach/Oberpfaffenhofen//ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    s_path = ''
 else:
     raise FileNotFoundError("No path found for the requested dataset")
 
