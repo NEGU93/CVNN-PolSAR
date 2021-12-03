@@ -1,4 +1,5 @@
 import argparse
+import os
 import os.path
 from argparse import RawTextHelpFormatter
 from pathlib import Path
@@ -22,6 +23,9 @@ from models.own_unet import get_my_unet_model
 from models.haensch_mlp import get_haensch_mlp_model
 
 from pdb import set_trace
+if os.path.exists('/scratchm/jbarrach'):
+    print("Running on Spiro ONERA")	
+    os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
 EPOCHS = 1
 DROPOUT_DEFAULT = {
