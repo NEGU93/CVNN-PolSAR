@@ -21,6 +21,9 @@ elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
 elif path.exists('/home/cfren/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
     NOTIFY = False
+elif path.exists('/scratchm/jbarrach'):
+    sys.path.insert(1, '/scratchm/jbarrach/onera/PolSar')
+    root_path = 'path to sf to be added'
 else:
     raise FileNotFoundError("path of the dataset reader not found")
 from dataset_reader import PolsarDatasetHandler

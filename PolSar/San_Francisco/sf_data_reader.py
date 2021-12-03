@@ -17,8 +17,11 @@ elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
 elif path.exists('/home/cfren/Documents/onera/PolSar'):
     sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
     root_path = "/home/cfren/Documents/onera/PolSar/San Francisco/PolSF"
+elif path.exists('/scratchm/jbarrach'):
+    sys.path.insert(1, '/scratchm/jbarrach/onera/PolSar')
+    root_path = 'path to sf to be added'
 else:
-    raise FileNotFoundError("path of the oberpfaffenhofen dataset not found")
+    raise FileNotFoundError("path of the san francisco dataset not found")
 from dataset_reader import labels_to_rgb, SF_COLORS, PolsarDatasetHandler
 
 
