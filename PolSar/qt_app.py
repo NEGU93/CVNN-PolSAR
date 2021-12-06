@@ -88,7 +88,7 @@ def _get_real_mode(simu_params):
         return 'complex'
 
 
-def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/11November") -> dict:
+def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/drop_330") -> dict:
     """
     Finds all paths in a given `root_dir` directory
     :param root_dir:
@@ -112,13 +112,16 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/11Nov
                             "dataset_method": _get_dataset_method(simu_params),
                             "balance": _get_balance(simu_params)
                         }
+                        if (Path(child_dir[0]) / 'evaluate.csv').is_file():
+                            monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                                str(Path(child_dir[0]) / 'evaluate.csv'))
                         monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
                             str(Path(child_dir[0]) / 'history_dict.csv'))
                         monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
                             str(Path(child_dir[0]) / 'prediction.png'))
                         if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
                             print("Generating picture predicted figure. "
-                                  "This will take a while but will only be done once")
+                                  "This will take a while but will only be done once in a lifetime")
                             # If I dont have the image I generate it
                             dataset_name = params["dataset"].upper()
                             if dataset_name == "BRETIGNY":  # For version compatibility
@@ -607,17 +610,20 @@ class MainWindow(QMainWindow):
         self.canvas.draw()
 
     def print_values(self, history_path):
-        if hasattr(self, "acc_values"):
-            if history_path is None:
-                self.acc_values[0].setText(f"00.00%")
-                self.acc_values[1].setText(f"00.00%")
-                self.acc_values[2].setText(f"00.00%")
-                self.acc_values[3].setText(f"00.00%")
-            else:
-                self.acc_values[0].setText(f"{history_path['accuracy']['mean'].iloc[-1]:.2%}")
-                self.acc_values[1].setText(f"{history_path['average_accuracy']['mean'].iloc[-1]:.2%}")
-                self.acc_values[2].setText(f"{history_path['val_accuracy']['mean'].iloc[-1]:.2%}")
-                self.acc_values[3].setText(f"{history_path['val_average_accuracy']['mean'].iloc[-1]:.2%}")
+        if history_path is not None and len(history_path) != 0 and hasattr(self, "acc_values"):
+            self.acc_values[0].setText(f"{history_path['train']['mean']['accuracy']:.2%} +- "
+                                       f"{history_path['train']['std']['accuracy'] / history_path['train']['count']['accuracy']:.2%}")
+            self.acc_values[1].setText(f"{history_path['train']['mean']['average_accuracy']:.2%} +- "
+                                       f"{history_path['train']['std']['average_accuracy'] / history_path['train']['count']['average_accuracy']:.2%}")
+            self.acc_values[2].setText(f"{history_path['val']['mean']['accuracy']:.2%} +- "
+                                       f"{history_path['val']['std']['accuracy'] / history_path['val']['count']['accuracy']:.2%}")
+            self.acc_values[3].setText(f"{history_path['val']['mean']['average_accuracy']:.2%} +- "
+                                       f"{history_path['val']['std']['average_accuracy'] / history_path['val']['count']['average_accuracy']:.2%}")
+        elif hasattr(self, "acc_values"):
+            self.acc_values[0].setText(f"00.00%")
+            self.acc_values[1].setText(f"00.00%")
+            self.acc_values[2].setText(f"00.00%")
+            self.acc_values[3].setText(f"00.00%")
 
     def update_information(self, key, value):
         self.params[key] = value
@@ -641,8 +647,14 @@ class MainWindow(QMainWindow):
                     pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
                 self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'] = pandas_dict.groupby(
                     'epoch').describe()
+            if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats']) == 0:
+                pandas_dict = pd.DataFrame()
+                for data_results_dict in self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval']:
+                    result_pandas = pd.read_csv(data_results_dict, index_col=0)
+                    pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+                self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'] = pandas_dict.groupby(pandas_dict.index).describe()
             self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
-            self.print_values(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
+            self.print_values(self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'])
         else:
             self.print_values(None)
 
