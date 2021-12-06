@@ -255,7 +255,8 @@ class PolsarDatasetHandler(ABC):
     def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
                     savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
-                    batch_size: int = cao_dataset_parameters['batch_size'], task: str = "segmentation"):
+                    batch_size: int = cao_dataset_parameters['batch_size'], task: str = "segmentation",
+                    use_tf_dataset=False):
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
                                                               shuffle=False)
@@ -273,9 +274,17 @@ class PolsarDatasetHandler(ABC):
             assert method != "single_separated_image", f"Can't apply classification to the full image."
             y_patches = [np.reshape(y[:, size // 2, size // 2, :],
                                     newshape=(y.shape[0], y.shape[-1])) for y in y_patches]
-        ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
-                                             data_augment=data_augment if i == 0 else False, shuffle=shuffle)
-                   for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+
+        if use_tf_dataset:
+            ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
+                                                 data_augment=data_augment if i == 0 else False, shuffle=shuffle)
+                       for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+        else:
+            if self.complex_mode:
+                ds_list = [(x, y) for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+            else:
+                ds_list = [transform_to_real_map_function(x, y, self.real_mode)
+                           for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return ds_list
 
     """
