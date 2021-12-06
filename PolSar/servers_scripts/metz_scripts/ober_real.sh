@@ -8,6 +8,6 @@
 #SBATCH --mail-type=ALL
 #SBATCH --output=logs/outputJob.log
     
-python3 ../principal_simulation.py --dropout 0.3 0.3 None --coherency --epochs 200 --dataset_method random --model cao --dataset OBER --real_imag
+python3 ../../principal_simulation.py --coherency --epochs 200 --dataset_method random --model cao --dataset OBER --real_imag
 
 
