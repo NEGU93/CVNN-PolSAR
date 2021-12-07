@@ -7,6 +7,7 @@ from pathlib import Path
 from collections import defaultdict
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from seaborn import heatmap
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QRadioButton, QLabel, QVBoxLayout, QHBoxLayout, \
     QButtonGroup, QTableView, QHeaderView, QSizePolicy
@@ -88,7 +89,7 @@ def _get_real_mode(simu_params):
         return 'complex'
 
 
-def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/drop_330") -> dict:
+def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/ober_good") -> dict:
     """
     Finds all paths in a given `root_dir` directory
     :param root_dir:
@@ -115,6 +116,11 @@ def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/drop_
                         if (Path(child_dir[0]) / 'evaluate.csv').is_file():
                             monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
                                 str(Path(child_dir[0]) / 'evaluate.csv'))
+                        if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
+                            monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                            monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
+                                str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
                         monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
                             str(Path(child_dir[0]) / 'history_dict.csv'))
                         monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
@@ -330,7 +336,10 @@ class MainWindow(QMainWindow):
 
     def _get_upper_layout(self):
         hlayout = QHBoxLayout()  # Main layout. Horizontal 2 things, radio buttons + image
-        hlayout.addLayout(self.radiobuttons())
+        vlayout = QVBoxLayout()
+        vlayout.addLayout(self.radiobuttons())
+        vlayout.addWidget(self._get_conf_figure_widget())
+        hlayout.addLayout(vlayout)
         img_layout = QVBoxLayout()
         img_layout.addWidget(self.params_label)  # Current config
         img_layout.addWidget(self.label_image)  # Show image
@@ -378,6 +387,12 @@ class MainWindow(QMainWindow):
         vlay.addWidget(self.toolbar)
         vlay.addWidget(self.canvas)
         return vlay
+
+    def _get_conf_figure_widget(self):
+        self.conf_figure = plt.figure()
+        self.conf_figure.tight_layout()
+        self.conf_canvas = FigureCanvas(self.conf_figure)
+        return self.conf_canvas
 
     def radiobuttons(self):
         vlayout = QVBoxLayout()
@@ -609,6 +624,16 @@ class MainWindow(QMainWindow):
         ax2.grid(True, axis='both')
         self.canvas.draw()
 
+    def plot_conf_matrix(self, conf_list):
+        self.conf_figure.clear()
+        ax1 = self.conf_figure.add_subplot(121)
+        ax2 = self.conf_figure.add_subplot(122)
+        ax1.clear()
+        ax2.clear()
+        heatmap(conf_list[0].drop('Total', axis=1).drop('Total'), ax=ax1, annot=True, cmap="rocket_r")
+        heatmap(conf_list[1].drop('Total', axis=1).drop('Total'), ax=ax2, annot=True, cmap="rocket_r")
+        self.conf_canvas.draw()
+
     def print_values(self, history_path):
         if history_path is not None and len(history_path) != 0 and hasattr(self, "acc_values"):
             self.acc_values[0].setText(f"{history_path['train']['mean']['accuracy']:.2%} +- "
@@ -652,9 +677,30 @@ class MainWindow(QMainWindow):
                 for data_results_dict in self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval']:
                     result_pandas = pd.read_csv(data_results_dict, index_col=0)
                     pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
-                self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'] = pandas_dict.groupby(pandas_dict.index).describe()
+                self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'] = \
+                    pandas_dict.groupby(pandas_dict.index).describe()
+            if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats']) == 0:
+                cm = []
+                # TODO: Put separated function. Repeat code twice
+                for path in self.simulation_results[json.dumps(self.params, sort_keys=True)]['train_conf']:
+                    tmp_cm = pd.read_csv(path, index_col=0)
+                    tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                    cm.append(tmp_cm)
+                cm_concat = pd.concat(tuple(cm))
+                cm_group = cm_concat.groupby(cm_concat.index)
+                self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats'].append(cm_group.mean())
+                cm = []
+                for path in self.simulation_results[json.dumps(self.params, sort_keys=True)]['val_conf']:
+                    tmp_cm = pd.read_csv(path, index_col=0)
+                    tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                    cm.append(tmp_cm)
+                cm_concat = pd.concat(tuple(cm))
+                cm_group = cm_concat.groupby(cm_concat.index)
+                self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats'].append(cm_group.mean())
+                assert len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats']) == 2
             self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
             self.print_values(self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'])
+            self.plot_conf_matrix(self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats'])
         else:
             self.print_values(None)
 
