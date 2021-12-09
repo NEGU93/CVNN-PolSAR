@@ -128,19 +128,20 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, normalize: bool = False):
+def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, normalize: bool = False, classification: bool = False):
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
-                                              complex_mode=complex_mode, real_mode=real_mode, normalize=normalize)
+                                              complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
+                                              classification=classification)
     elif dataset_name == "BRET":
         dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                          normalize=normalize, balance_dataset=balance)
+                                          normalize=normalize, balance_dataset=balance, classification=classification)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
-                                                  balance_dataset=balance)
+                                                  balance_dataset=balance, classification=classification)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler
@@ -197,15 +198,7 @@ def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, ch
     return model
 
 
-def get_final_model_results(root_path, model_name: str,
-                            dataset_handler,  # dataset parameters
-                            weights, dropout, channels: int = 3,  # model hyper-parameters
-                            complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
-                            use_mask: bool = True, tensorflow: bool = False):
-    full_image = dataset_handler.image
-    seg = dataset_handler.labels
-    if not complex_mode:
-        full_image, seg = transform_to_real_map_function(full_image, seg)
+def _final_result_segmentation(root_path, full_image, use_mask, dataset_handler, seg, model):
     # I pad to make sure dimensions are Ok when downsampling and upsampling again.
     first_dim_pad = int(2 ** 5 * np.ceil(full_image.shape[0] / 2 ** 5)) - full_image.shape[0]
     second_dim_pad = int(2 ** 5 * np.ceil(full_image.shape[1] / 2 ** 5)) - full_image.shape[1]
@@ -224,9 +217,6 @@ def get_final_model_results(root_path, model_name: str,
     full_image = tf.expand_dims(full_image, axis=0)  # add batch axis
     seg = tf.expand_dims(seg, axis=0)
 
-    model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
-                             weights=weights, channels=channels, real_mode=real_mode, dropout=dropout,
-                             tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
     prediction = model.predict(full_image)[0]
     if os.path.isfile(str(root_path / 'evaluate.csv')):
         evaluate = _eval_list_to_dict(model.evaluate(full_image, seg), model.metrics_names)
@@ -235,8 +225,49 @@ def get_final_model_results(root_path, model_name: str,
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    if MODEL_META[model_name]["task"] != "classification":  # TODO: Make it work for non segmentation cases
-        labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
+    labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
+
+
+def _final_result_classification(root_path, full_image, use_mask, dataset_handler, seg, model):
+    shape = model.input.shape[1:]
+    tiles, label_tiles = dataset_handler.sliding_window_operation(full_image, seg, stride=1, size=shape[:-1], pad=0)
+    if use_mask:
+        mask = dataset_handler.sparse_labels
+    else:
+        mask = None
+    prediction = model.predict(tiles)
+    if os.path.isfile(str(root_path / 'evaluate.csv')):
+        evaluate = _eval_list_to_dict(model.evaluate(tiles, tf.squeeze(label_tiles)), model.metrics_names)
+        eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
+        eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
+        eval_df.to_csv(str(root_path / 'evaluate.csv'))
+    if tf.dtypes.as_dtype(prediction.dtype).is_complex:
+        prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
+    image_prediction = tf.reshape(prediction, shape=tuple(full_image.shape[:-1]) + (prediction.shape[-1],))
+    labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
+                  colors=COLORS[dataset_handler.name])
+
+
+def get_final_model_results(root_path, model_name: str,
+                            dataset_handler,  # dataset parameters
+                            weights, dropout, channels: int = 3,  # model hyper-parameters
+                            complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
+                            use_mask: bool = True, tensorflow: bool = False):
+    model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
+                             weights=weights, channels=channels, real_mode=real_mode, dropout=dropout,
+                             tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
+    full_image = dataset_handler.image
+    seg = dataset_handler.labels
+    if not complex_mode:
+        full_image, seg = transform_to_real_map_function(full_image, seg)
+    if MODEL_META[model_name]['task'] == 'segmentation':
+        _final_result_segmentation(root_path=root_path, model=model, seg=seg, dataset_handler=dataset_handler,
+                                   use_mask=use_mask, full_image=full_image)
+    elif MODEL_META[model_name]['task'] == 'classification':
+        _final_result_classification(root_path=root_path, model=model, seg=seg, dataset_handler=dataset_handler,
+                                     use_mask=use_mask, full_image=full_image)
+    else:
+        raise ValueError(f"Unknown task {MODEL_META[model_name]['task']}")
 
 
 def _eval_list_to_dict(evaluate, metrics):
@@ -286,8 +317,9 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
                                            complex_mode=complex_mode, real_mode=real_mode, normalize=False,
-                                           balance=(balance == "dataset"))
-    ds_list = dataset_handler.get_dataset(method=dataset_method, task=MODEL_META[model_name]["task"],
+                                           balance=(balance == "dataset"),
+                                           classification=MODEL_META[model_name]['task'] == 'classification')
+    ds_list = dataset_handler.get_dataset(method=dataset_method,
                                           percentage=percentage,
                                           size=MODEL_META[model_name]["size"], stride=MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],

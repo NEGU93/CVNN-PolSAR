@@ -89,7 +89,7 @@ def _get_real_mode(simu_params):
         return 'complex'
 
 
-def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/ober_good") -> dict:
+def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/new") -> dict:
     """
     Finds all paths in a given `root_dir` directory
     :param root_dir:

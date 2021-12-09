@@ -234,17 +234,19 @@ def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=N
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
-                 normalize: bool = False, balance_dataset: bool = False):
+                 normalize: bool = False, balance_dataset: bool = False, classification: bool = False):
         self.name = name
         assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
         self.real_mode = real_mode.lower()
         self.complex_mode = complex_mode
+        self.classification = classification
         self.image, self.labels, self.sparse_labels = self.open_image()
         assert self.image.shape[:2] == self.labels.shape[:2]
         if normalize:
             self.image, _ = tf.linalg.normalize(self.image, axis=[0, 1])
-        if balance_dataset:
+        self.balance_dataset = balance_dataset
+        if balance_dataset and not classification:
             self._balance_image()
         self.weights = self._get_weights(self.labels)
 
@@ -255,26 +257,22 @@ class PolsarDatasetHandler(ABC):
     def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
                     savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
-                    batch_size: int = cao_dataset_parameters['batch_size'], task: str = "segmentation",
-                    use_tf_dataset=False):
+                    batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
-                                                              shuffle=False)
+                                                              shuffle=shuffle,
+                                                              classification=self.classification)
         elif method == "separate":
             x_patches, y_patches = self._get_separated_dataset(percentage=percentage, size=size, stride=stride, pad=pad,
                                                                savefig=savefig, orientation=orientation,
-                                                               shuffle=False)
+                                                               shuffle=shuffle,
+                                                               classification=self.classification)
         elif method == "single_separated_image":
+            assert self.classification, f"Can't apply classification to the full image."
             x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
                                                                             orientation=orientation, pad=True)
         else:
             raise ValueError(f"Unknown dataset method {method}")
-        assert task.lower() in {"classification", "segmentation"}
-        if task.lower() == "classification":
-            assert method != "single_separated_image", f"Can't apply classification to the full image."
-            y_patches = [np.reshape(y[:, size // 2, size // 2, :],
-                                    newshape=(y.shape[0], y.shape[-1])) for y in y_patches]
-
         if use_tf_dataset:
             ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
                                                  data_augment=data_augment if i == 0 else False, shuffle=shuffle)
@@ -367,7 +365,26 @@ class PolsarDatasetHandler(ABC):
             ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, self.real_mode))
         return ds
 
-    def _separate_dataset(self, patches, label_patches, percentage: List[float], shuffle: bool = True) \
+    @staticmethod
+    def balanced_test_split(x_all, y_all, test_size, shuffle):
+        x_train_per_class, x_test_per_class, y_train_per_class, y_test_per_class = [], [], [], []
+        sparse_y = np.argmax(y_all, axis=-1)
+        for cls in range(y_all.shape[-1]):
+            x_train, x_test, y_train, y_test = train_test_split(x_all[sparse_y == cls], y_all[sparse_y == cls],
+                                                                train_size=int(
+                                                                    (1-test_size) * y_all.shape[0] / y_all.shape[-1]),
+                                                                shuffle=shuffle)
+            x_train_per_class.append(x_train)
+            x_test_per_class.append(x_test)
+            y_train_per_class.append(y_train)
+            y_test_per_class.append(y_test)
+        x_train = np.concatenate(x_train_per_class)
+        x_test = np.concatenate(x_test_per_class)
+        y_train = np.concatenate(y_train_per_class)
+        y_test = np.concatenate(y_test_per_class)
+        return x_train, x_test, y_train, y_test
+
+    def _separate_dataset(self, patches, label_patches, percentage: List[float], shuffle: bool = True, balanced=False) \
             -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         :param patches: data patches
@@ -384,7 +401,13 @@ class PolsarDatasetHandler(ABC):
         x = []
         y = []
         for i, per in enumerate(percentage[:-1]):
-            x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1-per, shuffle=shuffle)
+            if self.classification and self.balance_dataset:
+                x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
+                                                                            shuffle=shuffle)
+            else:
+                x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1-per,
+                                                                    shuffle=True if self.classification else shuffle,
+                                                                    stratify=y_test if self.classification else None)
             percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
             x.append(x_train)
             y.append(y_train)
@@ -393,9 +416,18 @@ class PolsarDatasetHandler(ABC):
         x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
         return x, y
 
+    @staticmethod
+    def _to_classification(x, y):
+        y = np.reshape(y[:, y.shape[1] // 2, y.shape[2] // 2, :], newshape=(y.shape[0], y.shape[-1]))
+        # assert [np.all(y_patches_class[i][:] == y_patches[i][0][0][:]) for i in range(len(y_patches_class))]
+        # 2. Remove empty pixels
+        mask = np.invert(np.all(y == 0, axis=-1))
+        return tf.boolean_mask(x, mask).numpy(), tf.boolean_mask(y, mask).numpy()
+
     # Get dataset
     def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: List[float] = (0.8, 0.2),
-                              shuffle: bool = True, pad=0) -> (tf.data.Dataset, tf.data.Dataset):
+                              shuffle: bool = True, pad=0,
+                              classification: bool = False) -> (tf.data.Dataset, tf.data.Dataset):
         """
         Applies the sliding window operations getting smaller images of a big image T.
         Splits dataset into train and test.
@@ -406,20 +438,24 @@ class PolsarDatasetHandler(ABC):
         """
         patches, label_patches = self.sliding_window_operation(self.image, self.labels, size=size, stride=stride,
                                                                pad=pad)
+        if classification:
+            patches, label_patches = self._to_classification(x=patches, y=label_patches)
         # del T, labels  # Free up memory
-        x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle)
+        x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle,
+                                      balanced=self.balance_dataset and classification)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                               savefig: Optional[str] = None, orientation: str = "vertical"):
+                               savefig: Optional[str] = None, orientation: str = "vertical", classification=False):
         images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
-
         # train_slice_label = _balance_image(train_slice_label)
         self.weights = self._get_weights(labels[0])
         for i in range(0, len(labels)):
             images[i], labels[i] = self.sliding_window_operation(images[i], labels[i],
                                                                  size=size, stride=stride, pad=pad)
             images[i], labels[i] = self._remove_empty_image(data=images[i], labels=labels[i])
+            if classification:      # TODO: TEST THIS
+                images[i], labels[i] = self._to_classification(x=images[i], y=labels[i])
             if shuffle:  # No need to shuffle the rest
                 images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
         return images, labels
@@ -438,7 +474,12 @@ class PolsarDatasetHandler(ABC):
 
     @staticmethod
     def _remove_empty_image(data, labels):
-        mask = np.invert(np.all(np.all(labels == 0, axis=-1), axis=(1, 2)))
+        if len(labels.shape) == 4:
+            mask = np.invert(np.all(np.all(labels == 0, axis=-1), axis=(1, 2)))
+        elif len(labels.shape) == 2:
+            mask = np.invert(np.all(labels == 0, axis=-1))
+        else:
+            raise ValueError(f"Ups, shape of labels of size {len(labels.shape)} not supported.")
         masked_filtered_data = tf.reshape(tf.boolean_mask(data, mask), shape=(-1,) + data.shape[1:])
         masked_filtered_labels = tf.boolean_mask(labels, mask)
         # filtered_data = []
@@ -532,26 +573,32 @@ class PolsarDatasetHandler(ABC):
         """
         tiles = []
         label_tiles = []
+        if isinstance(size, int):
+            size = (size, size)
+        else:
+            size = tuple(size)
+            assert len(size) == 2
         if pad:
             im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
             lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
-        assert im.shape[0] > size and im.shape[1] > size, f"Image shape ({im.shape[0]}x{im.shape[1]}) is smaller " \
-                                                          f"than the window to apply ({size}x{size})"
-        for x in range(0, im.shape[0] - size + 1, stride):
-            for y in range(0, im.shape[1] - size + 1, stride):
-                slice_x = slice(x, x + size)
-                slice_y = slice(y, y + size)
+        assert im.shape[0] > size[0] and im.shape[1] > size[1], f"Image shape ({im.shape[0]}x{im.shape[1]}) " \
+                                                                f"is smaller than the window to apply " \
+                                                                f"({size[0]}x{size[1]})"
+        for x in range(0, im.shape[0] - size[0] + 1, stride):
+            for y in range(0, im.shape[1] - size[1] + 1, stride):
+                slice_x = slice(x, x + size[0])
+                slice_y = slice(y, y + size[1])
                 tiles.append(im[slice_x, slice_y])
                 if segmentation:
                     label_tiles.append(lab[slice_x, slice_y])
                 else:
-                    label_tiles.append(lab[x + int(size / 2), y + int(size / 2)])
-        assert np.all([p.shape == (size, size, im.shape[2]) for p in tiles])
+                    label_tiles.append(lab[x + int(size[0] / 2), y + int(size[1] / 2)])
+        assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])
         # assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
         if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
             # import pdb; pdb.set_trace()
             assert int(np.shape(tiles)[0]) == int(
-                (np.floor((im.shape[0] - size) / stride) + 1) * (np.floor((im.shape[1] - size) / stride) + 1))
+                (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
         return np.array(tiles), np.array(label_tiles)
 
     @staticmethod
