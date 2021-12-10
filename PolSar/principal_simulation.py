@@ -230,14 +230,19 @@ def _final_result_segmentation(root_path, full_image, use_mask, dataset_handler,
 
 def _final_result_classification(root_path, full_image, use_mask, dataset_handler, seg, model):
     shape = model.input.shape[1:]
-    tiles, label_tiles = dataset_handler.sliding_window_operation(full_image, seg, stride=1, size=shape[:-1], pad=0)
+    stride = 1
+    pad = tuple([(int(np.ceil((x-stride)/2)), (x-stride)//2) for x in shape[:-1]])
+    tiles, label_tiles = dataset_handler.sliding_window_operation(full_image, seg, stride=stride, size=shape[:-1],
+                                                                  pad=pad)
+    label_tiles = np.reshape(label_tiles[:, label_tiles.shape[1] // 2, label_tiles.shape[2] // 2, :],
+                             newshape=(label_tiles.shape[0], label_tiles.shape[-1]))
     if use_mask:
         mask = dataset_handler.sparse_labels
     else:
         mask = None
     prediction = model.predict(tiles)
     if os.path.isfile(str(root_path / 'evaluate.csv')):
-        evaluate = _eval_list_to_dict(model.evaluate(tiles, tf.squeeze(label_tiles)), model.metrics_names)
+        evaluate = _eval_list_to_dict(model.evaluate(tiles, label_tiles), model.metrics_names)
         eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
         eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
         eval_df.to_csv(str(root_path / 'evaluate.csv'))

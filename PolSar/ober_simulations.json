@@ -1,0 +1,13 @@
+{
+    "cao": {
+        "epochs": 300
+    },
+    "haensch": {
+        "epochs": 700,
+        "balance": ["None", "dataset"]
+    },
+    "zhang": { 
+        "epochs": 1000,
+        "balance": ["None", "dataset"]
+    }
+}

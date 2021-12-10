@@ -579,8 +579,20 @@ class PolsarDatasetHandler(ABC):
             size = tuple(size)
             assert len(size) == 2
         if pad:
-            im = np.pad(im, ((pad, pad), (pad, pad), (0, 0)))
-            lab = np.pad(lab, ((pad, pad), (pad, pad), (0, 0)))
+            if isinstance(pad, int):
+                pad = ((pad, pad), (pad, pad))
+            else:
+                pad = list(pad)
+                assert len(pad) == 2
+                for indx in range(2):
+                    if isinstance(pad[indx], int):
+                        pad[indx] = (pad[indx], pad[indx])
+                    else:
+                        pad[indx] = tuple(pad[indx])
+                        assert len(pad[indx]) == 2
+                pad = tuple(pad)
+            im = np.pad(im, (pad[0], pad[1], (0, 0)))
+            lab = np.pad(lab, (pad[0], pad[1], (0, 0)))
         assert im.shape[0] > size[0] and im.shape[1] > size[1], f"Image shape ({im.shape[0]}x{im.shape[1]}) " \
                                                                 f"is smaller than the window to apply " \
                                                                 f"({size[0]}x{size[1]})"
