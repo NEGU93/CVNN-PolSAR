@@ -1,5 +1,6 @@
 # Project own folders
 saved_models/
+logs/
 log/
 out/
 data/
