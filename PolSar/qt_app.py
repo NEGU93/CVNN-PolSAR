@@ -39,116 +39,177 @@ START_VALUES = {
 DEFAULT_MATPLOTLIB_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-def _get_model(simu_params):
-    try:
-        model_index = simu_params.split().index('--model')
-    except ValueError:
-        model_index = -1
-    return f"{simu_params.split()[model_index + 1] if model_index != -1 else 'cao'}".lower()
+class ResultReader:
 
+    def __init__(self, root_dir: str = "/media/barrachina/data/results/Journal_MLSP/new"):
+        """
+        Finds all paths in a given `root_dir` directory
+        :param root_dir:
+        """
+        child_dirs = os.walk(root_dir)
+        monte_dict = defaultdict(lambda: defaultdict(list))
+        for child_dir in child_dirs:
+            if "run-" in child_dir[0].split('/')[-1]:
+                file_path = Path(child_dir[0]) / "model_summary.txt"
+                if file_path.is_file():
+                    with open(file_path) as txt_sum_file:
+                        simu_params = txt_sum_file.readline()
+                        if (Path(child_dir[0]) / 'history_dict.csv').is_file():
+                            # TODO: Verify model and other strings are valid
+                            params = {
+                                "dataset": self._get_dataset(simu_params), "model": self._get_model(simu_params),
+                                "dtype": self._get_real_mode(simu_params),
+                                "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
+                                "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
+                                "dataset_method": self._get_dataset_method(simu_params),
+                                "balance": self._get_balance(simu_params)
+                            }
+                            if (Path(child_dir[0]) / 'evaluate.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                                    str(Path(child_dir[0]) / 'evaluate.csv'))
+                            if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                    str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                                monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
+                                    str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
+                            monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
+                                str(Path(child_dir[0]) / 'history_dict.csv'))
+                            monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
+                                str(Path(child_dir[0]) / 'prediction.png'))
+                            if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
+                                print("Generating picture predicted figure. "
+                                      "This will take a while but will only be done once in a lifetime")
+                                # If I dont have the image I generate it
+                                dataset_name = params["dataset"].upper()
+                                if dataset_name == "BRETIGNY":  # For version compatibility
+                                    dataset_name = "BRET"
+                                mode = "t" if 'coherency' in simu_params else "s"
+                                dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
+                                                                       complex_mode='real_mode' not in simu_params,
+                                                                       normalize=False, real_mode="real_imag",
+                                                                       balance=(params['balance'] == "dataset"))
+                                get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
+                                                        model_name=params["model"],
+                                                        tensorflow='tensorflow' in simu_params,
+                                                        complex_mode='real_mode' not in simu_params,
+                                                        channels=6 if 'coherency' in simu_params else 3,
+                                                        weights=dataset_handler.weights if
+                                                        params['balance'] == "loss" else None, dropout=None)
+                        else:
+                            print("No history_dict found on path " + child_dir[0])
+                else:
+                    print("No model_summary.txt found in " + child_dir[0])
+        self.monte_dict = monte_dict
+        self.df = pd.DataFrame()
+        for params in self.monte_dict.keys():
+            self.df = pd.concat([self.df, pd.DataFrame(json.loads(params), index=[0])], ignore_index=True)
+        self.df.sort_values(
+            by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance']).reset_index(
+            drop=True)
 
-def _get_dataset(simu_params):
-    try:
-        dataset_index = simu_params.split().index('--dataset')
-    except ValueError:
-        dataset_index = -1
-    return_value = f"{simu_params.split()[dataset_index + 1] if dataset_index != -1 else 'SF-AIRSAR'}".upper()
-    if return_value == "BRETIGNY":
-        return_value = "BRET"
-    return return_value
+    # Getters
 
+    def get_image(self, json_key: str):
+        return self.monte_dict[json_key]['image']
 
-def _get_balance(simu_params):
-    try:
-        balance_index = simu_params.split().index('--balance')
-        value = simu_params.split()[balance_index + 1].lower()
-        if value in {'loss', 'dataset'}:
-            return value
-        else:
-            return 'none'
-    except ValueError:
-        return 'none'
+    def data_exists(self, json_key: str):
+        return bool(self.monte_dict[json_key]['data'])
 
+    def get_stats(self, json_key: str):
+        """
+        The 'stats' key is lazy. It will only be calculated on the first call to this function
+        """
+        if len(self.monte_dict[json_key]['stats']) == 0:
+            pandas_dict = pd.DataFrame()
+            for data_results_dict in self.monte_dict[json_key]['data']:
+                result_pandas = pd.read_csv(data_results_dict, index_col=False)
+                pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+            self.monte_dict[json_key]['stats'] = pandas_dict.groupby('epoch').describe()
+        return self.monte_dict[json_key]['stats']
 
-def _get_dataset_method(simu_params):
-    try:
-        dataset_method_index = simu_params.split().index('--dataset_method')
-    except ValueError:
-        dataset_method_index = -1
-    return f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}"
+    def get_eval_stats(self, json_key: str):
+        if len(self.monte_dict[json_key]['eval_stats']) == 0:
+            pandas_dict = pd.DataFrame()
+            for data_results_dict in self.monte_dict[json_key]['eval']:
+                result_pandas = pd.read_csv(data_results_dict, index_col=0)
+                pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+            self.monte_dict[json_key]['eval_stats'] = pandas_dict.groupby(pandas_dict.index).describe()
+        return self.monte_dict[json_key]['eval_stats']
 
-
-def _get_real_mode(simu_params):
-    if 'real_mode' in simu_params:
-        real_mode_index = simu_params.split().index('--real_mode')
-        next_value = simu_params.split()[real_mode_index + 1]
-        return next_value if next_value in REAL_CAST_MODES else 'real_imag'
-    elif 'tensorflow' in simu_params:
-        return 'real_imag'
-    else:
-        return 'complex'
-
-
-def get_paths(root_dir: str = "/media/barrachina/data/results/Journal_MLSP/new") -> dict:
+    def get_conf_stats(self, json_key: str):
+        if len(self.monte_dict[json_key]['conf_stats']) == 0:
+            cm = []
+            # TODO: Put separated function. Repeat code twice
+            for path in self.monte_dict[json_key]['train_conf']:
+                tmp_cm = pd.read_csv(path, index_col=0)
+                tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                cm.append(tmp_cm)
+            cm_concat = pd.concat(tuple(cm))
+            cm_group = cm_concat.groupby(cm_concat.index)
+            self.monte_dict[json_key]['conf_stats'].append(cm_group.mean())
+            cm = []
+            for path in self.monte_dict[json_key]['val_conf']:
+                tmp_cm = pd.read_csv(path, index_col=0)
+                tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                cm.append(tmp_cm)
+            cm_concat = pd.concat(tuple(cm))
+            cm_group = cm_concat.groupby(cm_concat.index)
+            self.monte_dict[json_key]['conf_stats'].append(cm_group.mean())
+            assert len(self.monte_dict[json_key]['conf_stats']) == 2
+        return self.monte_dict[json_key]['conf_stats']
     """
-    Finds all paths in a given `root_dir` directory
-    :param root_dir:
-    :return:
+    Methods to parse simulation parameters
     """
-    child_dirs = os.walk(root_dir)
-    monte_dict = defaultdict(lambda: defaultdict(list))
-    for child_dir in child_dirs:
-        if "run-" in child_dir[0].split('/')[-1]:
-            file_path = Path(child_dir[0]) / "model_summary.txt"
-            if file_path.is_file():
-                with open(file_path) as txt_sum_file:
-                    simu_params = txt_sum_file.readline()
-                    if (Path(child_dir[0]) / 'history_dict.csv').is_file():
-                        # TODO: Verify model and other strings are valid
-                        params = {
-                            "dataset": _get_dataset(simu_params), "model": _get_model(simu_params),
-                            "dtype": _get_real_mode(simu_params),
-                            "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
-                            "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
-                            "dataset_method": _get_dataset_method(simu_params),
-                            "balance": _get_balance(simu_params)
-                        }
-                        if (Path(child_dir[0]) / 'evaluate.csv').is_file():
-                            monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
-                                str(Path(child_dir[0]) / 'evaluate.csv'))
-                        if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
-                            monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
-                                str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
-                            monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
-                                str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
-                        monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
-                            str(Path(child_dir[0]) / 'history_dict.csv'))
-                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
-                            str(Path(child_dir[0]) / 'prediction.png'))
-                        if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
-                            print("Generating picture predicted figure. "
-                                  "This will take a while but will only be done once in a lifetime")
-                            # If I dont have the image I generate it
-                            dataset_name = params["dataset"].upper()
-                            if dataset_name == "BRETIGNY":  # For version compatibility
-                                dataset_name = "BRET"
-                            mode = "t" if 'coherency' in simu_params else "s"
-                            dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
-                                                                   complex_mode='real_mode' not in simu_params,
-                                                                   normalize=False, real_mode="real_imag",
-                                                                   balance=(params['balance'] == "dataset"))
-                            get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
-                                                    model_name=params["model"],
-                                                    tensorflow='tensorflow' in simu_params,
-                                                    complex_mode='real_mode' not in simu_params,
-                                                    channels=6 if 'coherency' in simu_params else 3,
-                                                    weights=dataset_handler.weights if
-                                                    params['balance'] == "loss" else None, dropout=None)
-                    else:
-                        print("No history_dict found on path " + child_dir[0])
+
+    @staticmethod
+    def _get_model(simu_params):
+        try:
+            model_index = simu_params.split().index('--model')
+        except ValueError:
+            model_index = -1
+        return f"{simu_params.split()[model_index + 1] if model_index != -1 else 'cao'}".lower()
+
+    @staticmethod
+    def _get_dataset(simu_params):
+        try:
+            dataset_index = simu_params.split().index('--dataset')
+        except ValueError:
+            dataset_index = -1
+        return_value = f"{simu_params.split()[dataset_index + 1] if dataset_index != -1 else 'SF-AIRSAR'}".upper()
+        if return_value == "BRETIGNY":
+            return_value = "BRET"
+        return return_value
+
+    @staticmethod
+    def _get_balance(simu_params):
+        try:
+            balance_index = simu_params.split().index('--balance')
+            value = simu_params.split()[balance_index + 1].lower()
+            if value in {'loss', 'dataset'}:
+                return value
             else:
-                print("No model_summary.txt found in " + child_dir[0])
-    return monte_dict
+                return 'none'
+        except ValueError:
+            return 'none'
+
+    @staticmethod
+    def _get_dataset_method(simu_params):
+        try:
+            dataset_method_index = simu_params.split().index('--dataset_method')
+        except ValueError:
+            dataset_method_index = -1
+        return f"{simu_params.split()[dataset_method_index + 1] if dataset_method_index != -1 else 'random'}"
+
+    @staticmethod
+    def _get_real_mode(simu_params):
+        if 'real_mode' in simu_params:
+            real_mode_index = simu_params.split().index('--real_mode')
+            next_value = simu_params.split()[real_mode_index + 1]
+            return next_value if next_value in REAL_CAST_MODES else 'real_imag'
+        elif 'tensorflow' in simu_params:
+            return 'real_imag'
+        else:
+            return 'complex'
 
 
 """
@@ -279,14 +340,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Variables
-        self.simulation_results = get_paths()
+        self.simulation_results = ResultReader()
         self.params = START_VALUES  # start config to show
-        self.df = pd.DataFrame()
-        for params in self.simulation_results.keys():
-            self.df = pd.concat([self.df, pd.DataFrame(json.loads(params), index=[0])], ignore_index=True)
-        self.df.sort_values(
-            by=['dataset', 'model', 'dtype', 'library', 'dataset_mode', 'dataset_method', 'balance']).reset_index(
-            drop=True)
         self.plotter = MonteCarloPlotter()
 
         # Qt objects
@@ -360,7 +415,7 @@ class MainWindow(QMainWindow):
         # self.verticalLayout.addWidget(self.tableView)
         # set_trace()
         self.tableView.setModel(
-            DataFrameModel(self.df
+            DataFrameModel(self.simulation_results.df
                            .drop_duplicates()
                            .sort_values(by=['dataset', 'model', 'dtype', 'library',
                                             'dataset_mode', 'dataset_method', 'balance'])
@@ -369,7 +424,7 @@ class MainWindow(QMainWindow):
         )
         self.tableView.setAlternatingRowColors(True)
         self.tableView.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        for i in range(len(self.df.keys())):
+        for i in range(len(self.simulation_results.df.keys())):
             self.tableView.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
         self.tableView.setMinimumWidth(600)
         sp = self.tableView.sizePolicy()
@@ -663,44 +718,15 @@ class MainWindow(QMainWindow):
         elif value == "OBER":
             if hasattr(self, 'coh_rb'):
                 self.coh_rb.setChecked(True)  # Set real dtype
-        self.get_image(self.simulation_results[json.dumps(self.params, sort_keys=True)]['image'])
-        if self.simulation_results[json.dumps(self.params, sort_keys=True)]['data']:
-            if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats']) == 0:
-                pandas_dict = pd.DataFrame()
-                for data_results_dict in self.simulation_results[json.dumps(self.params, sort_keys=True)]['data']:
-                    result_pandas = pd.read_csv(data_results_dict, index_col=False)
-                    pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
-                self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'] = pandas_dict.groupby(
-                    'epoch').describe()
-            if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats']) == 0:
-                pandas_dict = pd.DataFrame()
-                for data_results_dict in self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval']:
-                    result_pandas = pd.read_csv(data_results_dict, index_col=0)
-                    pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
-                self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'] = \
-                    pandas_dict.groupby(pandas_dict.index).describe()
-            if len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats']) == 0:
-                cm = []
-                # TODO: Put separated function. Repeat code twice
-                for path in self.simulation_results[json.dumps(self.params, sort_keys=True)]['train_conf']:
-                    tmp_cm = pd.read_csv(path, index_col=0)
-                    tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
-                    cm.append(tmp_cm)
-                cm_concat = pd.concat(tuple(cm))
-                cm_group = cm_concat.groupby(cm_concat.index)
-                self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats'].append(cm_group.mean())
-                cm = []
-                for path in self.simulation_results[json.dumps(self.params, sort_keys=True)]['val_conf']:
-                    tmp_cm = pd.read_csv(path, index_col=0)
-                    tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
-                    cm.append(tmp_cm)
-                cm_concat = pd.concat(tuple(cm))
-                cm_group = cm_concat.groupby(cm_concat.index)
-                self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats'].append(cm_group.mean())
-                assert len(self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats']) == 2
-            self.plot(self.simulation_results[json.dumps(self.params, sort_keys=True)]['stats'])
-            self.print_values(self.simulation_results[json.dumps(self.params, sort_keys=True)]['eval_stats'])
-            self.plot_conf_matrix(self.simulation_results[json.dumps(self.params, sort_keys=True)]['conf_stats'])
+        json_key = json.dumps(self.params, sort_keys=True)
+        self.get_image(self.simulation_results.get_image(json_key))
+        if self.simulation_results.data_exists(json_key):
+            stats = self.simulation_results.get_stats(json_key=json_key)
+            eval_stats = self.simulation_results.get_eval_stats(json_key=json_key)
+            conf_stats = self.simulation_results.get_conf_stats(json_key=json_key)
+            self.plot(stats)
+            self.print_values(eval_stats)
+            self.plot_conf_matrix(conf_stats)
         else:
             self.print_values(None)
 
