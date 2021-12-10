@@ -180,12 +180,19 @@ class ResultReader:
         The 'stats' key is lazy. It will only be calculated on the first call to this function
         """
         if len(self.monte_dict[json_key]['stats']) == 0:
-            pandas_dict = pd.DataFrame()
-            for data_results_dict in self.monte_dict[json_key]['data']:
-                result_pandas = pd.read_csv(data_results_dict, index_col=False)
-                pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+            pandas_dict = self.get_pandas_data(json_key=json_key)
             self.monte_dict[json_key]['stats'] = pandas_dict.groupby('epoch').describe()
         return self.monte_dict[json_key]['stats']
+
+    def get_pandas_data(self, json_key: str):
+        """
+        The 'stats' key is lazy. It will only be calculated on the first call to this function
+        """
+        pandas_dict = pd.DataFrame()
+        for data_results_dict in self.monte_dict[json_key]['data']:
+            result_pandas = pd.read_csv(data_results_dict, index_col=False)
+            pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
+        return pandas_dict
 
     def get_eval_stats(self, json_key: str):
         if len(self.monte_dict[json_key]['eval_stats']) == 0:
@@ -355,7 +362,7 @@ class SeveralMonteCarloPlotter:
         epochs = []
         for i in range(len(data)):
             if epoch == -1:
-                epochs.append(max(data[i].epoch))    # get last epoch TODO: What about the highest performant?
+                epochs.append(max(data[i].epoch))    # get last epoch
             else:
                 epochs.append(epoch)
         # Prepare data
@@ -370,7 +377,7 @@ class SeveralMonteCarloPlotter:
 
         # Run figure
         fig = plt.figure()
-        ax = sns.boxplot(x=labels, y=key, hue="network", data=result, boxprops=dict(alpha=.3))
+        ax = sns.boxplot(x=labels, y=key, data=result, boxprops=dict(alpha=.3))
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
         # Make black lines the color of the box
@@ -399,8 +406,9 @@ class SeveralMonteCarloPlotter:
 
 
 if __name__ == "__main__":
-    simulation_results = ResultReader(root_dir="/media/barrachina/data/results/Journal_MLSP/old/During-Marriage-simulations")
+    simulation_results = ResultReader(root_dir=
+                                      "/media/barrachina/data/results/Journal_MLSP/old/During-Marriage-simulations")
     lst = list(simulation_results.monte_dict.keys())
-    data = [simulation_results.get_data(lst[0])]
-    data.append(simulation_results.get_data(lst[1]))
-    SeveralMonteCarloPlotter().box_plot(labels=["one", "two"], data=data)
+    data = [simulation_results.get_pandas_data(lst[0])]
+    data.append(simulation_results.get_pandas_data(lst[1]))
+    SeveralMonteCarloPlotter().box_plot(labels=["one", "two"], data=data, showfig=True)
