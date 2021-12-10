@@ -1,0 +1,11 @@
+Unable to init server: Could not connect: Connection refused
+Unable to init server: Impossible de se connecter : Connection refused
+
+(principal_simulation.py:29824): Gdk-CRITICAL **: 20:04:20.597: gdk_cursor_new_for_display: assertion 'GDK_IS_DISPLAY (display)' failed
+usage: principal_simulation.py [-h] [--dataset_method DATASET_METHOD]
+                               [--tensorflow] [--epochs EPOCHS]
+                               [--model MODEL] [--early_stop [EARLY_STOP]]
+                               [--balance BALANCE] [--real_mode [REAL_MODE]]
+                               [--dropout DROPOUT DROPOUT DROPOUT]
+                               [--coherency] [--dataset DATASET]
+principal_simulation.py: error: unrecognized arguments: --real_imag
