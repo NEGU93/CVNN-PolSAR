@@ -346,13 +346,62 @@ class SeveralMonteCarloPlotter:
         :param savefile: String with the path + filename where to save the boxplot. If None (default) no figure is saved
         """
         if library == 'plotly':
-            raise NotImplementedError(f"Sorry, Plotly still not implemented")
+            self._box_plot_plotly(labels=labels, mc_runs=data, key=key, epoch=epoch, showfig=showfig, savefile=savefile)
         # TODO: https://seaborn.pydata.org/examples/grouped_boxplot.html
         elif library == 'seaborn':
             self._box_plot_seaborn(labels=labels, data=data, key=key, epoch=epoch, showfig=showfig, savefile=savefile)
         else:
             raise ModuleNotFoundError(f"Library {library} requested for plotting unknown")
         return None
+
+    def _box_plot_plotly(self, labels: List[str], mc_runs: List,
+                          key='accuracy', epoch=-1, showfig=False, savefile=None, extension=".svg"):
+        if 'plotly' not in AVAILABLE_LIBRARIES:
+            raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
+                                      f"was called but will be omitted")
+        savefig = False
+        if savefile is not None:
+            savefig = True
+        epochs = []
+        for i in range(len(mc_runs)):
+            if epoch == -1:
+                epochs.append(max(mc_runs[i].epoch))  # get last epoch
+            else:
+                epochs.append(epoch)
+        # Prepare data
+        fig = go.Figure()
+        # color_pal = []
+        for i, mc_run in enumerate(mc_runs):
+            # color_pal += sns.color_palette()[:len(df.network.unique())]
+            filter = mc_run['epoch'] == epochs[i]
+            data = mc_run[filter]
+            fig.add_trace(go.Box(
+                y=data[key],
+                name=labels[i],
+                whiskerwidth=0.2,
+                notched=True,  # confidence intervals for the median
+                fillcolor=add_transparency(DEFAULT_PLOTLY_COLORS[i], 0.5),
+                boxpoints='suspectedoutliers',  # to mark the suspected outliers
+                line=dict(color=DEFAULT_PLOTLY_COLORS[i]),
+                boxmean=True  # Interesting how sometimes it falls outside the box
+            ))
+        fig.update_layout(
+            title='Plotly Box Plot',
+            yaxis=dict(
+                title=key,
+                autorange=True,
+                showgrid=True,
+                dtick=0.05,
+            ),
+            showlegend=True
+        )
+        if savefig:
+            if not savefile.endswith('.html'):
+                savefile += '.html'
+            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
+            plotly.offline.plot(fig, filename=savefile, config=PLOTLY_CONFIG, auto_open=showfig)
+        elif showfig:
+            fig.show(config=PLOTLY_CONFIG)
 
     def _box_plot_seaborn(self, labels: List[str], data: List,
                           key='accuracy', epoch=-1, showfig=False, savefile=None, extension=".svg"):
@@ -371,8 +420,8 @@ class SeveralMonteCarloPlotter:
         for i, mc_run in enumerate(data):
             # color_pal += sns.color_palette()[:len(df.network.unique())]
             filter = mc_run['epoch'] == epochs[i]
-            data = mc_run[filter]
-            frames.append(data)
+            t_data = mc_run[filter]
+            frames.append(t_data)
         result = pd.concat(frames)
 
         # Run figure
@@ -409,6 +458,6 @@ if __name__ == "__main__":
     simulation_results = ResultReader(root_dir=
                                       "/media/barrachina/data/results/Journal_MLSP/old/During-Marriage-simulations")
     lst = list(simulation_results.monte_dict.keys())
-    data = [simulation_results.get_pandas_data(lst[0])]
-    data.append(simulation_results.get_pandas_data(lst[1]))
-    SeveralMonteCarloPlotter().box_plot(labels=["one", "two"], data=data, showfig=True)
+    data = [simulation_results.get_pandas_data(lst[10])]
+    data.append(simulation_results.get_pandas_data(lst[11]))
+    SeveralMonteCarloPlotter().box_plot(labels=["one", "two"], data=data, showfig=True, library='plotly')
