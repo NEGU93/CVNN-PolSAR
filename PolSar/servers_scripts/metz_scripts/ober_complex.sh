@@ -9,5 +9,5 @@
 #SBATCH -e logs/slurm-%j.err
 #SBATCH -o logs/slurm-%j.out
     
-python3 ../../principal_simulation.py --coherency --epochs 300 --dataset_method random --model cao --dataset OBER
+python3 ../../principal_simulation.py --coherency --epochs 400 --dataset_method random --model cao --dataset OBER
 
