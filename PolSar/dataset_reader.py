@@ -161,21 +161,27 @@ def sparse_to_categorical_1D(labels) -> np.ndarray:
     return ground_truth
 
 
-def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None, path=None, mask=None):
+def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None, path=None, mask=None, ax=None):
     labels_rgb = labels_to_rgb(labels, colors=COLORS[dataset_name], mask=mask)
-    fig, ax = plt.subplots()
-    if t is not None:
-        rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
-        ax.imshow(rgb)
-    ax.imshow(labels_rgb, alpha=0.4)
-    if path is not None:
+    fig = None
+    if ax is None:
+        fig, ax = plt.subplots()
+    alpha = 1.
+    # set_trace()
+    # if t is not None:
+    #     alpha = 0.4
+    #     rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
+    #     ax.imshow(rgb)
+    ax.imshow(labels_rgb, alpha=alpha)
+    if fig is not None and path is not None:
         path = str(path)
         if len(path.split(".")) < 2:
             path = path + ".png"
         fig.savefig(path)
     else:
         plt.show()
-    plt.close(fig)
+    if fig is not None:
+        plt.close(fig)
 
 
 def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None, format: str = '.png') \
@@ -713,10 +719,10 @@ class PolsarDatasetHandler(ABC):
         return T
 
     # Debug
-    def print_ground_truth(self, label: Optional = None, path=None, t=None, mask: Optional = None):
+    def print_ground_truth(self, label: Optional = None, path=None, t=None, mask: Optional = None, ax=None):
         if label is None:
             label = self.labels
         if mask is None:
             mask = self.sparse_labels
         return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
-                                  path=path)
+                                  path=path, ax=ax)

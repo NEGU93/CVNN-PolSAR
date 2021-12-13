@@ -1,6 +1,7 @@
 import scipy.io
 import os
 from os import path
+from pathlib import Path
 import sys
 
 if path.exists('/home/barrachina/Documents/onera/PolSar/'):
@@ -54,9 +55,15 @@ class OberpfaffenhofenDataset(PolsarDatasetHandler):
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
             t = self.image
-        super(OberpfaffenhofenDataset, self).print_ground_truth(t=t, *args, **kwargs)
+        super(OberpfaffenhofenDataset, self).print_ground_truth(t=t,
+                                                                path=Path(os.path.dirname(labels_path)) / "ground_truth.png",
+                                                                *args, **kwargs)
 
     def open_image(self):
         labels = scipy.io.loadmat(labels_path)['label']
         image = self.open_t_dataset_t3(t_path)
         return image, self.sparse_to_categorical_2D(labels), labels
+
+
+if __name__ == "__main__":
+    OberpfaffenhofenDataset().print_ground_truth()

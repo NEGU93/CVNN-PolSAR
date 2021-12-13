@@ -23,6 +23,12 @@ BASE_PATHS = {
     "SF-AIRSAR": "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-Pauli.bmp",
     "SF-RS2": "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp"
 }
+GROUND_TRUTH_PATHS = {
+    "BRET": "/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/labels_4roi.png",
+    "OBER": "/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ground_truth.png",
+    "SF-AIRSAR": "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-label3d.png",
+    "SF-RS2": "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-label3d.png"
+}
 START_VALUES = {
     "dataset": 'SF-AIRSAR',
     "model": "cao",
@@ -117,6 +123,7 @@ class MainWindow(QMainWindow):
         # Qt objects
         self.setWindowTitle("Results")
         self.label_image = QLabel()
+        self.ground_truth_image = QLabel()
         self.params_label = QLabel(str(self.params))
         self.params_label.setAlignment(Qt.AlignCenter)
         self.btngroup = []
@@ -220,6 +227,8 @@ class MainWindow(QMainWindow):
         return self.conf_canvas
 
     def radiobuttons(self):
+        outer_vlay = QVBoxLayout()
+        hl = QHBoxLayout()
         vlayout = QVBoxLayout()
 
         vlayout.addLayout(self.add_title(self.dataset_radiobutton(), name="Dataset"))
@@ -229,9 +238,14 @@ class MainWindow(QMainWindow):
         vlayout.addLayout(self.add_title(self.dataset_mode_radiobuttons(), "Dataset Mode"))
         vlayout.addLayout(self.add_title(self.model_method_radiobutton(), "Dataset Method"))
         vlayout.addLayout(self.add_title(self.balance_radiobuttons(), "Balance"))
-        vlayout.addStretch()
-        vlayout.addLayout(self._get_accuracy_layout())
-        return vlayout
+
+        hl.addLayout(vlayout)
+        hl.addWidget(self.ground_truth_image)
+
+        outer_vlay.addLayout(hl)
+        outer_vlay.addStretch()
+        outer_vlay.addLayout(self._get_accuracy_layout())
+        return outer_vlay
 
     def dataset_mode_radiobuttons(self):
         vlayout = QHBoxLayout()
@@ -437,6 +451,12 @@ class MainWindow(QMainWindow):
         self.label_image.setPixmap(scaled_pixmap)
         self.label_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
 
+    def get_image_ground_truth(self):
+        pixmap = QPixmap(GROUND_TRUTH_PATHS[self.params["dataset"]])
+        scaled_pixmap = pixmap.scaled(400, 200, QtCore.Qt.KeepAspectRatio)
+        self.ground_truth_image.setPixmap(scaled_pixmap)
+        self.ground_truth_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
+
     def plot(self, history_path):
         self.figure.clear()
         ax1 = self.figure.add_subplot(121)
@@ -490,6 +510,7 @@ class MainWindow(QMainWindow):
                 self.coh_rb.setChecked(True)  # Set real dtype
         json_key = json.dumps(self.params, sort_keys=True)
         self.get_image(self.simulation_results.get_image(json_key))
+        self.get_image_ground_truth()
         if self.simulation_results.data_exists(json_key):
             stats = self.simulation_results.get_stats(json_key=json_key)
             eval_stats = self.simulation_results.get_eval_stats(json_key=json_key)
