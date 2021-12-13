@@ -21,6 +21,7 @@ from models.cao_fcnn import get_cao_fcnn_model
 from models.zhang_cnn import get_zhang_cnn_model
 from models.own_unet import get_my_unet_model
 from models.haensch_mlp import get_haensch_mlp_model
+from models.tan_3dcnn import get_tan_3d_cnn_model
 
 from pdb import set_trace
 if os.path.exists('/scratchm/jbarrach'):
@@ -49,10 +50,12 @@ MODEL_META = {
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
-    "zhang": {"size": 12, "stride": 1, "pad": 6, "batch_size": 100,
+    "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.9), "task": "classification"},
     "haensch": {"size": 1, "stride": 1, "pad": 0, "batch_size": 100,
-                "percentage": (0.02, 0.08, 0.9), "task": "classification"}
+                "percentage": (0.02, 0.08, 0.9), "task": "classification"},
+    "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
+            "percentage": (0.09, 0.01, 0.9), "task": "classification"}
 }
 
 
@@ -182,6 +185,13 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                       num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                                       dropout=dropout["downsampling"],
                                       name=name_prefix + model_name)
+    elif model_name == 'tan':
+        if weights is not None:
+            print("WARNING: Tan model does not support weighted loss")
+        model = get_tan_3d_cnn_model(input_shape=(MODEL_META["tan"]["size"],
+                                                  MODEL_META["tan"]["size"], channels),
+                                     num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                                     name=name_prefix + model_name)
     else:
         raise ValueError(f"Unknown model {model_name}")
     return model

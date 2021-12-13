@@ -587,6 +587,13 @@ class PolsarDatasetHandler(ABC):
         if pad:
             if isinstance(pad, int):
                 pad = ((pad, pad), (pad, pad))
+            elif isinstance(pad, str):
+                if pad.lower() == "same":
+                    pad = tuple([(int(np.ceil((x - stride) / 2)), (x - stride) // 2) for x in im.shape[:-1]])
+                elif pad.lower() == "valid":
+                    pad = ((0, 0), (0, 0))
+                else:
+                    raise ValueError(f"padding: {pad} not recognized. Possible values are 'valid' or 'same'")
             else:
                 pad = list(pad)
                 assert len(pad) == 2

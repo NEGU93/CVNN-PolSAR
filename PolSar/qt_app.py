@@ -252,46 +252,46 @@ class MainWindow(QMainWindow):
         self.coh_rb = QRadioButton("coh")
         self.coh_rb.toggled.connect(lambda: self.update_information("dataset_mode", self.coh_rb.text()))
 
-        rb2 = QRadioButton("k", self)
-        rb2.toggled.connect(lambda: self.update_information("dataset_mode", rb2.text()))
+        self.pauli_rb = QRadioButton("k", self)
+        self.pauli_rb.toggled.connect(lambda: self.update_information("dataset_mode", self.pauli_rb.text()))
 
         self.btngroup.append(QButtonGroup())
-        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(self.pauli_rb)
         self.btngroup[-1].addButton(self.coh_rb)
 
         self.coh_rb.setChecked(True)
         vlayout.addWidget(self.coh_rb)
-        vlayout.addWidget(rb2)
+        vlayout.addWidget(self.pauli_rb)
         vlayout.addStretch()
 
         return vlayout
 
     def dtype_radiobuttons(self):
         vlayout = QHBoxLayout()
-        rb1 = QRadioButton("complex")
-        rb1.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
+        self.complex_dtype_rb = QRadioButton("complex")
+        self.complex_dtype_rb.toggled.connect(lambda state: state and  self.update_information("dtype", self.complex_dtype_rb.text()))
 
         self.real_dtype_rb = QRadioButton("real_imag", self)
         self.real_dtype_rb.toggled.connect(
             lambda state: state and self.update_information("dtype", self.real_dtype_rb.text()))
 
         rb2 = QRadioButton("amplitude_phase")
-        rb2.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
+        rb2.toggled.connect(lambda state: state and self.update_information("dtype", rb2.text()))
         rb3 = QRadioButton("amplitude_only")
-        rb3.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
+        rb3.toggled.connect(lambda state: state and self.update_information("dtype", rb3.text()))
         rb4 = QRadioButton("real_only")
-        rb4.toggled.connect(lambda state: state and self.update_information("dtype", rb1.text()))
+        rb4.toggled.connect(lambda state: state and self.update_information("dtype", rb4.text()))
 
         self.btngroup.append(QButtonGroup())
         # self.btngroup[-1].addButton(self.real_dtype_rb)
-        self.btngroup[-1].addButton(rb1)
+        self.btngroup[-1].addButton(self.complex_dtype_rb)
         self.btngroup[-1].addButton(self.real_dtype_rb)
         self.btngroup[-1].addButton(rb2)
         self.btngroup[-1].addButton(rb3)
         self.btngroup[-1].addButton(rb4)
 
-        rb1.setChecked(True)
-        vlayout.addWidget(rb1)
+        self.complex_dtype_rb.setChecked(True)
+        vlayout.addWidget(self.complex_dtype_rb)
         vlayout.addWidget(self.real_dtype_rb)
         vlayout.addWidget(rb2)
         vlayout.addWidget(rb3)
@@ -382,7 +382,11 @@ class MainWindow(QMainWindow):
         rb4 = QRadioButton("haensch", self)
         rb4.toggled.connect(lambda: self.update_information("model", rb4.text()))
 
+        rb5 = QRadioButton("tan", self)
+        rb5.toggled.connect(lambda: self.update_information("model", rb5.text()))
+
         self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb5)
         self.btngroup[-1].addButton(rb4)
         self.btngroup[-1].addButton(rb3)
         self.btngroup[-1].addButton(rb2)
@@ -393,6 +397,7 @@ class MainWindow(QMainWindow):
         vlayout.addWidget(rb2)
         vlayout.addWidget(rb3)
         vlayout.addWidget(rb4)
+        vlayout.addWidget(rb5)
         vlayout.addStretch()
 
         return vlayout
@@ -495,19 +500,32 @@ class MainWindow(QMainWindow):
             self.acc_values[2].setText(f"00.00%")
             self.acc_values[3].setText(f"00.00%")
 
-    def update_information(self, key, value):
-        self.params[key] = value
-        self.params_label.setText(str(self.params))
-        # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
+    def _verify_combinations(self, key, value):
         if value == "complex":
             if hasattr(self, 'cvnn_library_rb'):  # It wont exists if I still didnt create the radiobutton.
                 self.cvnn_library_rb.setChecked(True)  # Set library cvnn
         elif value == "tensorflow":
             if hasattr(self, 'real_dtype_rb'):
-                self.real_dtype_rb.setChecked(True)  # Set real dtype
-        elif value == "OBER":
-            if hasattr(self, 'coh_rb'):
-                self.coh_rb.setChecked(True)  # Set real dtype
+                if self.complex_dtype_rb.isChecked():
+                    self.real_dtype_rb.setChecked(True)  # Set real dtype
+        elif key == 'dataset':
+            if value == "OBER":
+                if hasattr(self, 'coh_rb'):
+                    self.coh_rb.setChecked(True)  # Set real dtype
+                    self.coh_rb.setEnabled(False)
+                if hasattr(self, 'pauli_rb'):
+                    self.pauli_rb.setEnabled(False)
+            else:
+                if hasattr(self, 'coh_rb'):
+                    self.coh_rb.setEnabled(True)
+                if hasattr(self, 'pauli_rb'):
+                    self.pauli_rb.setEnabled(True)
+
+    def update_information(self, key, value):
+        self.params[key] = value
+        self.params_label.setText(str(self.params))
+        # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
+        self._verify_combinations(key, value)
         json_key = json.dumps(self.params, sort_keys=True)
         self.get_image(self.simulation_results.get_image(json_key))
         self.get_image_ground_truth()
