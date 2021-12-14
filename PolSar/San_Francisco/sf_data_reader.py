@@ -44,17 +44,15 @@ class SanFranciscoDataset(PolsarDatasetHandler):
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
-            t = self.image if self.mode == "t" else None
+            t = self.get_image() if self.mode == "t" else None
         super(SanFranciscoDataset, self).print_ground_truth(t=t, *args, **kwargs)
 
-    def _get_labels(self):
+    def get_sparse_labels(self):
         labels = imread(Path(root_path) / self.name / (self.name + "-label2d.png"))
         return labels
 
-    def open_image(self, save_image: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_image(self, save_image: bool = False) -> np.ndarray:
         folder = "SAN_FRANCISCO_" + self.name[3:]
-        labels = self._get_labels()
-        one_hot_labels = self.sparse_to_categorical_2D(labels)
         if self.mode == "s":
             data = self.open_s_dataset(str(Path(root_path) / self.name / folder))
         elif self.mode == "t":
@@ -65,9 +63,6 @@ class SanFranciscoDataset(PolsarDatasetHandler):
                AVAILABLE_IMAGES[self.name]["y1"]:AVAILABLE_IMAGES[self.name]["y2"],
                AVAILABLE_IMAGES[self.name]["x1"]:AVAILABLE_IMAGES[self.name]["x2"]
                ]
-        assert data.shape[:-1] == one_hot_labels.shape[
-                                  :-1], f"dataset of shape {data.shape[:-1]} not corresponding with " \
-                                        f"labels of shape {one_hot_labels.shape[:-1]} for {self.name}"
         if AVAILABLE_IMAGES[self.name]["y_inverse"]:
             data = np.flip(data, axis=0)
-        return data, one_hot_labels, labels
+        return data

@@ -212,7 +212,11 @@ def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, ch
     return model
 
 
-def _final_result_segmentation(root_path, full_image, use_mask, dataset_handler, seg, model):
+def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
+    full_image = dataset_handler.get_image()
+    seg = dataset_handler.get_labels()
+    if not dataset_handler.complex_mode:
+        full_image, seg = transform_to_real_map_function(full_image, seg)
     # I pad to make sure dimensions are Ok when downsampling and upsampling again.
     first_dim_pad = int(2 ** 5 * np.ceil(full_image.shape[0] / 2 ** 5)) - full_image.shape[0]
     second_dim_pad = int(2 ** 5 * np.ceil(full_image.shape[1] / 2 ** 5)) - full_image.shape[1]
@@ -260,8 +264,8 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    set_trace()
-    image_prediction = tf.reshape(prediction, shape=tuple(dataset_handler.image.shape[:-1]) + (prediction.shape[-1],))
+    image_prediction = tf.reshape(prediction,
+                                  shape=tuple(dataset_handler.get_image().shape[:-1]) + (prediction.shape[-1],))
     labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
                   colors=COLORS[dataset_handler.name])
 
@@ -274,13 +278,8 @@ def get_final_model_results(root_path, model_name: str,
     model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
                              weights=weights, channels=channels, real_mode=real_mode, dropout=dropout,
                              tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
-    full_image = dataset_handler.image
-    seg = dataset_handler.labels
-    if not complex_mode:
-        full_image, seg = transform_to_real_map_function(full_image, seg)
     if MODEL_META[model_name]['task'] == 'segmentation':
-        _final_result_segmentation(root_path=root_path, model=model, seg=seg, dataset_handler=dataset_handler,
-                                   use_mask=use_mask, full_image=full_image)
+        _final_result_segmentation(root_path=root_path, model=model, dataset_handler=dataset_handler, use_mask=use_mask)
     elif MODEL_META[model_name]['task'] == 'classification':
         _final_result_classification(root_path=root_path, model=model, dataset_handler=dataset_handler,
                                      use_mask=use_mask)

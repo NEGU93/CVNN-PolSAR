@@ -247,19 +247,26 @@ class PolsarDatasetHandler(ABC):
         assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
         self.real_mode = real_mode.lower()
-        self.complex_mode = complex_mode
+        self.complex_mode = complex_mode    # TODO: Best practice to leave it outside
         self.classification = classification
-        self.image, self.labels, self.sparse_labels = self.open_image()
-        assert self.image.shape[:2] == self.labels.shape[:2]
-        if normalize:
-            self.image, _ = tf.linalg.normalize(self.image, axis=[0, 1])
+        # self.image, self.labels, self.sparse_labels = self.open_image()
+        # assert self.image.shape[:2] == self.labels.shape[:2]
+        # if normalize:
+        #     self.image, _ = tf.linalg.normalize(self.image, axis=[0, 1])
         self.balance_dataset = balance_dataset
-        if balance_dataset and not classification:
-            self._balance_image()
-        self.weights = self._get_weights(self.labels)
+        # if balance_dataset and not classification:
+        #     self._balance_image()
+        # self.weights = self._get_weights(self.labels)
 
     @abstractmethod
-    def open_image(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_image(self) -> np.ndarray:
+        pass
+
+    def get_labels(self) -> np.ndarray:
+        return self.sparse_to_categorical_2D(self.get_sparse_labels())
+
+    @abstractmethod
+    def get_sparse_labels(self) -> np.ndarray:
         pass
 
     def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
@@ -331,14 +338,15 @@ class PolsarDatasetHandler(ABC):
     def _slice_dataset(self, percentage: tuple, orientation: str, savefig: Optional[str]):
         orientation = orientation.lower()
         percentage = self._parse_percentage(percentage)
-
+        image = self.get_image()
+        labels = self.get_labels()
+        sparse_labels = self.get_sparse_labels()
         if orientation == "horizontal":
-            total_length = self.image.shape[1]
+            total_length = image.shape[1]
         elif orientation == "vertical":
-            total_length = self.image.shape[0]
+            total_length = image.shape[0]
         else:
             raise ValueError(f"Orientation {orientation} unknown.")
-
         th = 0
         x_slice = []
         y_slice = []
@@ -347,13 +355,13 @@ class PolsarDatasetHandler(ABC):
             slice_1 = slice(th, th + int(total_length * per))
             th += int(total_length * per)
             if orientation == "horizontal":
-                x_slice.append(self.image[:, slice_1])
-                y_slice.append(self.labels[:, slice_1])
-                mask_slice.append(self.sparse_labels[:, slice_1])
+                x_slice.append(image[:, slice_1])
+                y_slice.append(labels[:, slice_1])
+                mask_slice.append(sparse_labels[:, slice_1])
             else:
-                x_slice.append(self.image[slice_1])
-                y_slice.append(self.labels[slice_1])
-                mask_slice.append(self.sparse_labels[slice_1])
+                x_slice.append(image[slice_1])
+                y_slice.append(labels[slice_1])
+                mask_slice.append(sparse_labels[slice_1])
         if savefig:
             slices_names = [
                 'train_ground_truth', 'val_ground_truth', 'test_ground_truth'
@@ -534,11 +542,10 @@ class PolsarDatasetHandler(ABC):
             indx += 1
         return selection_mask.astype(bool)
 
+    """
     def _balance_image(self):
-        """
-        Removes pixel labels so that all classes have the same amount of classes (balance dataset)
-        Balance dataset of one-hot encoded labels
-        """
+        # Removes pixel labels so that all classes have the same amount of classes (balance dataset)
+        # Balance dataset of one-hot encoded labels
         classes = tf.argmax(self.labels, axis=-1)
         mask = np.all((self.labels == tf.zeros(shape=self.labels.shape[-1])), axis=-1)
         classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
@@ -552,6 +559,7 @@ class PolsarDatasetHandler(ABC):
             matrix_mask = self._select_random(classes, value=value, total=min_value)
             self.labels = tf.where(tf.expand_dims((classes != value).numpy() | matrix_mask, axis=-1),
                                    self.labels, tf.zeros(shape=self.labels.shape))
+    """
 
     @staticmethod
     def _get_weights(labels):
@@ -591,6 +599,8 @@ class PolsarDatasetHandler(ABC):
 
     def apply_sliding(self, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
                       classification: bool = False):
+        image = self.get_image()
+        labels = self.get_labels()
         if isinstance(size, int):
             size = (size, size)
         else:
@@ -604,7 +614,7 @@ class PolsarDatasetHandler(ABC):
             patches = np.load(str(temp_path / (config_string + "_patches.npy")))
             label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
         else:
-            patches, label_patches = self._sliding_window_operation(self.image, self.labels, size=size, stride=stride,
+            patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride,
                                                                     pad=pad)
             np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches)
             np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
@@ -756,8 +766,8 @@ class PolsarDatasetHandler(ABC):
     # Debug
     def print_ground_truth(self, label: Optional = None, path=None, t=None, mask: Optional = None, ax=None):
         if label is None:
-            label = self.labels
+            label = self.get_labels()
         if mask is None:
-            mask = self.sparse_labels
+            mask = self.get_sparse_labels()
         return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
                                   path=path, ax=ax)

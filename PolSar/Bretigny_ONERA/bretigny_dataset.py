@@ -82,10 +82,10 @@ class BretignyDataset(PolsarDatasetHandler):
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
-            t = self.image if self.mode == "t" else None
+            t = self.get_image() if self.mode == "t" else None
         super(BretignyDataset, self).print_ground_truth(t=t, *args, **kwargs)
 
-    def open_image(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def get_image(self) -> np.ndarray:
         if self.mode == "s":
             return self._get_bret_s_dataset()
         elif self.mode == "t":
@@ -95,21 +95,24 @@ class BretignyDataset(PolsarDatasetHandler):
         else:
             raise ValueError(f"Mode {self.mode} not supported.")
 
+    def get_sparse_labels(self):
+        if not self.balanced:
+            seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
+        else:
+            seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI_balanced.mat')
+        seg['image'] = seg['image'][:-3]
+        return seg['image']
+
     """
         PRIVATE
     """
 
     def _open_data(self):
         mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
-        if not self.balanced:
-            seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
-        else:
-            seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI_balanced.mat')
         mat['HH'] = mat['HH'][:-3]
         mat['HV'] = mat['HV'][:-3]
         mat['VV'] = mat['VV'][:-3]
-        seg['image'] = seg['image'][:-3]
-        return mat, seg
+        return mat
 
     @staticmethod
     def _get_k_vector(HH, VV, HV):
@@ -128,20 +131,17 @@ class BretignyDataset(PolsarDatasetHandler):
         return filtered_T
 
     def _get_bret_coherency_dataset(self, kernel_shape=3):
-        mat, seg = self._open_data()
+        mat = self._open_data()
         T = self._get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'], kernel_shape=kernel_shape)
-        labels = self.sparse_to_categorical_2D(seg['image'])
-        return T, labels, seg['image']
+        return T
 
     def _get_bret_k_dataset(self):
-        mat, seg = self._open_data()
+        mat = self._open_data()
         k = self._get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
-        labels = self.sparse_to_categorical_2D(seg['image'])
-        return k, labels, seg['image']
+        return k
 
     def _get_bret_s_dataset(self):
-        mat, seg = self._open_data()
+        mat = self._open_data()
         s = np.array([mat['HH'], mat['VV'], mat['HV']])
         s = tf.transpose(s, perm=[1, 2, 0])
-        labels = self.sparse_to_categorical_2D(seg['image'])
-        return s, labels, seg['image']
+        return s
