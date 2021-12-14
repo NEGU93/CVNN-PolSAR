@@ -23,10 +23,19 @@ elif path.exists('/home/cfren/Documents/onera/PolSar'):
     NOTIFY = False
 elif path.exists('/scratchm/jbarrach'):
     sys.path.insert(1, '/scratchm/jbarrach/onera/PolSar')
-    root_path = 'path to sf to be added'
+    root_path = 'path to bret to be added'
 else:
     raise FileNotFoundError("path of the dataset reader not found")
 from dataset_reader import PolsarDatasetHandler
+
+if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
+    path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
+elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
+    path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
+elif os.path.exists('/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'):
+    path = '/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'
+else:
+    raise FileNotFoundError("Dataset path not found")
 
 
 def mean_filter(input, filter_size=3):
@@ -69,7 +78,7 @@ class BretignyDataset(PolsarDatasetHandler):
 
     def __init__(self, mode: str, balanced: bool = False, *args, **kwargs):
         self.balanced = balanced
-        super(BretignyDataset, self).__init__(name="BRET", mode=mode, *args, **kwargs)
+        super(BretignyDataset, self).__init__(root_path=path, name="BRET", mode=mode, *args, **kwargs)
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
@@ -91,14 +100,6 @@ class BretignyDataset(PolsarDatasetHandler):
     """
 
     def _open_data(self):
-        if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
-            path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
-        elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
-            path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
-        elif os.path.exists('/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'):
-            path = '/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'
-        else:
-            raise FileNotFoundError("Dataset path not found")
         mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
         if not self.balanced:
             seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')

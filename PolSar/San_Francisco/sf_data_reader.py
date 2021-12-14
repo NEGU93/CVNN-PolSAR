@@ -39,7 +39,8 @@ class SanFranciscoDataset(PolsarDatasetHandler):
     def __init__(self, dataset_name: str, mode: str, *args, **kwargs):
         dataset_name = dataset_name.upper()
         assert dataset_name in AVAILABLE_IMAGES, f"Unknown data {dataset_name}."
-        super(SanFranciscoDataset, self).__init__(name=dataset_name, mode=mode, *args, **kwargs)
+        super(SanFranciscoDataset, self).__init__(root_path=str(Path(root_path) / self.name),
+                                                  name=dataset_name, mode=mode, *args, **kwargs)
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:

@@ -50,7 +50,8 @@ else:
 class OberpfaffenhofenDataset(PolsarDatasetHandler):
 
     def __init__(self, *args, **kwargs):
-        super(OberpfaffenhofenDataset, self).__init__(name="OBER", mode="t", *args, **kwargs)
+        super(OberpfaffenhofenDataset, self).__init__(root_path=os.path.dirname(labels_path),
+                                                      name="OBER", mode="t", *args, **kwargs)
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
@@ -66,4 +67,9 @@ class OberpfaffenhofenDataset(PolsarDatasetHandler):
 
 
 if __name__ == "__main__":
-    OberpfaffenhofenDataset().print_ground_truth()
+    print("First Test")
+    OberpfaffenhofenDataset().get_dataset(method="random", size=128, stride=25, pad="same")
+    print("First one done")
+    OberpfaffenhofenDataset(classification=True).get_dataset(method="random", size=12, stride=1, pad="same")
+    print("Second one done")
+    OberpfaffenhofenDataset(classification=True).get_dataset(method="random", size=1, stride=1, pad="same")

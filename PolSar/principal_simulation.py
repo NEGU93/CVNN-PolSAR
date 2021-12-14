@@ -4,8 +4,12 @@ import os.path
 from argparse import RawTextHelpFormatter
 from pathlib import Path
 import sys
+import traceback
 import numpy as np
 import pandas as pd
+import time
+from datetime import timedelta
+from notify_run import Notify
 from pandas import DataFrame
 from os import makedirs
 from tensorflow.keras import callbacks
@@ -52,7 +56,7 @@ MODEL_META = {
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.9), "task": "classification"},
-    "haensch": {"size": 1, "stride": 1, "pad": 0, "batch_size": 100,
+    "haensch": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
                 "percentage": (0.02, 0.08, 0.9), "task": "classification"},
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.9), "task": "classification"}
@@ -238,14 +242,12 @@ def _final_result_segmentation(root_path, full_image, use_mask, dataset_handler,
     labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
 
 
-def _final_result_classification(root_path, full_image, use_mask, dataset_handler, seg, model):
+def _final_result_classification(root_path, use_mask, dataset_handler, model):
     shape = model.input.shape[1:]
     stride = 1
-    pad = tuple([(int(np.ceil((x-stride)/2)), (x-stride)//2) for x in shape[:-1]])
-    tiles, label_tiles = dataset_handler.sliding_window_operation(full_image, seg, stride=stride, size=shape[:-1],
-                                                                  pad=pad)
-    label_tiles = np.reshape(label_tiles[:, label_tiles.shape[1] // 2, label_tiles.shape[2] // 2, :],
-                             newshape=(label_tiles.shape[0], label_tiles.shape[-1]))
+    tiles, label_tiles = dataset_handler.apply_sliding(stride=stride, size=shape[:-1], pad="same", classification=True)
+    if not dataset_handler.complex_mode:
+        tiles, label_tiles = transform_to_real_map_function(tiles, label_tiles, dataset_handler.real_mode)
     if use_mask:
         mask = dataset_handler.sparse_labels
     else:
@@ -258,7 +260,8 @@ def _final_result_classification(root_path, full_image, use_mask, dataset_handle
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    image_prediction = tf.reshape(prediction, shape=tuple(full_image.shape[:-1]) + (prediction.shape[-1],))
+    set_trace()
+    image_prediction = tf.reshape(prediction, shape=tuple(dataset_handler.image.shape[:-1]) + (prediction.shape[-1],))
     labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
                   colors=COLORS[dataset_handler.name])
 
@@ -279,8 +282,8 @@ def get_final_model_results(root_path, model_name: str,
         _final_result_segmentation(root_path=root_path, model=model, seg=seg, dataset_handler=dataset_handler,
                                    use_mask=use_mask, full_image=full_image)
     elif MODEL_META[model_name]['task'] == 'classification':
-        _final_result_classification(root_path=root_path, model=model, seg=seg, dataset_handler=dataset_handler,
-                                     use_mask=use_mask, full_image=full_image)
+        _final_result_classification(root_path=root_path, model=model, dataset_handler=dataset_handler,
+                                     use_mask=use_mask)
     else:
         raise ValueError(f"Unknown task {MODEL_META[model_name]['task']}")
 
@@ -453,9 +456,18 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
 
 
 if __name__ == "__main__":
+    notify = Notify()
     args = parse_input()
-    run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
-                mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
-                real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
-                dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
-                dropout=args.dropout)
+    start_time = time.monotonic()
+    notify.send(f"Running simulation with params {' '.join(sys.argv[1:])}")
+    try:
+        run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
+                    mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
+                    real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
+                    dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
+                    dropout=args.dropout)
+    except Exception as e:
+        notify.send(e)
+    else:
+        notify.send(f"Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
+        traceback.print_exc()

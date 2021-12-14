@@ -1,0 +1,75 @@
+[
+    {
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "cao",
+        "epochs": 400,
+        "balance": "None"
+    },
+    {
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "cao",
+        "epochs": 400,
+        "balance": "None",
+        "tensorflow": true,
+        "real_mode": true
+    },
+    {
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "haensch",
+        "epochs": 15000,
+        "balance": "None"
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "haensch",
+        "epochs": 15000,
+        "balance": "None",
+        "tensorflow": true,
+        "real_mode": true
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "haensch",
+        "epochs": 15000,
+        "balance": "dataset"
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "haensch",
+        "epochs": 15000,
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "zhang",
+        "epochs": 700,
+        "balance": "None"
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "zhang",
+        "epochs": 700,
+        "balance": "None",
+        "tensorflow": true,
+        "real_mode": true
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "zhang",
+        "epochs": 700,
+        "balance": "dataset"
+    },{
+        "coherency": true,
+        "dataset": "OBER",
+        "model": "zhang",
+        "epochs": 700,
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true
+    }
+]

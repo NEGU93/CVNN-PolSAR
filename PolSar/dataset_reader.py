@@ -1,3 +1,4 @@
+import os.path
 import random
 from abc import ABC, abstractmethod
 import numpy as np
@@ -11,7 +12,7 @@ import tensorflow as tf
 from typing import Tuple, Optional, List, Union
 from sklearn.model_selection import train_test_split
 import sklearn
-from cvnn.utils import standarize, randomize, transform_to_real_map_function
+from cvnn.utils import standarize, randomize, transform_to_real_map_function, create_folder
 
 BUFFER_SIZE = 32000
 
@@ -239,8 +240,9 @@ def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=N
 
 class PolsarDatasetHandler(ABC):
 
-    def __init__(self, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
+    def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
                  normalize: bool = False, balance_dataset: bool = False, classification: bool = False):
+        self.root_path = Path(str(root_path))
         self.name = name
         assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
@@ -261,7 +263,7 @@ class PolsarDatasetHandler(ABC):
         pass
 
     def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
-                    size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                    size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
                     savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         if method == "random":
@@ -390,7 +392,7 @@ class PolsarDatasetHandler(ABC):
         y_test = np.concatenate(y_test_per_class)
         return x_train, x_test, y_train, y_test
 
-    def _separate_dataset(self, patches, label_patches, percentage: List[float], shuffle: bool = True, balanced=False) \
+    def _separate_dataset(self, patches, label_patches, percentage: List[float], shuffle: bool = True) \
             -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         :param patches: data patches
@@ -432,7 +434,7 @@ class PolsarDatasetHandler(ABC):
 
     # Get dataset
     def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: List[float] = (0.8, 0.2),
-                              shuffle: bool = True, pad=0,
+                              shuffle: bool = True, pad="same",
                               classification: bool = False) -> (tf.data.Dataset, tf.data.Dataset):
         """
         Applies the sliding window operations getting smaller images of a big image T.
@@ -442,23 +444,25 @@ class PolsarDatasetHandler(ABC):
         :param percentage: float. Percentage of examples to be used for the test set [0, 1]
         :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
         """
-        patches, label_patches = self.sliding_window_operation(self.image, self.labels, size=size, stride=stride,
-                                                               pad=pad)
-        if classification:
-            patches, label_patches = self._to_classification(x=patches, y=label_patches)
+        patches, label_patches = self.apply_sliding(size=size, stride=stride, pad=pad, classification=classification)
         # del T, labels  # Free up memory
-        x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle,
-                                      balanced=self.balance_dataset and classification)
+        x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
                                savefig: Optional[str] = None, orientation: str = "vertical", classification=False):
         images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
         # train_slice_label = _balance_image(train_slice_label)
+        if isinstance(size, int):
+            size = (size, size)
+        else:
+            size = tuple(size)
+            assert len(size) == 2
         self.weights = self._get_weights(labels[0])
         for i in range(0, len(labels)):
-            images[i], labels[i] = self.sliding_window_operation(images[i], labels[i],
-                                                                 size=size, stride=stride, pad=pad)
+            images[i], labels[i] = self._sliding_window_operation(images[i], labels[i],
+                                                                  size=size, stride=stride,
+                                                                  pad=self._parse_pad(pad, size))   # TODO: Use apply
             images[i], labels[i] = self._remove_empty_image(data=images[i], labels=labels[i])
             if classification:      # TODO: TEST THIS
                 images[i], labels[i] = self._to_classification(x=images[i], y=labels[i])
@@ -562,10 +566,59 @@ class PolsarDatasetHandler(ABC):
         PUBLIC
     """
 
+    @staticmethod
+    def _parse_pad(pad, kernel_size):
+        if isinstance(pad, int):
+            pad = ((pad, pad), (pad, pad))
+        elif isinstance(pad, str):
+            if pad.lower() == "same":
+                pad = tuple([(w // 2, (w - 1) // 2) for w in kernel_size])
+            elif pad.lower() == "valid":
+                pad = ((0, 0), (0, 0))
+            else:
+                raise ValueError(f"padding: {pad} not recognized. Possible values are 'valid' or 'same'")
+        else:
+            pad = list(pad)
+            assert len(pad) == 2
+            for indx in range(2):
+                if isinstance(pad[indx], int):
+                    pad[indx] = (pad[indx], pad[indx])
+                else:
+                    pad[indx] = tuple(pad[indx])
+                    assert len(pad[indx]) == 2
+            pad = tuple(pad)
+        return pad
+
+    def apply_sliding(self, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
+                      classification: bool = False):
+        if isinstance(size, int):
+            size = (size, size)
+        else:
+            size = tuple(size)
+            assert len(size) == 2
+        pad = self._parse_pad(pad, size)
+        temp_path = self.root_path / "dataset_preprocess_cache"
+        os.makedirs(str(temp_path), exist_ok=True)
+        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_window{size}_stride{stride}_pad{pad}"
+        if os.path.isfile(temp_path / (config_string + "_patches")):
+            patches = np.load(str(temp_path / (config_string + "_patches.npy")))
+            label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
+        else:
+            patches, label_patches = self._sliding_window_operation(self.image, self.labels, size=size, stride=stride,
+                                                                    pad=pad)
+            np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches)
+            np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
+            if classification:
+                patches, label_patches = self._to_classification(x=patches, y=label_patches)
+                np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), patches)
+                np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), label_patches)
+        return patches, label_patches
+
     # Utils
     @staticmethod
-    def sliding_window_operation(im, lab, size: int = 128, stride: int = 25, pad: int = 0, segmentation: bool = True) \
-            -> Tuple[np.ndarray, np.ndarray]:
+    def _sliding_window_operation(im, lab, size: Tuple[int, int], stride: int,
+                                  pad: Tuple[Tuple[int, int], Tuple[int, int]],
+                                  segmentation: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extracts many sub-images from one big image. Labels included.
         Using the Sliding Window Operation defined in:
@@ -579,33 +632,8 @@ class PolsarDatasetHandler(ABC):
         """
         tiles = []
         label_tiles = []
-        if isinstance(size, int):
-            size = (size, size)
-        else:
-            size = tuple(size)
-            assert len(size) == 2
-        if pad:
-            if isinstance(pad, int):
-                pad = ((pad, pad), (pad, pad))
-            elif isinstance(pad, str):
-                if pad.lower() == "same":
-                    pad = tuple([(int(np.ceil((x - stride) / 2)), (x - stride) // 2) for x in im.shape[:-1]])
-                elif pad.lower() == "valid":
-                    pad = ((0, 0), (0, 0))
-                else:
-                    raise ValueError(f"padding: {pad} not recognized. Possible values are 'valid' or 'same'")
-            else:
-                pad = list(pad)
-                assert len(pad) == 2
-                for indx in range(2):
-                    if isinstance(pad[indx], int):
-                        pad[indx] = (pad[indx], pad[indx])
-                    else:
-                        pad[indx] = tuple(pad[indx])
-                        assert len(pad[indx]) == 2
-                pad = tuple(pad)
-            im = np.pad(im, (pad[0], pad[1], (0, 0)))
-            lab = np.pad(lab, (pad[0], pad[1], (0, 0)))
+        im = np.pad(im, (pad[0], pad[1], (0, 0)))
+        lab = np.pad(lab, (pad[0], pad[1], (0, 0)))
         assert im.shape[0] > size[0] and im.shape[1] > size[1], f"Image shape ({im.shape[0]}x{im.shape[1]}) " \
                                                                 f"is smaller than the window to apply " \
                                                                 f"({size[0]}x{size[1]})"
