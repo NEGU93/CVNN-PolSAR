@@ -140,10 +140,10 @@ class MainWindow(QMainWindow):
         self.show()
 
     def _get_accuracy_layout(self):
-        title = QLabel("Accuracy")
+        self.acc_values_title = QLabel("Accuracy")
         myFont = QFont()
         myFont.setBold(True)
-        title.setFont(myFont)
+        self.acc_values_title.setFont(myFont)
         key = []
         key.append(QLabel("Train OA: "))
         key.append(QLabel("Train AA: "))
@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
         self.acc_values.append(QLabel("00.00%"))
         self.acc_values.append(QLabel("00.00%"))
         vbox = QVBoxLayout()
-        vbox.addWidget(title)
+        vbox.addWidget(self.acc_values_title)
         for i in range(len(key)):
             hbox = QHBoxLayout()
             hbox.addWidget(key[i])
@@ -486,6 +486,7 @@ class MainWindow(QMainWindow):
 
     def print_values(self, history_path):
         if history_path is not None and len(history_path) != 0 and hasattr(self, "acc_values"):
+            self.acc_values_title.setText(f"Accuracy (total count {int(history_path['train']['count'][0])})")
             self.acc_values[0].setText(f"{history_path['train']['mean']['accuracy']:.2%} +- "
                                        f"{history_path['train']['std']['accuracy'] / history_path['train']['count']['accuracy']:.2%}")
             self.acc_values[1].setText(f"{history_path['train']['mean']['average_accuracy']:.2%} +- "
@@ -495,6 +496,7 @@ class MainWindow(QMainWindow):
             self.acc_values[3].setText(f"{history_path['val']['mean']['average_accuracy']:.2%} +- "
                                        f"{history_path['val']['std']['average_accuracy'] / history_path['val']['count']['average_accuracy']:.2%}")
         elif hasattr(self, "acc_values"):
+            self.acc_values_title.setText("Accuracy")
             self.acc_values[0].setText(f"00.00%")
             self.acc_values[1].setText(f"00.00%")
             self.acc_values[2].setText(f"00.00%")

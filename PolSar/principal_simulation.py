@@ -9,7 +9,10 @@ import numpy as np
 import pandas as pd
 import time
 from datetime import timedelta
-from notify_run import Notify
+try:
+    from notify_run import Notify
+except ImportError:
+    Notify = None
 from pandas import DataFrame
 from os import makedirs
 from tensorflow.keras import callbacks
@@ -274,11 +277,12 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
 
 def get_final_model_results(root_path, model_name: str,
                             dataset_handler,  # dataset parameters
-                            weights, dropout, channels: int = 3,  # model hyper-parameters
+                            dropout, channels: int = 3,  # model hyper-parameters
                             complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
                             use_mask: bool = True, tensorflow: bool = False):
     model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
-                             weights=weights, channels=channels, real_mode=real_mode, dropout=dropout,
+                             weights=None,  # I am not training, so no need to use weights in the loss function here
+                             channels=channels, real_mode=real_mode, dropout=dropout,
                              tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
     if MODEL_META[model_name]['task'] == 'segmentation':
         _final_result_segmentation(root_path=root_path, model=model, dataset_handler=dataset_handler, use_mask=use_mask)
@@ -392,7 +396,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         test_confusion_matrix = _get_confusion_matrix(test_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
         test_confusion_matrix.to_csv(str(temp_path / 'test_confusion_matrix.csv'))
     eval_df = DataFrame.from_dict(evaluate)
-    return df, dataset_handler, weights, eval_df
+    return df, dataset_handler, eval_df
 
 
 def parse_dropout(dropout):
@@ -444,7 +448,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
         summary_file.write(f"\tepochs: {epochs}\n")
         summary_file.write(f"\t{'' if early_stop else 'no'} early stop\n")
         summary_file.write(f"\tweighted {balance}\n")
-    df, dataset_handler, weights, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
+    df, dataset_handler, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
                                                       mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                                       early_stop=early_stop, temp_path=temp_path, epochs=epochs,
                                                       dataset_name=dataset_name, dataset_method=dataset_method,
@@ -453,14 +457,16 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
     get_final_model_results(temp_path, dataset_handler=dataset_handler, model_name=model_name,
                             tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
-                            channels=3 if mode == "s" else 6, weights=weights, dropout=dropout)
+                            channels=3 if mode == "s" else 6, dropout=dropout)
 
 
 if __name__ == "__main__":
-    notify = Notify()
+
     args = parse_input()
     start_time = time.monotonic()
-    notify.send(f"Running simulation with params {' '.join(sys.argv[1:])}")
+    if Notify is not None:
+        notify = Notify()
+        notify.send(f"Running simulation with params {' '.join(sys.argv[1:])}")
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
                     mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
@@ -468,7 +474,9 @@ if __name__ == "__main__":
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
                     dropout=args.dropout)
     except Exception as e:
-        notify.send(e)
-        traceback.print_exc()
+        if Notify is not None:
+            notify.send(e)
+            traceback.print_exc()
     else:
-        notify.send(f"Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
+        if Notify is not None:
+            notify.send(f"Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
