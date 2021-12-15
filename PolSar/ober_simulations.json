@@ -2,60 +2,20 @@
     {
         "coherency": true,
         "dataset": "OBER",
-        "model": "cao",
-        "epochs": 1,
-        "balance": "None"
-    },
-    {
-        "coherency": true,
-        "dataset": "OBER",
-        "model": "cao",
-        "epochs": 1,
-        "balance": "None",
-        "tensorflow": true,
-        "real_mode": true
-    },
-    {
-        "coherency": true,
-        "dataset": "OBER",
         "model": "haensch",
-        "epochs": 1,
-        "balance": "dataset"
-    },{
-        "coherency": true,
-        "dataset": "OBER",
-        "model": "haensch",
-        "epochs": 1,
-        "balance": "dataset",
-        "tensorflow": true,
-        "real_mode": true
-    },{
-        "coherency": true,
-        "dataset": "OBER",
-        "model": "zhang",
-        "epochs": 1,
+        "epochs": 10000,
         "balance": "dataset"
     },{
         "coherency": true,
         "dataset": "OBER",
         "model": "zhang",
-        "epochs": 1,
-        "balance": "dataset",
-        "tensorflow": true,
-        "real_mode": true
+        "epochs": 10000,
+        "balance": "dataset"
     },{
         "coherency": true,
         "dataset": "OBER",
         "model": "tan",
-        "epochs": 1,
+        "epochs": 1000,
         "balance": "None"
-    },{
-        "coherency": true,
-        "dataset": "OBER",
-        "model": "tan",
-        "epochs": 1,
-        "balance": "None",
-        "tensorflow": true,
-        "real_mode": true
     }
 ]

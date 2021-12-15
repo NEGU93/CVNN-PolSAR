@@ -4,6 +4,7 @@ import os.path
 from argparse import RawTextHelpFormatter
 from pathlib import Path
 import sys
+import socket
 import traceback
 import numpy as np
 import pandas as pd
@@ -466,7 +467,7 @@ if __name__ == "__main__":
     start_time = time.monotonic()
     if Notify is not None:
         notify = Notify()
-        notify.send(f"Running simulation with params {' '.join(sys.argv[1:])}")
+        notify.send(f"{socket.gethostname()}: Running simulation with params {' '.join(sys.argv[1:])}")
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
                     mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
@@ -475,8 +476,8 @@ if __name__ == "__main__":
                     dropout=args.dropout)
     except Exception as e:
         if Notify is not None:
-            notify.send(e)
+            notify.send(f"{socket.gethostname()}: {e}")
             traceback.print_exc()
     else:
         if Notify is not None:
-            notify.send(f"Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
+            notify.send(f"{socket.gethostname()}: Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")

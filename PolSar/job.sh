@@ -1,1 +1,1 @@
-python3 principal_simulation.py --coherency --dataset OBER --model tan --epochs 1 --balance None --tensorflow --real_mode
+python3 principal_simulation.py --coherency --dataset OBER --model haensch --epochs 10000 --balance dataset
