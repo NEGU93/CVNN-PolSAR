@@ -9,4 +9,4 @@
 #SBATCH --output=logs/slurm-%j.out
 #SBATCH --error=logs/slurm-%j.err
 
-python3 ../../principal_simulation.py --real_imag --coherency --epochs 400 --dataset_method random --model cao --dataset OBER
+python3 ../../principal_simulation.py --real_mode --coherency --epochs 400 --dataset_method random --model cao --dataset OBER
