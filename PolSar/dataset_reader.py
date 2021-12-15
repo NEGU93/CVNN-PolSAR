@@ -433,12 +433,15 @@ class PolsarDatasetHandler(ABC):
         return x, y
 
     @staticmethod
-    def _to_classification(x, y):
+    def _to_classification(x, y, mask=False):
         y = np.reshape(y[:, y.shape[1] // 2, y.shape[2] // 2, :], newshape=(y.shape[0], y.shape[-1]))
         # assert [np.all(y_patches_class[i][:] == y_patches[i][0][0][:]) for i in range(len(y_patches_class))]
         # 2. Remove empty pixels
-        mask = np.invert(np.all(y == 0, axis=-1))
-        return tf.boolean_mask(x, mask).numpy(), tf.boolean_mask(y, mask).numpy()
+        if mask:        # TODO: Remove this?
+            mask = np.invert(np.all(y == 0, axis=-1))
+            x = tf.boolean_mask(x, mask).numpy()
+            y = tf.boolean_mask(y, mask).numpy()
+        return x, y
 
     # Get dataset
     def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: List[float] = (0.8, 0.2),
@@ -466,7 +469,6 @@ class PolsarDatasetHandler(ABC):
         else:
             size = tuple(size)
             assert len(size) == 2
-        self.weights = self._get_weights(labels[0])
         for i in range(0, len(labels)):
             images[i], labels[i] = self._sliding_window_operation(images[i], labels[i],
                                                                   size=size, stride=stride,
@@ -481,8 +483,6 @@ class PolsarDatasetHandler(ABC):
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
                                             orientation: str = "vertical", pad: bool = False):
         x, y = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
-
-        self.weights = self._get_weights(y[0])
         for i in range(0, len(y)):
             if pad:
                 x[i], y[i] = self._pad_image(x[i], y[i])
@@ -542,24 +542,8 @@ class PolsarDatasetHandler(ABC):
             indx += 1
         return selection_mask.astype(bool)
 
-    """
-    def _balance_image(self):
-        # Removes pixel labels so that all classes have the same amount of classes (balance dataset)
-        # Balance dataset of one-hot encoded labels
-        classes = tf.argmax(self.labels, axis=-1)
-        mask = np.all((self.labels == tf.zeros(shape=self.labels.shape[-1])), axis=-1)
-        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
-        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
-                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
-        if all(element == totals[0] for element in totals):
-            print("All labels are already balanced")
-            return self.labels
-        min_value = min(totals)
-        for value in range(1, len(totals) + 1):
-            matrix_mask = self._select_random(classes, value=value, total=min_value)
-            self.labels = tf.where(tf.expand_dims((classes != value).numpy() | matrix_mask, axis=-1),
-                                   self.labels, tf.zeros(shape=self.labels.shape))
-    """
+    def get_weights(self):
+        return self._get_weights(self.get_labels())
 
     @staticmethod
     def _get_weights(labels):
@@ -598,7 +582,7 @@ class PolsarDatasetHandler(ABC):
         return pad
 
     def apply_sliding(self, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False):
+                      classification: bool = False, remove_unlabeled: bool = False):
         image = self.get_image()
         labels = self.get_labels()
         if isinstance(size, int):
@@ -616,12 +600,14 @@ class PolsarDatasetHandler(ABC):
         else:
             patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride,
                                                                     pad=pad)
+            # print(f"patches shape after sliding window op{patches.shape}")
             np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches)
             np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
             if classification:
-                patches, label_patches = self._to_classification(x=patches, y=label_patches)
+                patches, label_patches = self._to_classification(x=patches, y=label_patches, mask=remove_unlabeled)
                 np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), patches)
                 np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), label_patches)
+        # print(f"patches shape before going out of apply slifing {patches.shape}")
         return patches, label_patches
 
     # Utils
@@ -658,10 +644,10 @@ class PolsarDatasetHandler(ABC):
                     label_tiles.append(lab[x + int(size[0] / 2), y + int(size[1] / 2)])
         assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])
         # assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
-        if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
-            # import pdb; pdb.set_trace()
-            assert int(np.shape(tiles)[0]) == int(
-                (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
+        # if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
+        #     assert int(np.shape(tiles)[0]) == int(
+        #         (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
+        # print(f"tiles shape before going out of sliding window op {np.array(tiles).shape}")
         return np.array(tiles), np.array(label_tiles)
 
     @staticmethod

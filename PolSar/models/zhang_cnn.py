@@ -23,7 +23,7 @@ zhang_params_model = {
     'loss': ComplexMeanSquareError(),       # End of II.A.4
     'tf_loss': MeanSquaredError(),
     'activation': 'cart_sigmoid',           # "Note that the sigmoid function is used in this paper." but cart or polar?
-    'optimizer': SGD(learning_rate=0.08)    # Start of II.B
+    'optimizer': SGD(learning_rate=0.8)    # Start of II.B
 }
 
 
@@ -68,6 +68,7 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_zhang_cnn'):
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'),
                            ComplexAverageAccuracy(name='average_accuracy')
                            ])
+    return model
 
 
 def get_zhang_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, dtype=np.complex64,

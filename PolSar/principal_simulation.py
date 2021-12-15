@@ -226,7 +226,7 @@ def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
         [0, 0]
     ]
     if use_mask:
-        mask = dataset_handler.sparse_labels
+        mask = dataset_handler.get_sparse_labels()
         mask = tf.pad(mask, paddings[:-1])
     else:
         mask = None
@@ -250,10 +250,11 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
     shape = model.input.shape[1:]
     stride = 1
     tiles, label_tiles = dataset_handler.apply_sliding(stride=stride, size=shape[:-1], pad="same", classification=True)
+    # set_trace()
     if not dataset_handler.complex_mode:
         tiles, label_tiles = transform_to_real_map_function(tiles, label_tiles, dataset_handler.real_mode)
     if use_mask:
-        mask = dataset_handler.sparse_labels
+        mask = dataset_handler.get_sparse_labels()
     else:
         mask = None
     prediction = model.predict(tiles)
@@ -264,6 +265,7 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
+    # set_trace()
     image_prediction = tf.reshape(prediction,
                                   shape=tuple(dataset_handler.get_image().shape[:-1]) + (prediction.shape[-1],))
     labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
@@ -357,7 +359,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
-    weights = dataset_handler.weights
+    weights = dataset_handler.get_weights()
     model = _get_model(model_name=model_name,
                        channels=3 if mode == "s" else 6,  # TODO: isn't 'k' an option?
                        weights=weights if balance == "loss" else None,
@@ -467,6 +469,6 @@ if __name__ == "__main__":
                     dropout=args.dropout)
     except Exception as e:
         notify.send(e)
+        traceback.print_exc()
     else:
         notify.send(f"Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
-        traceback.print_exc()

@@ -62,7 +62,7 @@ def _get_tf_model(num_classes, input_shape=INPUT_SHAPE, name='tan_tf_3d_cnn'):
                 strides=tao_params_model['stride'], padding=tao_params_model['padding'],
                 activation=tao_params_model['tf_activation'])(reshaped)
     c2 = Conv3D(filters=tao_params_model['filters'][1], kernel_size=tao_params_model['kernel_size'],
-                trides=tao_params_model['stride'], padding=tao_params_model['padding'],
+                strides=tao_params_model['stride'], padding=tao_params_model['padding'],
                 activation=tao_params_model['tf_activation'])(c1)
     p1 = AveragePooling3D(pool_size=tao_params_model['pool_size'])(c2)
     c3 = Conv3D(filters=tao_params_model['filters'][2], kernel_size=tao_params_model['kernel_size'],
