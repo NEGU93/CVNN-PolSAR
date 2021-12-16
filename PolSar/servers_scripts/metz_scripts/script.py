@@ -3,7 +3,7 @@ import sys
 import json
 import pathlib
 import argparse
-sys.path.insert(1, str(pathlib.Path(pathlib.Path(__file__).parent.resolve())) + "../../")
+sys.path.insert(1, "../../")
 from runner import SimulationScheduler
 from pdb import set_trace
 
