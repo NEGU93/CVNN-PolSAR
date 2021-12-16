@@ -20,7 +20,7 @@ tao_params_model = {
     'filters': [16, 16, 32, 32],                            # Fig 1 & Sec II
     'activation': 'cart_relu',                              # Sec II.C.2
     'tf_activation': 'relu',
-    'optimizer': SGD(learning_rate=0.001, momentum=0.9),    # Start of II.B
+    'optimizer': SGD(learning_rate=0.01, momentum=0.9),     # Start of II.B
     'loss': CategoricalCrossentropy(),                      # Sec II.C.5
 }
 

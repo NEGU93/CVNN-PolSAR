@@ -1,21 +1,24 @@
 [
     {
+        "_time_per_epoch": 0.04,
         "coherency": true,
         "dataset": "OBER",
         "model": "haensch",
-        "epochs": 10000,
+        "epochs": 3000,
         "balance": "dataset"
     },{
+        "_time_per_epoch": 5,
         "coherency": true,
         "dataset": "OBER",
         "model": "zhang",
         "epochs": 10000,
         "balance": "dataset"
     },{
+        "_time_per_epoch": 500,
         "coherency": true,
         "dataset": "OBER",
         "model": "tan",
-        "epochs": 1000,
+        "epochs": 100,
         "balance": "None"
     }
 ]

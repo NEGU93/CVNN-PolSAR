@@ -11,7 +11,7 @@ from cvnn.losses import ComplexMeanSquareError      # TODO: There are 4 implemen
 mlp_hyper_params = {
     'activation': 'cart_tanh',      # TODO: He actually talks of 2 options (polar as well)
     'shape': [10, 10],              # I just use the lowest error
-    'optimizer': SGD(learning_rate=0.1),
+    'optimizer': SGD(learning_rate=0.08),
     'loss': ComplexMeanSquareError()
 }
 

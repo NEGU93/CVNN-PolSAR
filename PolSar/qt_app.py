@@ -462,6 +462,10 @@ class MainWindow(QMainWindow):
         self.ground_truth_image.setPixmap(scaled_pixmap)
         self.ground_truth_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
 
+    def clear_plot(self):
+        self.figure.clear()
+        self.canvas.draw()
+
     def plot(self, history_path):
         self.figure.clear()
         ax1 = self.figure.add_subplot(121)
@@ -473,6 +477,10 @@ class MainWindow(QMainWindow):
         ax1.grid(True, axis='both')
         ax2.grid(True, axis='both')
         self.canvas.draw()
+
+    def clear_conf_matrix(self):
+        self.conf_figure.clear()
+        self.conf_canvas.draw()
 
     def plot_conf_matrix(self, conf_list):
         self.conf_figure.clear()
@@ -540,6 +548,8 @@ class MainWindow(QMainWindow):
             self.plot_conf_matrix(conf_stats)
         else:
             self.print_values(None)
+            self.clear_plot()
+            self.clear_conf_matrix()
 
 
 if __name__ == '__main__':
