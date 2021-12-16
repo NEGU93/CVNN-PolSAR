@@ -1,9 +1,0 @@
-[
-    {
-        "coherency": true,
-        "dataset": "OBER",
-        "model": "zhang",
-        "epochs": 10000,
-        "balance": "dataset"
-    }
-]

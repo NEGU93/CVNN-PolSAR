@@ -462,7 +462,6 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
 
 
 if __name__ == "__main__":
-
     args = parse_input()
     start_time = time.monotonic()
     if Notify is not None:

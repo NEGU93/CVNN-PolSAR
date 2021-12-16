@@ -1,22 +1,36 @@
 [
     {
+        "model": "cao",
+        "epochs": 400
+    },
+    {
         "_time_per_epoch": 0.04,
-        "coherency": true,
-        "dataset": "OBER",
         "model": "haensch",
         "epochs": 3000,
         "balance": "dataset"
     },{
+        "_time_per_epoch": 0.04,
+        "model": "haensch",
+        "epochs": 3000,
+        "balance": "None"
+    },{
         "_time_per_epoch": 5,
-        "coherency": true,
-        "dataset": "OBER",
         "model": "zhang",
         "epochs": 10000,
         "balance": "dataset"
     },{
+        "_time_per_epoch": 5,
+        "model": "zhang",
+        "epochs": 10000,
+        "balance": "None"
+    },{
         "_time_per_epoch": 500,
-        "coherency": true,
-        "dataset": "OBER",
+        "model": "tan",
+        "epochs": 100,
+        "balance": "dataset"
+    },
+    {
+        "_time_per_epoch": 500,
         "model": "tan",
         "epochs": 100,
         "balance": "None"
