@@ -45,7 +45,7 @@ if __name__ == "__main__":
     with open(str(json_path)) as json_file:
         config_json = json.load(json_file)
 
-    for iterations in range(5):
+    for iterations in range(1):
         for param in config_json:
             # Launch the batch jobs
             param_str = get_params(param)
