@@ -484,14 +484,15 @@ class MainWindow(QMainWindow):
             self.conf_canvas.draw()
 
     def plot_conf_matrix(self, conf_list):
-        self.conf_figure.clear()
-        ax1 = self.conf_figure.add_subplot(121)
-        ax2 = self.conf_figure.add_subplot(122)
-        ax1.clear()
-        ax2.clear()
-        heatmap(conf_list[0].drop('Total', axis=1).drop('Total'), ax=ax1, annot=True, cmap="rocket_r")
-        heatmap(conf_list[1].drop('Total', axis=1).drop('Total'), ax=ax2, annot=True, cmap="rocket_r")
-        self.conf_canvas.draw()
+        if hasattr(self, "conf_figure"):
+            self.conf_figure.clear()
+            ax1 = self.conf_figure.add_subplot(121)
+            ax2 = self.conf_figure.add_subplot(122)
+            ax1.clear()
+            ax2.clear()
+            heatmap(conf_list[0].drop('Total', axis=1).drop('Total'), ax=ax1, annot=True, cmap="rocket_r")
+            heatmap(conf_list[1].drop('Total', axis=1).drop('Total'), ax=ax2, annot=True, cmap="rocket_r")
+            self.conf_canvas.draw()
 
     def print_values(self, history_path):
         if history_path is not None and len(history_path) != 0 and hasattr(self, "acc_values"):
