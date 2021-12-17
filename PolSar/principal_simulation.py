@@ -477,6 +477,7 @@ if __name__ == "__main__":
         if Notify is not None:
             notify.send(f"{socket.gethostname()}: {e}")
             traceback.print_exc()
+            raise e
     else:
         if Notify is not None:
             notify.send(f"{socket.gethostname()}: Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")

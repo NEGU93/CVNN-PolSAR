@@ -67,7 +67,10 @@ class SimulationScheduler(ABC):
             for param in config_json:
                 # Launch the batch jobs
                 param_str = self.get_params(param)
-                self.submit_job(self.run_simulation(param_str))
+                try:
+                    self.submit_job(self.run_simulation(param_str))
+                except:
+                    print(f"Error with a job. Running next one.")
 
 
 class LocalRunner(SimulationScheduler):
