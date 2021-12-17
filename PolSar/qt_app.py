@@ -479,8 +479,9 @@ class MainWindow(QMainWindow):
         self.canvas.draw()
 
     def clear_conf_matrix(self):
-        self.conf_figure.clear()
-        self.conf_canvas.draw()
+        if hasattr(self, "conf_figure"):
+            self.conf_figure.clear()
+            self.conf_canvas.draw()
 
     def plot_conf_matrix(self, conf_list):
         self.conf_figure.clear()

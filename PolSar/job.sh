@@ -1,1 +1,1 @@
-python3 principal_simulation.py --coherency --dataset OBER --model tan --epochs 100 --balance None
+python3 principal_simulation.py --model zhang --epochs 10000 --balance dataset --coherency --dataset OBER
