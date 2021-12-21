@@ -5,6 +5,8 @@ log/
 out/
 data/
 results/
+job.sbatch
+slurm*
 
 # python cache
 __pycache__/
