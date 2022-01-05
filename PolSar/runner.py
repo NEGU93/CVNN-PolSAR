@@ -86,5 +86,5 @@ class LocalRunner(SimulationScheduler):
 
 
 if __name__ == "__main__":
-    LocalRunner("ober_simulations.json")()
+    LocalRunner("sf_simulations.json")()
 
