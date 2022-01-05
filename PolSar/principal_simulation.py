@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import time
 from datetime import timedelta
+
 try:
     from notify_run import Notify
 except ImportError:
@@ -32,8 +33,9 @@ from models.haensch_mlp import get_haensch_mlp_model
 from models.tan_3dcnn import get_tan_3d_cnn_model
 
 from pdb import set_trace
+
 if os.path.exists('/scratchm/jbarrach'):
-    print("Running on Spiro ONERA")	
+    print("Running on Spiro ONERA")
     os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
 EPOCHS = 1
@@ -139,7 +141,8 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, normalize: bool = False, classification: bool = False):
+def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, normalize: bool = False,
+                         classification: bool = False):
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
@@ -382,7 +385,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                         channels=3 if mode == "s" else 6, dropout=dropout, real_mode=real_mode,
                                         tensorflow=tensorflow, num_classes=DATASET_META[dataset_name]["classes"])
     evaluate = {'train': _eval_list_to_dict(evaluate=checkpoint_model.evaluate(train_ds[0], train_ds[1],
-                                                                               batch_size=MODEL_META[model_name]['batch_size']),
+                                                                               batch_size=MODEL_META[model_name][
+                                                                                   'batch_size']),
                                             metrics=checkpoint_model.metrics_names)}
     train_confusion_matrix = _get_confusion_matrix(train_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
@@ -450,15 +454,15 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
         summary_file.write(f"\t{'' if early_stop else 'no'} early stop\n")
         summary_file.write(f"\tweighted {balance}\n")
     df, dataset_handler, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
-                                                      mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                                      early_stop=early_stop, temp_path=temp_path, epochs=epochs,
-                                                      dataset_name=dataset_name, dataset_method=dataset_method,
-                                                      percentage=percentage, debug=debug, dropout=dropout)
+                                             mode=mode, complex_mode=complex_mode, real_mode=real_mode,
+                                             early_stop=early_stop, temp_path=temp_path, epochs=epochs,
+                                             dataset_name=dataset_name, dataset_method=dataset_method,
+                                             percentage=percentage, debug=debug, dropout=dropout)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
     get_final_model_results(temp_path, dataset_handler=dataset_handler, model_name=model_name,
                             tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
-                            channels=3 if mode == "s" else 6, dropout=dropout)
+                            channels=3 if mode == "s" else 6, dropout=dropout, use_mask=True)
 
 
 if __name__ == "__main__":
@@ -480,4 +484,5 @@ if __name__ == "__main__":
             raise e
     else:
         if Notify is not None:
-            notify.send(f"{socket.gethostname()}: Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
+            notify.send(
+                f"{socket.gethostname()}: Simulation ended in {timedelta(seconds=time.monotonic() - start_time)}")
