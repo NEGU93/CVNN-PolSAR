@@ -134,7 +134,7 @@ class ResultReader:
                             monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
                                 str(Path(child_dir[0]) / 'prediction.png'))
                             if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
-                                print("Generating picture predicted figure. "
+                                print(f"Generating picture predicted figure on {file_path}.\n"
                                       "This will take a while but will only be done once in a lifetime")
                                 # If I dont have the image I generate it
                                 dataset_name = params["dataset"].upper()
@@ -150,8 +150,11 @@ class ResultReader:
                                                         tensorflow='tensorflow' in simu_params,
                                                         complex_mode='real_mode' not in simu_params,
                                                         channels=6 if 'coherency' in simu_params else 3,
-                                                        weights=dataset_handler.weights if
-                                                        params['balance'] == "loss" else None, dropout=None)
+                                                        dropout={
+                                                            "downsampling": None,
+                                                            "bottle_neck": None,
+                                                            "upsampling": None
+                                                        })
                         else:
                             print("No history_dict found on path " + child_dir[0])
                 else:
@@ -272,7 +275,8 @@ class ResultReader:
     def _get_real_mode(simu_params):
         if 'real_mode' in simu_params:
             real_mode_index = simu_params.split().index('--real_mode')
-            next_value = simu_params.split()[real_mode_index + 1]
+            next_value = simu_params.split()[real_mode_index + 1] if real_mode_index + 1 < len(simu_params.split()) \
+                else 'real_imag'
             return next_value if next_value in REAL_CAST_MODES else 'real_imag'
         elif 'tensorflow' in simu_params:
             return 'real_imag'
@@ -355,7 +359,7 @@ class SeveralMonteCarloPlotter:
         return None
 
     def _box_plot_plotly(self, labels: List[str], mc_runs: List,
-                          key='accuracy', epoch=-1, showfig=False, savefile=None, extension=".svg"):
+                         key='accuracy', epoch=-1, showfig=False, savefile=None, extension=".svg"):
         if 'plotly' not in AVAILABLE_LIBRARIES:
             raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
                                       f"was called but will be omitted")
@@ -411,7 +415,7 @@ class SeveralMonteCarloPlotter:
         epochs = []
         for i in range(len(data)):
             if epoch == -1:
-                epochs.append(max(data[i].epoch))    # get last epoch
+                epochs.append(max(data[i].epoch))  # get last epoch
             else:
                 epochs.append(epoch)
         # Prepare data

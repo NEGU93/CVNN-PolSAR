@@ -1,1 +1,0 @@
-python3 principal_simulation.py --model cao --epochs 400 --coherency --dataset OBER

@@ -5,6 +5,7 @@ log/
 out/
 data/
 results/
+**/job.sh
 
 # python cache
 __pycache__/
