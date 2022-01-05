@@ -30,9 +30,9 @@ class SimulationScheduler(ABC):
     def __init__(self, json_config_filename: str = "ober_simulations.json"):
         root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
         self.default_config_path = str(root_path / json_config_filename)
+        self.name = json_config_filename.split('_')[0]
 
-    @staticmethod
-    def run_simulation(params: str):
+    def run_simulation(self, params: str):
         raise NotImplementedError(f"Need to implement this function first")
 
     @staticmethod
@@ -74,8 +74,7 @@ class SimulationScheduler(ABC):
 
 class LocalRunner(SimulationScheduler):
 
-    @staticmethod
-    def run_simulation(params: str):
+    def run_simulation(self, params: str):
         return f"python3 principal_simulation.py{params}"
 
     @staticmethod

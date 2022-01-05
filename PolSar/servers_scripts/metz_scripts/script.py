@@ -16,11 +16,10 @@ class MetzScheduler(SimulationScheduler):
         self.default_config_path = str(root_path / ("../../" + json_config_filename))
         os.makedirs(str(root_path / "logslurms"), exist_ok=True)  # Ensure the log directory exists
 
-    @staticmethod
-    def run_simulation(params : str):
+    def run_simulation(self, params: str):
         return f"""#!/bin/bash 
     
-#SBATCH --job-name=ober
+#SBATCH --job-name={self.name}
 #SBATCH --nodes=1
 #SBATCH --partition=gpu_prod_long
 #SBATCH --time=24:00:00
@@ -40,4 +39,4 @@ python3 ../../principal_simulation.py{params}
 
 
 if __name__ == "__main__":
-    MetzScheduler("sf_simulations.json")()
+    MetzScheduler("ober_simulations.json")()
