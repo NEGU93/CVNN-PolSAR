@@ -49,7 +49,7 @@ class SimulationScheduler(ABC):
 
     def parse_input(self):
         parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-        parser.add_argument('--iterations', nargs=1, type=int, default=[self.iterations],
+        parser.add_argument('--iterations', nargs=1, type=int, default=[10],
                             help='(int) iterations to be done')
         parser.add_argument('--config_file', nargs=1, type=str, default=[self.default_config_path])
         return parser.parse_args()
