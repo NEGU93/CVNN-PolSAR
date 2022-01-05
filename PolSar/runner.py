@@ -27,10 +27,9 @@ def add_constants(dictionary: Dict) -> List[Dict]:
 
 class SimulationScheduler(ABC):
 
-    def __init__(self):
+    def __init__(self, json_config_filename: str = "ober_simulations.json"):
         root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
-        self.iterations = 10
-        self.default_config_path = str(root_path / "ober_simulations.json")
+        self.default_config_path = str(root_path / json_config_filename)
 
     @staticmethod
     def run_simulation(params: str):
@@ -63,7 +62,7 @@ class SimulationScheduler(ABC):
         config_json = [add_constants(conf) for conf in config_json]        # TODO: Horrible, think this better.
         config_json = [item for sublist in config_json for item in sublist]
 
-        for iterations in range(args.iterations[0]):
+        for _ in range(args.iterations[0]):
             for param in config_json:
                 # Launch the batch jobs
                 param_str = self.get_params(param)
@@ -88,5 +87,5 @@ class LocalRunner(SimulationScheduler):
 
 
 if __name__ == "__main__":
-    LocalRunner()()
+    LocalRunner("ober_simulations.json")()
 

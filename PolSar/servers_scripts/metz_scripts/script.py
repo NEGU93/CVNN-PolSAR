@@ -10,10 +10,10 @@ from pdb import set_trace
 
 class MetzScheduler(SimulationScheduler):
 
-    def __init__(self):
+    def __init__(self, json_config_filename: str = "ober_simulations.json"):
         super().__init__()
         root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
-        self.default_config_path = str(root_path / "../../ober_simulations.json")
+        self.default_config_path = str(root_path / ("../../" + json_config_filename))
         os.makedirs(str(root_path / "logslurms"), exist_ok=True)  # Ensure the log directory exists
 
     @staticmethod
@@ -40,4 +40,4 @@ python3 ../../principal_simulation.py{params}
 
 
 if __name__ == "__main__":
-    MetzScheduler()()
+    MetzScheduler("ober_simulations.json")()

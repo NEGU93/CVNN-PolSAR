@@ -1,0 +1,10 @@
+[
+    {
+        "model": "cao",
+        "coherency": true,
+        "epochs": 400,
+        "dataset_method": "random",
+        "balance": "none",
+        "dataset": "SF-AIRSAR"
+    }
+]
