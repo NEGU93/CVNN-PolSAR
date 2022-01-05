@@ -40,4 +40,4 @@ python3 ../../principal_simulation.py{params}
 
 
 if __name__ == "__main__":
-    MetzScheduler("ober_simulations.json")()
+    MetzScheduler("sf_simulations.json")()
