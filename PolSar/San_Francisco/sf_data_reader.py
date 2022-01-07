@@ -7,18 +7,14 @@ from pdb import set_trace
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import sys
-if path.exists('/home/barrachina/Documents/onera/PolSar'):
-    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
+sys.path.insert(1, '../')
+if path.exists('/media/barrachina/data/datasets/PolSar/San Francisco/PolSF'):
     root_path = "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF"
-elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
-    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar')
-elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar'):
-    sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar')
-elif path.exists('/home/cfren/Documents/onera/PolSar'):
-    sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
+elif path.exists('D:/datasets/PolSar/San Francisco/PolSF'):
+    root_path = "D:/datasets/PolSar/San Francisco/PolSF"
+elif path.exists('/home/cfren/Documents/onera/PolSar/San Francisco/PolSF'):
     root_path = "/home/cfren/Documents/onera/PolSar/San Francisco/PolSF"
 elif path.exists('/scratchm/jbarrach'):
-    sys.path.insert(1, '/scratchm/jbarrach/onera/PolSar')
     root_path = 'path to sf to be added'
 else:
     raise FileNotFoundError("path of the san francisco dataset not found")

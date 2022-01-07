@@ -3,30 +3,17 @@ import os
 from os import path
 from pathlib import Path
 import sys
-
-if path.exists('/home/barrachina/Documents/onera/PolSar/'):
-    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/')
-    NOTIFY = False
-elif path.exists('W:\HardDiskDrive\Documentos\GitHub\onera\PolSar'):
-    sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\onera\PolSar')
-    NOTIFY = False
-elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
-    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/')
-    NOTIFY = True
-elif path.exists('/home/cfren/Documents/onera/PolSar'):
-    sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
-    NOTIFY = False
-elif path.exists('/scratchm/jbarrach/'):
-    sys.path.insert(1, '/scratchm/jbarrach/onera/Polsar')
-    NOTIFY = False
-else:
-    raise FileNotFoundError("path of the dataset reader not found")
+sys.path.insert(1, '../')
 from dataset_reader import PolsarDatasetHandler
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen'):
     labels_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     t_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
     s_path = '/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
+elif os.path.exists('D:/datasets/PolSar/Oberpfaffenhofen'):
+    labels_path = 'D:/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
+    t_path = 'D:/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'
+    s_path = 'D:/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen'
 elif path.exists('W:\HardDiskDrive\Documentos\GitHub\datasets\PolSar\Oberpfaffenhofen'):
     labels_path = 'W:\HardDiskDrive\Documentos\GitHub\/datasets/PolSar/Oberpfaffenhofen/Label_Germany.mat'
     t_path = 'W:\HardDiskDrive\Documentos\GitHub\datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6'

@@ -98,11 +98,21 @@ def add_transparency(color='rgb(31, 119, 180)', alpha=0.5):
 
 class ResultReader:
 
-    def __init__(self, root_dir: str = "/media/barrachina/data/results/Journal_MLSP/new"):
+    def _search_for_root_file(self):
+        if os.path.exists("/media/barrachina/data/results/new method"):
+            return "/media/barrachina/data/results/new method"
+        elif os.path.exists("D:/results/new method"):
+            return "D:/results/new method"
+        else:
+            raise FileNotFoundError("No path was given to ResultReader and it could not be automatically detected.")
+
+    def __init__(self, root_dir: str = None):
         """
         Finds all paths in a given `root_dir` directory
         :param root_dir:
         """
+        if root_dir is None:
+            root_dir = self._search_for_root_file()
         child_dirs = os.walk(root_dir)
         monte_dict = defaultdict(lambda: defaultdict(list))
         for child_dir in child_dirs:

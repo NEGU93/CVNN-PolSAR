@@ -9,27 +9,15 @@ from typing import Tuple
 from os import path
 import sys
 from sklearn.model_selection import train_test_split
-if path.exists('/home/barrachina/Documents/onera/PolSar/'):
-    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar/')
-    NOTIFY = False
-elif path.exists('W:\HardDiskDrive\Documentos\GitHub\onera\PolSar'):
-    sys.path.insert(1, 'W:\HardDiskDrive\Documentos\GitHub\onera\PolSar')
-    NOTIFY = False
-elif path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/'):
-    sys.path.insert(1, '/usr/users/gpu-prof/gpu_barrachina/onera/PolSar/')
-    NOTIFY = True
-elif path.exists('/home/cfren/Documents/onera/PolSar'):
-    sys.path.insert(1, '/home/cfren/Documents/onera/PolSar')
-    NOTIFY = False
-elif path.exists('/scratchm/jbarrach'):
-    sys.path.insert(1, '/scratchm/jbarrach/onera/PolSar')
-    root_path = 'path to bret to be added'
-else:
-    raise FileNotFoundError("path of the dataset reader not found")
+
 from dataset_reader import PolsarDatasetHandler
+
+sys.path.insert(1, '../')
 
 if os.path.exists('/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'):
     path = '/media/barrachina/data/datasets/PolSar/Bretigny-ONERA/data'
+elif os.path.exists('D:/datasets/PolSar/Bretigny-ONERA/data'):
+    path = 'D:/datasets/PolSar/Bretigny-ONERA/data'
 elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'):
     path = '/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny-ONERA/data'
 elif os.path.exists('/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'):
