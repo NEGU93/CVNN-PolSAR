@@ -12,6 +12,8 @@ if path.exists('/media/barrachina/data/datasets/PolSar/San Francisco/PolSF'):
     root_path = "/media/barrachina/data/datasets/PolSar/San Francisco/PolSF"
 elif path.exists('D:/datasets/PolSar/San Francisco/PolSF'):
     root_path = "D:/datasets/PolSar/San Francisco/PolSF"
+elif path.exists("/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/San Francisco/PolSF"):
+    root_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/San Francisco/PolSF"
 elif path.exists('/home/cfren/Documents/onera/PolSar/San Francisco/PolSF'):
     root_path = "/home/cfren/Documents/onera/PolSar/San Francisco/PolSF"
 elif path.exists('/scratchm/jbarrach'):
