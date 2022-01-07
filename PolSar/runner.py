@@ -60,7 +60,8 @@ class SimulationScheduler(ABC):
         with open(args.config_file[0]) as json_file:
             config_json = json.load(json_file)
         # config_json = [add_constants(conf) for conf in config_json]        # TODO: Horrible, think this better.
-        config_json = [item for sublist in config_json for item in sublist]
+        # set_trace()
+        # config_json = [item for sublist in config_json for item in sublist]
 
         for _ in range(args.iterations[0]):
             for param in config_json:
