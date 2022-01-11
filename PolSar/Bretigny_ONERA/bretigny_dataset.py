@@ -23,7 +23,7 @@ elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Bretigny
 elif os.path.exists('/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'):
     path = '/home/cfren/Documents/onera/PolSar/Bretigny-ONERA/data'
 else:
-    raise FileNotFoundError("Dataset path not found")
+    path = None
 
 
 def mean_filter(input, filter_size=3):
@@ -84,6 +84,8 @@ class BretignyDataset(PolsarDatasetHandler):
             raise ValueError(f"Mode {self.mode} not supported.")
 
     def get_sparse_labels(self):
+        if path is None:
+            raise FileNotFoundError("Bretigny dataset path not found")
         if not self.balanced:
             seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
         else:
@@ -96,6 +98,8 @@ class BretignyDataset(PolsarDatasetHandler):
     """
 
     def _open_data(self):
+        if path is None:
+            raise FileNotFoundError("Bretigny dataset path not found")
         mat = scipy.io.loadmat(path + '/bretigny_seg.mat')
         mat['HH'] = mat['HH'][:-3]
         mat['HV'] = mat['HV'][:-3]
