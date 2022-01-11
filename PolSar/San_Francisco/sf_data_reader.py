@@ -17,7 +17,7 @@ elif path.exists("/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/San Francis
 elif path.exists('/home/cfren/Documents/onera/PolSar/San Francisco/PolSF'):
     root_path = "/home/cfren/Documents/onera/PolSar/San Francisco/PolSF"
 elif path.exists('/scratchm/jbarrach'):
-    root_path = 'path to sf to be added'
+    root_path = None    # TODO
 else:
     raise FileNotFoundError("path of the san francisco dataset not found")
 from dataset_reader import labels_to_rgb, SF_COLORS, PolsarDatasetHandler
@@ -46,10 +46,14 @@ class SanFranciscoDataset(PolsarDatasetHandler):
         super(SanFranciscoDataset, self).print_ground_truth(t=t, *args, **kwargs)
 
     def get_sparse_labels(self):
+        if root_path is None:
+            raise FileNotFoundError("path of the san francisco dataset not found")
         labels = imread(Path(root_path) / self.name / (self.name + "-label2d.png"))
         return labels
 
     def get_image(self, save_image: bool = False) -> np.ndarray:
+        if root_path is None:
+            raise FileNotFoundError("path of the san francisco dataset not found")
         folder = "SAN_FRANCISCO_" + self.name[3:]
         if self.mode == "s":
             data = self.open_s_dataset(str(Path(root_path) / self.name / folder))
