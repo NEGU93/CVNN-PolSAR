@@ -26,16 +26,16 @@ else:
     raise FileNotFoundError("Results path not found")
 
 BASE_PATHS = {
-    "BRET": str(root_drive / "/datasets/PolSar/Bretigny-ONERA/bret-2003.png"),
-    "OBER": str(root_drive / "/datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6/PauliRGB_T1.bmp"),
-    "SF-AIRSAR":str(root_drive /  "/datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-Pauli.bmp"),
-    "SF-RS2": str(root_drive / "/datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp")
+    "BRET": str(root_drive / "datasets/PolSar/Bretigny-ONERA/bret-2003.png"),
+    "OBER": str(root_drive / "datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6/PauliRGB_T1.bmp"),
+    "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-Pauli.bmp"),
+    "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp")
 }
 GROUND_TRUTH_PATHS = {
-    "BRET": str(root_drive / "/datasets/PolSar/Bretigny-ONERA/labels_4roi.png"),
-    "OBER": str(root_drive / "/datasets/PolSar/Oberpfaffenhofen/ground_truth.png"),
-    "SF-AIRSAR": str(root_drive / "/datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-label3d.png"),
-    "SF-RS2": str(root_drive / "/datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-label3d.png")
+    "BRET": str(root_drive / "datasets/PolSar/Bretigny-ONERA/labels_4roi.png"),
+    "OBER": str(root_drive / "datasets/PolSar/Oberpfaffenhofen/ground_truth.png"),
+    "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-label3d.png"),
+    "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-label3d.png")
 }
 START_VALUES = {
     "dataset": 'SF-AIRSAR',
