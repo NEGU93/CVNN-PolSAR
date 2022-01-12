@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import pandas as pd
 from cvnn.utils import REAL_CAST_MODES
 from principal_simulation import get_final_model_results, _get_dataset_handler
-from typing import List, Optional
+from typing import List, Optional, Union
 
 AVAILABLE_LIBRARIES = set()
 try:
@@ -346,7 +346,7 @@ class MonteCarloPlotter:
 class SeveralMonteCarloPlotter:
 
     def box_plot(self, labels: List[str], data: List, ax=None,
-                 key='accuracy', library='seaborn', epoch=-1, showfig=False, savefile: Optional[str] = None):
+                 key='val_accuracy', library='seaborn', epoch=-1, showfig=False, savefile: Optional[str] = None):
         """
         Saves/shows a box plot of the results.
         :param labels: List of labels of each simulation to compare
@@ -434,13 +434,13 @@ class SeveralMonteCarloPlotter:
         for i, mc_run in enumerate(data):
             # color_pal += sns.color_palette()[:len(df.network.unique())]
             filter = mc_run['epoch'] == epochs[i]
-            t_data = mc_run[filter]
+            t_data = mc_run[filter].assign(name=labels[i])
             frames.append(t_data)
         result = pd.concat(frames)
 
         # Run figure
         fig = plt.figure()
-        ax = sns.boxplot(x=labels, y=key, data=result, boxprops=dict(alpha=.3))
+        ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette()[2:])
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
         # Make black lines the color of the box
@@ -467,11 +467,68 @@ class SeveralMonteCarloPlotter:
             fig.show()
         return fig, ax
 
+    def plot(self, data, labels: List[str], keys: Union[str, List[str]] = "val_accuracy",
+             ax=None, library="seaborn", showfig=False):
+        """
+        :param data:
+        :param ax: (Optional) axis on which to plot the data
+        :param keys:
+        :return:
+        """
+        self._plot_line_confidence_interval_matplotlib(ax=ax, keys=keys, data=data, labels=labels, showfig=showfig)
+
+    def _plot_line_confidence_interval_matplotlib(self, keys: Union[List[str], str], labels: List[str],
+                                                  data, ax=None, showfig=False, x_axis='epoch'):
+        if isinstance(keys, str):
+            keys = [keys]
+        keys = list(keys)
+        if ax is None:
+            fig, ax = plt.subplots()
+        else:
+            fig = None
+        for i, dat in enumerate(data):
+            for j, key in enumerate(keys):
+                stats = dat.groupby("epoch").describe()
+                x = stats.index.values.tolist()
+                data_mean = stats[key]['mean'].tolist()
+                data_max = stats[key]['max'].tolist()
+                data_min = stats[key]['min'].tolist()
+                data_50 = stats[key]['50%'].tolist()
+                data_25 = stats[key]['25%'].tolist()
+                data_75 = stats[key]['75%'].tolist()
+                ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                        label=labels[i] + " " + key)
+                ax.plot(x, data_50, '--',
+                        color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)])
+                # label=key + ' median')
+                ax.fill_between(x, data_25, data_75,
+                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                                alpha=.4)  # , label=key + ' interquartile')
+                ax.fill_between(x, data_min, data_max,
+                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                                alpha=.15)  # , label=key + ' border')
+        # title = title[:-3] + key
+        #
+        # ax.set_title(title)
+        ax.set_xlabel(x_axis)
+        # ax.set_ylabel(key)
+        ax.grid()
+        ax.legend()
+        # set_trace()
+        if showfig and fig:
+            fig.show()
+
 
 if __name__ == "__main__":
     simulation_results = ResultReader(root_dir=
-                                      "/media/barrachina/data/results/Journal_MLSP/old/During-Marriage-simulations")
+                                      "/media/barrachina/data/results/new method")
     lst = list(simulation_results.monte_dict.keys())
-    data = [simulation_results.get_pandas_data(lst[10])]
-    data.append(simulation_results.get_pandas_data(lst[11]))
-    SeveralMonteCarloPlotter().box_plot(labels=["one", "two"], data=data, showfig=True, library='plotly')
+    data = [simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": "random", '
+                                               '"dataset_mode": "k", "dtype": "complex", "library": "cvnn", '
+                                               '"model": "cao"}')]
+    data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+                                                   '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
+                                                   '"cvnn", "model": "cao"}'))
+    SeveralMonteCarloPlotter().box_plot(labels=["Pauli vector", "Coherency Matrix"], data=data,
+                                        showfig=False, library='seaborn', key='val_accuracy',
+                                        savefile="/home/barrachina/Dropbox/thesis/CVNN-thesis-Agustin/ppts/20211119 - JDD/sf-boxplot-val_acc")
