@@ -1,6 +1,7 @@
 import os
 import json
 import re
+from math import sqrt
 from pdb import set_trace
 from pathlib import Path
 from collections import defaultdict
@@ -137,8 +138,12 @@ class ResultReader:
                             if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
                                 monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
                                     str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                            if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
                                 monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
                                     str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
+                            if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
+                                    str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
                             monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
                                 str(Path(child_dir[0]) / 'history_dict.csv'))
                             monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
@@ -235,8 +240,32 @@ class ResultReader:
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
             self.monte_dict[json_key]['conf_stats'].append(cm_group.mean())
-            assert len(self.monte_dict[json_key]['conf_stats']) == 2
+            if len(self.monte_dict[json_key]['test_conf']) != 0:
+                for path in self.monte_dict[json_key]['test_conf']:
+                    tmp_cm = pd.read_csv(path, index_col=0)
+                    tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                    cm.append(tmp_cm)
+                cm_concat = pd.concat(tuple(cm))
+                cm_group = cm_concat.groupby(cm_concat.index)
+                self.monte_dict[json_key]['conf_stats'].append(cm_group.mean())
         return self.monte_dict[json_key]['conf_stats']
+
+    def get_eval_stat_string(self, json_key, dataset, stat: str, variable: str):
+        eval_stats = self.get_eval_stats(json_key=json_key)
+        if dataset not in eval_stats.keys():
+            return f"{dataset} key not available"
+        stat = stat.lower()
+        if stat == 'mean':
+            return f"{eval_stats[dataset]['mean'][variable]:.2%} +- {max(eval_stats[dataset]['std'][variable] / sqrt(eval_stats[dataset]['count'][variable]), 0.0001):.2%}"
+        if stat == 'median':
+            return f"{eval_stats[dataset]['50%'][variable]:.2%} +- {max(1.57 * (eval_stats[dataset]['75%'][variable] - eval_stats[dataset]['25%'][variable]) / sqrt(eval_stats[dataset]['count'][variable]), 0.0001):.2%}"
+        if stat == 'iqr':
+            return f"{eval_stats[dataset]['25%'][variable]:.2%} - {eval_stats[dataset]['75%'][variable]:.2%}"
+        if stat == 'range':
+            return f"{eval_stats[dataset]['min'][variable]:.2%} - {eval_stats[dataset]['max'][variable]:.2%}"
+
+    def get_total_count(self, json_key):
+        return self.get_eval_stats(json_key=json_key)['train']['count'][0]
 
     """
     Methods to parse simulation parameters

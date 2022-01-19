@@ -1,5 +1,6 @@
 import os.path
 import random
+import timeit
 from abc import ABC, abstractmethod
 import numpy as np
 import matplotlib.pyplot as plt
@@ -249,21 +250,17 @@ class PolsarDatasetHandler(ABC):
         self.real_mode = real_mode.lower()
         self.complex_mode = complex_mode    # TODO: Best practice to leave it outside
         self.classification = classification
-        # self.image, self.labels, self.sparse_labels = self.open_image()
-        # assert self.image.shape[:2] == self.labels.shape[:2]
-        # if normalize:
-        #     self.image, _ = tf.linalg.normalize(self.image, axis=[0, 1])
         self.balance_dataset = balance_dataset
-        # if balance_dataset and not classification:
-        #     self._balance_image()
-        # self.weights = self._get_weights(self.labels)
+        self.image = self.get_image()
+        self.sparse_labels = self.get_sparse_labels()
+        self.labels = self.get_labels()
 
     @abstractmethod
     def get_image(self) -> np.ndarray:
         pass
 
     def get_labels(self) -> np.ndarray:
-        return self.sparse_to_categorical_2D(self.get_sparse_labels())
+        return self.sparse_to_categorical_2D(self.sparse_labels)
 
     @abstractmethod
     def get_sparse_labels(self) -> np.ndarray:
@@ -272,10 +269,11 @@ class PolsarDatasetHandler(ABC):
     def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
                     savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
+                    remove_last: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
-                                                              shuffle=shuffle,
+                                                              shuffle=shuffle, remove_last=remove_last,
                                                               classification=self.classification)
         elif method == "separate":
             x_patches, y_patches = self._get_separated_dataset(percentage=percentage, size=size, stride=stride, pad=pad,
@@ -310,16 +308,18 @@ class PolsarDatasetHandler(ABC):
             assert percentage == 1
             percentage = (1.,)
         if isinstance(percentage, float):
-            if 0 < percentage <= 1:
+            if percentage == 1.:
                 percentage = (percentage,)
-            elif 0 < percentage < 1:
-                percentage = (1 - percentage, percentage)
+            if 0 < percentage < 1:
+                percentage = (percentage, 1 - percentage)
             else:
                 raise ValueError(f"Percentage must be 0 < percentage < 1, received {percentage}")
         else:
             percentage = list(percentage)
             assert 0 < sum(percentage) <= 1., f"percentage must add to 1 max, " \
                                               f"but it adds to sum({percentage}) = {sum(percentage)}"
+            if sum(percentage) < 1:
+                percentage = percentage + [1 - sum(percentage)]
         return percentage
 
     @staticmethod
@@ -338,13 +338,10 @@ class PolsarDatasetHandler(ABC):
     def _slice_dataset(self, percentage: tuple, orientation: str, savefig: Optional[str]):
         orientation = orientation.lower()
         percentage = self._parse_percentage(percentage)
-        image = self.get_image()
-        labels = self.get_labels()
-        sparse_labels = self.get_sparse_labels()
         if orientation == "horizontal":
-            total_length = image.shape[1]
+            total_length = self.image.shape[1]
         elif orientation == "vertical":
-            total_length = image.shape[0]
+            total_length = self.image.shape[0]
         else:
             raise ValueError(f"Orientation {orientation} unknown.")
         th = 0
@@ -355,13 +352,13 @@ class PolsarDatasetHandler(ABC):
             slice_1 = slice(th, th + int(total_length * per))
             th += int(total_length * per)
             if orientation == "horizontal":
-                x_slice.append(image[:, slice_1])
-                y_slice.append(labels[:, slice_1])
-                mask_slice.append(sparse_labels[:, slice_1])
+                x_slice.append(self.image[:, slice_1])
+                y_slice.append(self.labels[:, slice_1])
+                mask_slice.append(self.sparse_labels[:, slice_1])
             else:
-                x_slice.append(image[slice_1])
-                y_slice.append(labels[slice_1])
-                mask_slice.append(sparse_labels[slice_1])
+                x_slice.append(self.image[slice_1])
+                y_slice.append(self.labels[slice_1])
+                mask_slice.append(self.sparse_labels[slice_1])
         if savefig:
             slices_names = [
                 'train_ground_truth', 'val_ground_truth', 'test_ground_truth'
@@ -400,25 +397,20 @@ class PolsarDatasetHandler(ABC):
         y_test = np.concatenate(y_test_per_class)
         return x_train, x_test, y_train, y_test
 
-    def _separate_dataset(self, patches, label_patches, percentage: List[float], shuffle: bool = True) \
-            -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _separate_dataset(self, percentage: List[float], shuffle: bool = True,
+                          remove_last: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
-        :param patches: data patches
-        :param label_patches: label patches
         :param percentage: list of percentages for each value,
             example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test.
         :param shuffle: Shuffle dataset before split.
         :return: tuple of two lists of size = len(percentage), one with data x and other with labels y.
         """
         percentage = self._parse_percentage(percentage)
-        x_test = patches
-        y_test = label_patches
-        percentage = list(percentage)       # need it to be mutable
-        if sum(percentage) == 1:
-            percentage = percentage[:1]
+        x_test = self.patches
+        y_test = self.label_patches
         x = []
         y = []
-        for i, per in enumerate(percentage):
+        for i, per in enumerate(percentage[:-1]):
             if self.classification and self.balance_dataset:
                 x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
                                                                             shuffle=shuffle)
@@ -426,12 +418,12 @@ class PolsarDatasetHandler(ABC):
                 x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1-per,
                                                                     shuffle=True if self.classification else shuffle,
                                                                     stratify=y_test if self.classification else None)
-            if i + 1 < len(percentage):
-                percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
+            percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
             x.append(x_train)
             y.append(y_train)
-        x.append(x_test)
-        y.append(y_test)
+        if not remove_last:
+            x.append(x_test)
+            y.append(y_test)
         # print(f"memory before removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
         x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
         # print(f"memory after removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
@@ -450,8 +442,9 @@ class PolsarDatasetHandler(ABC):
         return x, y
 
     # Get dataset
-    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25, percentage: List[float] = (0.8, 0.2),
-                              shuffle: bool = True, pad="same",
+    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
+                              percentage: Union[Tuple[float], float] = (0.8, 0.2),
+                              shuffle: bool = True, pad="same", remove_last: bool = False,
                               classification: bool = False) -> (tf.data.Dataset, tf.data.Dataset):
         """
         Applies the sliding window operations getting smaller images of a big image T.
@@ -461,10 +454,9 @@ class PolsarDatasetHandler(ABC):
         :param percentage: float. Percentage of examples to be used for the test set [0, 1]
         :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
         """
-        patches, label_patches = self.apply_sliding(size=size, stride=stride, pad=pad, classification=classification)
+        self.apply_sliding(size=size, stride=stride, pad=pad, classification=classification)
         # del T, labels  # Free up memory
-        x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle)
-        del patches, label_patches
+        x, y = self._separate_dataset(percentage=percentage, shuffle=shuffle, remove_last=remove_last)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
@@ -590,32 +582,41 @@ class PolsarDatasetHandler(ABC):
 
     def apply_sliding(self, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
                       classification: bool = False, remove_unlabeled: bool = False):
-        image = self.get_image()
-        labels = self.get_labels()
-        if isinstance(size, int):
-            size = (size, size)
+        if not hasattr(self, "patches"):
+            if isinstance(size, int):
+                size = (size, size)
+            else:
+                size = tuple(size)
+                assert len(size) == 2
+            pad = self._parse_pad(pad, size)
+            temp_path = self.root_path / "dataset_preprocess_cache"
+            os.makedirs(str(temp_path), exist_ok=True)
+            config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_window{size}_stride{stride}_pad{pad}"
+            if os.path.isfile(temp_path / (config_string + "_patches.npy")):
+                print(f"Loading dataset {config_string}_patches.npy")
+                start = timeit.default_timer()
+                self.patches = np.load(str(temp_path / (config_string + "_patches.npy")))
+                self.label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
+                print(f"Load done in {timeit.default_timer() - start} seconds")
+            else:
+                print(f"Computing dataset {config_string}_patches.npy")
+                start = timeit.default_timer()
+                self.patches, self.label_patches = self._sliding_window_operation(self.image, self.labels, size=size,
+                                                                                  stride=stride, pad=pad)
+                # print(f"patches shape after sliding window op{patches.shape}")
+                if not os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
+                    np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), self.patches)
+                    np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), self.label_patches)
+                if classification:
+                    self.patches, self.label_patches = self._to_classification(x=self.patches, y=self.label_patches,
+                                                                               mask=remove_unlabeled)
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), self.patches)
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), self.label_patches)
+                print(f"Computation done in {timeit.default_timer() - start} seconds")
         else:
-            size = tuple(size)
-            assert len(size) == 2
-        pad = self._parse_pad(pad, size)
-        temp_path = self.root_path / "dataset_preprocess_cache"
-        os.makedirs(str(temp_path), exist_ok=True)
-        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_window{size}_stride{stride}_pad{pad}"
-        if os.path.isfile(temp_path / (config_string + "_patches")):
-            patches = np.load(str(temp_path / (config_string + "_patches.npy")))
-            label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
-        else:
-            patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride,
-                                                                    pad=pad)
-            # print(f"patches shape after sliding window op{patches.shape}")
-            np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches)
-            np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
-            if classification:
-                patches, label_patches = self._to_classification(x=patches, y=label_patches, mask=remove_unlabeled)
-                np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), patches)
-                np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), label_patches)
+            print("Using previously computed values. Attention! if parameters have changed it will not take effect")
         # print(f"patches shape before going out of apply slifing {patches.shape}")
-        return patches, label_patches
+        return self.patches, self.label_patches
 
     # Utils
     @staticmethod
