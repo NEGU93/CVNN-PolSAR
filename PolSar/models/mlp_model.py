@@ -1,0 +1,71 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Flatten, Dense, Input
+from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
+from cvnn.layers import ComplexDense, ComplexFlatten, complex_input
+from cvnn.losses import ComplexAverageCrossEntropy
+from cvnn.real_equiv_tools import _get_ratio_capacity_equivalent
+
+mlp_hyper_params = {
+    'activation': 'cart_relu',
+    'shape': [100, 50],              # I just use the lowest error
+    'optimizer': Adam(learning_rate=0.001, beta_1=0.9),
+    'loss': ComplexAverageCrossEntropy()
+}
+
+tf_mlp_hyper_params = {
+    'activation': 'relu',      #
+    'loss': ComplexAverageCrossEntropy()
+}
+
+
+def _get_mlp_model(input_shape, num_classes, dtype, name='mlp'):
+    in1 = complex_input(shape=input_shape, dtype=dtype)
+    h = ComplexFlatten(dtype=dtype)(in1)
+    # import pdb; pdb.set_trace()
+    shape = mlp_hyper_params['shape']
+    if not dtype.is_complex:
+        for i in range(len(mlp_hyper_params['shape'])):
+            multiplier = _get_ratio_capacity_equivalent([input_shape[-1]] + mlp_hyper_params['shape'] + [num_classes])
+            shape[i] = int(np.ceil(shape[i] * multiplier[i]))
+    for sh in shape:
+        h = ComplexDense(sh, activation=mlp_hyper_params['activation'], dtype=dtype)(h)
+    out = ComplexDense(num_classes, activation='cart_softmax', dtype=dtype)(h)
+    model = Model(inputs=in1, outputs=out, name=name)
+    model.compile(optimizer=mlp_hyper_params['optimizer'], loss=mlp_hyper_params['loss'],
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'), ComplexAverageAccuracy(name='average_accuracy')]
+                  )
+    return model
+
+
+def _get_tf_mlp_model(input_shape, num_classes, dtype, name='mlp'):
+    if dtype.is_complex:
+        raise ValueError(f"Cannot use Tensorflow for creating a complex model")
+    in1 = Input(shape=input_shape, dtype=dtype)
+    h = Flatten(dtype=dtype)(in1)
+    shape = mlp_hyper_params['shape']
+    for i in range(len(mlp_hyper_params['shape'])):
+        multiplier = _get_ratio_capacity_equivalent([input_shape[-1]] + mlp_hyper_params['shape'] + [num_classes])
+        shape[i] = int(np.round(shape[i] * multiplier))
+    for sh in shape:
+        h = Dense(sh, activation=tf_mlp_hyper_params['activation'], dtype=dtype)(h)
+    out = Dense(num_classes, activation='linear', dtype=dtype)(h)
+    model = Model(inputs=in1, outputs=out, name=name)
+    model.compile(optimizer=mlp_hyper_params['optimizer'], loss=tf_mlp_hyper_params['loss'],
+                  metrics=[ComplexCategoricalAccuracy(name='accuracy'), ComplexAverageAccuracy(name='average_accuracy')]
+                  )
+    return model
+
+
+def get_mlp_model(input_shape=(1, 1, 6), num_classes=6, dtype=np.complex64,
+                          tensorflow: bool = False, name="mlp", dropout=None):
+    if dropout is not None:
+        raise ValueError("Dropout for zhang model not yet implemented")
+    if not tensorflow:
+        return _get_mlp_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
+                              name=name)
+    else:
+        return _get_tf_mlp_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
+                                 name=name)

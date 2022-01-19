@@ -32,6 +32,7 @@ from models.own_unet import get_my_unet_model
 from models.haensch_mlp import get_haensch_mlp_model
 from models.tan_3dcnn import get_tan_3d_cnn_model
 from models.cnn_standard import get_cnn_model
+from models.mlp_model import get_mlp_model
 
 from pdb import set_trace
 
@@ -67,6 +68,8 @@ MODEL_META = {
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
     "haensch": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
                 "percentage": (0.02, 0.08, 0.1, 0.8), "task": "classification"},
+    "mlp": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
+            "percentage": (0.02, 0.08, 0.1, 0.8), "task": "classification"},
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
@@ -206,6 +209,15 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                       num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                                       dropout=dropout["downsampling"],
                                       name=name_prefix + model_name)
+    elif model_name == 'mlp':
+        if weights is not None:
+            print("WARNING: MLP model does not support weighted loss")
+        model = get_mlp_model(input_shape=(MODEL_META["mlp"]["size"],
+                                           MODEL_META["mlp"]["size"], channels),
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              dropout=dropout["downsampling"],
+                              name=name_prefix + model_name)
+        set_trace()
     elif model_name == 'tan':
         if weights is not None:
             print("WARNING: Tan model does not support weighted loss")
@@ -412,7 +424,6 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
     if len(ds_list) >= 3:
         test_ds = ds_list[2]
-        set_trace()
         evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_ds[0], test_ds[1]),
                                               metrics=checkpoint_model.metrics_names)
         test_confusion_matrix = _get_confusion_matrix(test_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
