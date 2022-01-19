@@ -348,7 +348,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                            classification=MODEL_META[model_name]['task'] == 'classification')
     ds_list = dataset_handler.get_dataset(method=dataset_method,
                                           percentage=percentage,
-                                          size=MODEL_META[model_name]["size"], stride=MODEL_META[model_name]["stride"],
+                                          size=MODEL_META[model_name]["size"],
+                                          stride=MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
                                           orientation=DATASET_META[dataset_name]['orientation'],
@@ -356,14 +357,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                           batch_size=MODEL_META[model_name]['batch_size'], use_tf_dataset=False
                                           )
     train_ds = ds_list[0]
-    if len(ds_list) > 1:
-        val_ds = ds_list[1]
-    else:
-        val_ds = None
-    if len(ds_list) > 2:
-        test_ds = ds_list[2]
-    else:
-        test_ds = None
+    val_ds = ds_list[1]
+    # tf.config.list_physical_devices()
+    # print(f"memory usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
+    # set_trace()
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
@@ -395,7 +392,18 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                              metrics=checkpoint_model.metrics_names)
         val_confusion_matrix = _get_confusion_matrix(val_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
         val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
-    if test_ds:
+    if len(percentage) == 3:
+        ds_list = dataset_handler.get_dataset(method=dataset_method,
+                                              percentage=percentage,
+                                              size=MODEL_META[model_name]["size"],
+                                              stride=MODEL_META[model_name]["stride"],
+                                              pad=MODEL_META[model_name]["pad"],
+                                              shuffle=True, savefig=str(temp_path / "image_") if debug else None,
+                                              orientation=DATASET_META[dataset_name]['orientation'],
+                                              data_augment=False,
+                                              batch_size=MODEL_META[model_name]['batch_size'], use_tf_dataset=False
+                                              )
+        test_ds = ds_list[2]
         evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_ds[0], test_ds[1]),
                                               metrics=checkpoint_model.metrics_names)
         test_confusion_matrix = _get_confusion_matrix(test_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
@@ -445,14 +453,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
     dropout = parse_dropout(dropout=dropout)
     with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
         summary_file.write(" ".join(sys.argv[1:]) + "\n")
-        summary_file.write(f"Model: {'cv-' if complex_mode else 'rv-'}{model_name}\n")
-        if not complex_mode:
-            summary_file.write(f"\t{real_mode}\n")
-        summary_file.write(f"Dataset: {dataset_name}:\t{mode}\n")
-        summary_file.write(f"Other parameters:\n")
-        summary_file.write(f"\tepochs: {epochs}\n")
-        summary_file.write(f"\t{'' if early_stop else 'no'} early stop\n")
-        summary_file.write(f"\tweighted {balance}\n")
+        summary_file.write(f"\tRunned on {socket.gethostname()}\n")
     df, dataset_handler, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
                                              mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                              early_stop=early_stop, temp_path=temp_path, epochs=epochs,

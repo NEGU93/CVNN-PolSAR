@@ -298,7 +298,7 @@ class PolsarDatasetHandler(ABC):
             else:
                 ds_list = [transform_to_real_map_function(x, y, self.real_mode)
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
-        return ds_list
+        return tuple(ds_list)
 
     """
         PRIVATE
@@ -310,16 +310,16 @@ class PolsarDatasetHandler(ABC):
             assert percentage == 1
             percentage = (1.,)
         if isinstance(percentage, float):
-            if percentage == 1:
-                percentage = (1.,)
+            if 0 < percentage <= 1:
+                percentage = (percentage,)
             elif 0 < percentage < 1:
                 percentage = (1 - percentage, percentage)
             else:
                 raise ValueError(f"Percentage must be 0 < percentage < 1, received {percentage}")
         else:
             percentage = list(percentage)
-            assert sum(percentage) == 1., f"percentage must add to 1, " \
-                                          f"but it adds to sum{percentage} = {sum(percentage)}"
+            assert 0 < sum(percentage) <= 1., f"percentage must add to 1 max, " \
+                                              f"but it adds to sum({percentage}) = {sum(percentage)}"
         return percentage
 
     @staticmethod
@@ -414,9 +414,11 @@ class PolsarDatasetHandler(ABC):
         x_test = patches
         y_test = label_patches
         percentage = list(percentage)       # need it to be mutable
+        if sum(percentage) == 1:
+            percentage = percentage[:1]
         x = []
         y = []
-        for i, per in enumerate(percentage[:-1]):
+        for i, per in enumerate(percentage):
             if self.classification and self.balance_dataset:
                 x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
                                                                             shuffle=shuffle)
@@ -424,12 +426,16 @@ class PolsarDatasetHandler(ABC):
                 x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1-per,
                                                                     shuffle=True if self.classification else shuffle,
                                                                     stratify=y_test if self.classification else None)
-            percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
+            if i + 1 < len(percentage):
+                percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
             x.append(x_train)
             y.append(y_train)
         x.append(x_test)
         y.append(y_test)
+        # print(f"memory before removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
         x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
+        # print(f"memory after removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
+        # set_trace()
         return x, y
 
     @staticmethod
@@ -458,6 +464,7 @@ class PolsarDatasetHandler(ABC):
         patches, label_patches = self.apply_sliding(size=size, stride=stride, pad=pad, classification=classification)
         # del T, labels  # Free up memory
         x, y = self._separate_dataset(patches, label_patches, percentage, shuffle=shuffle)
+        del patches, label_patches
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
