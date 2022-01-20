@@ -2,16 +2,16 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Flatten, Dense, Input
+from tensorflow.keras.layers import Flatten, Dense, Input, Dropout
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
-from cvnn.layers import ComplexDense, ComplexFlatten, complex_input
+from cvnn.layers import ComplexDense, ComplexFlatten, complex_input, ComplexDropout
 from cvnn.losses import ComplexAverageCrossEntropy
 from cvnn.real_equiv_tools import _get_ratio_capacity_equivalent
 
 mlp_hyper_params = {
     'activation': 'cart_relu',
-    'shape': [100, 50],              # I just use the lowest error
-    'optimizer': Adam(learning_rate=0.001, beta_1=0.9),
+    'shape': [96, 180],              # I just use the lowest error
+    'optimizer': Adam(learning_rate=0.01, beta_1=0.9),
     'loss': ComplexAverageCrossEntropy()
 }
 
@@ -24,14 +24,14 @@ tf_mlp_hyper_params = {
 def _get_mlp_model(input_shape, num_classes, dtype, name='mlp'):
     in1 = complex_input(shape=input_shape, dtype=dtype)
     h = ComplexFlatten(dtype=dtype)(in1)
-    # import pdb; pdb.set_trace()
-    shape = mlp_hyper_params['shape']
+    shape = mlp_hyper_params['shape'].copy()
     if not dtype.is_complex:
         for i in range(len(mlp_hyper_params['shape'])):
             multiplier = _get_ratio_capacity_equivalent([input_shape[-1]] + mlp_hyper_params['shape'] + [num_classes])
             shape[i] = int(np.ceil(shape[i] * multiplier[i]))
     for sh in shape:
         h = ComplexDense(sh, activation=mlp_hyper_params['activation'], dtype=dtype)(h)
+        h = ComplexDropout(rate=0.5)(h)
     out = ComplexDense(num_classes, activation='cart_softmax', dtype=dtype)(h)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=mlp_hyper_params['optimizer'], loss=mlp_hyper_params['loss'],
@@ -51,6 +51,7 @@ def _get_tf_mlp_model(input_shape, num_classes, dtype, name='mlp'):
         shape[i] = int(np.round(shape[i] * multiplier))
     for sh in shape:
         h = Dense(sh, activation=tf_mlp_hyper_params['activation'], dtype=dtype)(h)
+        h = Dropout(rate=0.5)(h)
     out = Dense(num_classes, activation='linear', dtype=dtype)(h)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=mlp_hyper_params['optimizer'], loss=tf_mlp_hyper_params['loss'],

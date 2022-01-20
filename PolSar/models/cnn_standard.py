@@ -58,11 +58,11 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_cnn'):
     filters = "real_filters"
     in1 = Input(shape=input_shape)
     c1 = Conv2D(filters=cnn_params_model[filters][0], kernel_size=cnn_params_model['kernel_size'],
-                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'],
+                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'], kernel_initializer="he_normal",
                 activation=cnn_params_model['activation'])(in1)
     p1 = AveragePooling2D(pool_size=cnn_params_model['pool_size'])(c1)
     c2 = Conv2D(filters=cnn_params_model[filters][1], kernel_size=cnn_params_model['kernel_size'],
-                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'],
+                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'], kernel_initializer="he_normal",
                 activation=cnn_params_model['activation'])(p1)
     flat = Flatten(dtype=dtype)(c2)
     out = Dense(num_classes, activation='softmax')(flat)
