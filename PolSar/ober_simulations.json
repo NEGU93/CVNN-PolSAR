@@ -1,10 +1,14 @@
 [
     {
         "model": "mlp",
-        "epochs": 5000
+        "epochs": 5000,
+        "dataset": "OBER",
+        "coherency": true
     },
     {
         "model": "cnn",
-        "epochs": 5000
+        "epochs": 1000,
+        "dataset": "OBER",
+        "coherency": true
     }
 ]
