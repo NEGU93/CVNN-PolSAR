@@ -1,7 +1,7 @@
 [
     {
         "model": "mlp",
-        "epochs": 5000,
+        "epochs": 2000,
         "dataset": "OBER",
         "coherency": true
     },
