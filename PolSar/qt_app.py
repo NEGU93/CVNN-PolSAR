@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from seaborn import heatmap
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QRadioButton, QLabel, QVBoxLayout, QHBoxLayout, \
-    QButtonGroup, QTableView, QHeaderView, QSizePolicy
+    QButtonGroup, QTableView, QHeaderView, QSizePolicy, QTableWidget, QTableWidgetItem
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
@@ -27,7 +27,8 @@ else:
 
 BASE_PATHS = {
     "BRET": str(root_drive / "datasets/PolSar/Bretigny-ONERA/bret-2003.png"),
-    "OBER": str(root_drive / "datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6/PauliRGB_T1.bmp"),
+    "OBER": str(
+        root_drive / "datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6/PauliRGB_T1.bmp"),
     "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-Pauli.bmp"),
     "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp")
 }
@@ -88,8 +89,7 @@ class DataFrameModel(QtCore.QAbstractTableModel):
         return self._dataframe.columns.size
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
-        if not index.isValid() or not (0 <= index.row() < self.rowCount() \
-                                       and 0 <= index.column() < self.columnCount()):
+        if not index.isValid() or not (0 <= index.row() < self.rowCount() and 0 <= index.column() < self.columnCount()):
             return QtCore.QVariant()
         row = self._dataframe.index[index.row()]
         col = self._dataframe.columns[index.column()]
@@ -147,31 +147,28 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
         self.show()
 
+    # Layouts
     def _get_accuracy_layout(self):
         self.acc_values_title = QLabel("Accuracy")
         myFont = QFont()
         myFont.setBold(True)
         self.acc_values_title.setFont(myFont)
         key = []
-        key.append(QLabel("Train OA: "))
-        key.append(QLabel("Train AA: "))
-        key.append(QLabel("Validation OA: "))
-        key.append(QLabel("Validation AA: "))
-        for k in key:
-            k.setFont(myFont)
-        self.acc_values = []
-        self.acc_values.append(QLabel("00.00%"))
-        self.acc_values.append(QLabel("00.00%"))
-        self.acc_values.append(QLabel("00.00%"))
-        self.acc_values.append(QLabel("00.00%"))
+        key.append("Train OA")
+        key.append("Train AA")
+        key.append("Validation OA")
+        key.append("Validation AA")
+        key.append("Test OA")
+        key.append("Test AA")
+        self.tableAccWidget = QTableWidget()
+        self.tableAccWidget.setRowCount(4)
+        self.tableAccWidget.setColumnCount(6)
+        self.tableAccWidget.setHorizontalHeaderLabels(key)
+        self.tableAccWidget.setVerticalHeaderLabels(['mean', 'median', 'IQR', 'range'])
+        self.tableAccWidget.setMinimumHeight(150)
         vbox = QVBoxLayout()
         vbox.addWidget(self.acc_values_title)
-        for i in range(len(key)):
-            hbox = QHBoxLayout()
-            hbox.addWidget(key[i])
-            hbox.addWidget(self.acc_values[i])
-            hbox.setAlignment(Qt.AlignLeft)
-            vbox.addLayout(hbox)
+        vbox.addWidget(self.tableAccWidget)
         return vbox
 
     def _get_upper_layout(self):
@@ -277,7 +274,8 @@ class MainWindow(QMainWindow):
     def dtype_radiobuttons(self):
         vlayout = QHBoxLayout()
         self.complex_dtype_rb = QRadioButton("complex")
-        self.complex_dtype_rb.toggled.connect(lambda state: state and  self.update_information("dtype", self.complex_dtype_rb.text()))
+        self.complex_dtype_rb.toggled.connect(
+            lambda state: state and self.update_information("dtype", self.complex_dtype_rb.text()))
 
         self.real_dtype_rb = QRadioButton("real_imag", self)
         self.real_dtype_rb.toggled.connect(
@@ -454,6 +452,7 @@ class MainWindow(QMainWindow):
             lay.addWidget(l1)
         return lay
 
+    # Update information
     def get_image(self, image_path: List[str]):
         if not image_path:
             pixmap = QPixmap(BASE_PATHS[self.params["dataset"]])
@@ -494,31 +493,44 @@ class MainWindow(QMainWindow):
     def plot_conf_matrix(self, conf_list):
         if hasattr(self, "conf_figure"):
             self.conf_figure.clear()
-            ax1 = self.conf_figure.add_subplot(121)
-            ax2 = self.conf_figure.add_subplot(122)
+            ax1 = self.conf_figure.add_subplot(131)
+            ax2 = self.conf_figure.add_subplot(132)
+            ax3 = self.conf_figure.add_subplot(133)
             ax1.clear()
             ax2.clear()
+            ax3.clear()
             heatmap(conf_list[0].drop('Total', axis=1).drop('Total'), ax=ax1, annot=True, cmap="rocket_r")
             heatmap(conf_list[1].drop('Total', axis=1).drop('Total'), ax=ax2, annot=True, cmap="rocket_r")
+            if len(conf_list) > 2:
+                heatmap(conf_list[2].drop('Total', axis=1).drop('Total'), ax=ax3, annot=True, cmap="rocket_r")
             self.conf_canvas.draw()
 
-    def print_values(self, history_path):
-        if history_path is not None and len(history_path) != 0 and hasattr(self, "acc_values"):
-            self.acc_values_title.setText(f"Accuracy (total count {int(history_path['train']['count'][0])})")
-            self.acc_values[0].setText(f"{history_path['train']['mean']['accuracy']:.2%} +- "
-                                       f"{history_path['train']['std']['accuracy'] / history_path['train']['count']['accuracy']:.2%}")
-            self.acc_values[1].setText(f"{history_path['train']['mean']['average_accuracy']:.2%} +- "
-                                       f"{history_path['train']['std']['average_accuracy'] / history_path['train']['count']['average_accuracy']:.2%}")
-            self.acc_values[2].setText(f"{history_path['val']['mean']['accuracy']:.2%} +- "
-                                       f"{history_path['val']['std']['accuracy'] / history_path['val']['count']['accuracy']:.2%}")
-            self.acc_values[3].setText(f"{history_path['val']['mean']['average_accuracy']:.2%} +- "
-                                       f"{history_path['val']['std']['average_accuracy'] / history_path['val']['count']['average_accuracy']:.2%}")
-        elif hasattr(self, "acc_values"):
+    def print_values(self, json_key):
+        if json_key is not None and hasattr(self, "tableAccWidget"):
+            self.acc_values_title.setText(f"Accuracy (total count {int(self.simulation_results.get_total_count(json_key))})")
+            for i, stat in enumerate(["mean", "median", "iqr", 'range']):
+                for j, dat in enumerate(["train", "val", "test"]):
+                    for k, variable in enumerate(["accuracy", "average_accuracy"]):
+                        self.tableAccWidget.setItem(i, 2*j + k, QTableWidgetItem(
+                            self.simulation_results.get_eval_stat_string(json_key=json_key, dataset=dat,
+                                                                         stat=stat, variable=variable)))
+            header = self.tableAccWidget.horizontalHeader()
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+            # header.setMinimumSectionSize(200)
+        elif hasattr(self, "tableAccWidget"):
             self.acc_values_title.setText("Accuracy")
-            self.acc_values[0].setText(f"00.00%")
-            self.acc_values[1].setText(f"00.00%")
-            self.acc_values[2].setText(f"00.00%")
-            self.acc_values[3].setText(f"00.00%")
+            self.tableAccWidget.setItem(0, 0, QTableWidgetItem(f"00.00%"))
+            self.tableAccWidget.setItem(0, 1, QTableWidgetItem(f"00.00%"))
+            self.tableAccWidget.setItem(0, 2, QTableWidgetItem(f"00.00%"))
+            self.tableAccWidget.setItem(0, 3, QTableWidgetItem(f"00.00%"))
+            self.tableAccWidget.setItem(0, 4, QTableWidgetItem(f"00.00%"))
+            self.tableAccWidget.setItem(0, 5, QTableWidgetItem(f"00.00%"))
+
 
     def _verify_combinations(self, key, value):
         if value == "complex":
@@ -551,10 +563,9 @@ class MainWindow(QMainWindow):
         self.get_image_ground_truth()
         if self.simulation_results.data_exists(json_key):
             stats = self.simulation_results.get_stats(json_key=json_key)
-            eval_stats = self.simulation_results.get_eval_stats(json_key=json_key)
             conf_stats = self.simulation_results.get_conf_stats(json_key=json_key)
             self.plot(stats)
-            self.print_values(eval_stats)
+            self.print_values(json_key)
             self.plot_conf_matrix(conf_stats)
         else:
             self.print_values(None)

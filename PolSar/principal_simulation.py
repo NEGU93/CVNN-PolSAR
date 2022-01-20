@@ -31,6 +31,8 @@ from models.zhang_cnn import get_zhang_cnn_model
 from models.own_unet import get_my_unet_model
 from models.haensch_mlp import get_haensch_mlp_model
 from models.tan_3dcnn import get_tan_3d_cnn_model
+from models.cnn_standard import get_cnn_model
+from models.mlp_model import get_mlp_model
 
 from pdb import set_trace
 
@@ -61,11 +63,15 @@ MODEL_META = {
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
-              "percentage": (0.09, 0.01, 0.9), "task": "classification"},
+              "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
+    "cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
+            "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
     "haensch": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
-                "percentage": (0.02, 0.08, 0.9), "task": "classification"},
+                "percentage": (0.02, 0.08, 0.1, 0.8), "task": "classification"},
+    "mlp": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
+            "percentage": (0.02, 0.08, 0.9), "task": "classification"},
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
-            "percentage": (0.09, 0.01, 0.9), "task": "classification"}
+            "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
 
 
@@ -177,6 +183,13 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
         model = get_cao_fcnn_model(input_shape=(None, None, channels), num_classes=num_classes,
                                    tensorflow=tensorflow, dropout_dict=dropout,
                                    dtype=dtype, name=name_prefix + model_name, weights=weights)
+    elif model_name == "cnn":
+        if weights is not None:
+            print("WARNING: Zhang model does not support weighted loss")
+        model = get_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              dropout=dropout["downsampling"],
+                              name=name_prefix + model_name)
     elif model_name == "own":
         model = get_my_unet_model(input_shape=(None, None, channels), num_classes=num_classes,
                                   tensorflow=tensorflow, dropout_dict=dropout,
@@ -196,6 +209,14 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                       num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                                       dropout=dropout["downsampling"],
                                       name=name_prefix + model_name)
+    elif model_name == 'mlp':
+        if weights is not None:
+            print("WARNING: MLP model does not support weighted loss")
+        model = get_mlp_model(input_shape=(MODEL_META["mlp"]["size"],
+                                           MODEL_META["mlp"]["size"], channels),
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              dropout=dropout["downsampling"],
+                              name=name_prefix + model_name)
     elif model_name == 'tan':
         if weights is not None:
             print("WARNING: Tan model does not support weighted loss")
@@ -257,22 +278,30 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
     shape = model.input.shape[1:]
     stride = 1
     tiles, label_tiles = dataset_handler.apply_sliding(stride=stride, size=shape[:-1], pad="same", classification=True)
-    # set_trace()
     if not dataset_handler.complex_mode:
         tiles, label_tiles = transform_to_real_map_function(tiles, label_tiles, dataset_handler.real_mode)
     if use_mask:
         mask = dataset_handler.get_sparse_labels()
     else:
         mask = None
-    prediction = model.predict(tiles)
-    if os.path.isfile(str(root_path / 'evaluate.csv')):
-        evaluate = _eval_list_to_dict(model.evaluate(tiles, label_tiles), model.metrics_names)
-        eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
-        eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
-        eval_df.to_csv(str(root_path / 'evaluate.csv'))
+    try:
+        prediction = model.predict(tiles)
+        if os.path.isfile(str(root_path / 'evaluate.csv')):
+            evaluate = _eval_list_to_dict(model.evaluate(tiles, label_tiles), model.metrics_names)
+            eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
+            eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
+            eval_df.to_csv(str(root_path / 'evaluate.csv'))
+    except:  # tf.python.framework.errors_impl.InternalError:
+        print("Could not predict full image due to memory issues")
+        return None
+    # next_tile = tiles[:int(tiles.shape[0]/10)]
+    # prediction = model.predict(next_tile)
+    # for i in range(1, 10):     # compute in groups of 10 for memory problems.
+    #     next_tile = tiles[int(i*tiles.shape[0]/10):int((i+1)*tiles.shape[0]/10)]
+    #     pred = model.predict(next_tile)
+    #     prediction = np.append(prediction, pred, axis=0)
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    # set_trace()
     image_prediction = tf.reshape(prediction,
                                   shape=tuple(dataset_handler.get_image().shape[:-1]) + (prediction.shape[-1],))
     labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
@@ -348,22 +377,19 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                            classification=MODEL_META[model_name]['task'] == 'classification')
     ds_list = dataset_handler.get_dataset(method=dataset_method,
                                           percentage=percentage,
-                                          size=MODEL_META[model_name]["size"], stride=MODEL_META[model_name]["stride"],
+                                          size=MODEL_META[model_name]["size"],
+                                          stride=MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
                                           orientation=DATASET_META[dataset_name]['orientation'],
-                                          data_augment=False,
+                                          data_augment=False, remove_last=len(percentage) == 4,
                                           batch_size=MODEL_META[model_name]['batch_size'], use_tf_dataset=False
                                           )
     train_ds = ds_list[0]
-    if len(ds_list) > 1:
-        val_ds = ds_list[1]
-    else:
-        val_ds = None
-    if len(ds_list) > 2:
-        test_ds = ds_list[2]
-    else:
-        test_ds = None
+    val_ds = ds_list[1]
+    # tf.config.list_physical_devices()
+    # print(f"memory usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
+    # set_trace()
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
@@ -395,7 +421,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                              metrics=checkpoint_model.metrics_names)
         val_confusion_matrix = _get_confusion_matrix(val_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
         val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
-    if test_ds:
+    if len(ds_list) >= 3:
+        test_ds = ds_list[2]
         evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_ds[0], test_ds[1]),
                                               metrics=checkpoint_model.metrics_names)
         test_confusion_matrix = _get_confusion_matrix(test_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
@@ -445,14 +472,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
     dropout = parse_dropout(dropout=dropout)
     with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
         summary_file.write(" ".join(sys.argv[1:]) + "\n")
-        summary_file.write(f"Model: {'cv-' if complex_mode else 'rv-'}{model_name}\n")
-        if not complex_mode:
-            summary_file.write(f"\t{real_mode}\n")
-        summary_file.write(f"Dataset: {dataset_name}:\t{mode}\n")
-        summary_file.write(f"Other parameters:\n")
-        summary_file.write(f"\tepochs: {epochs}\n")
-        summary_file.write(f"\t{'' if early_stop else 'no'} early stop\n")
-        summary_file.write(f"\tweighted {balance}\n")
+        summary_file.write(f"\tRunned on {socket.gethostname()}\n")
     df, dataset_handler, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
                                              mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                              early_stop=early_stop, temp_path=temp_path, epochs=epochs,
