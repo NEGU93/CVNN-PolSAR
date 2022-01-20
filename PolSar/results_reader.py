@@ -117,7 +117,8 @@ class ResultReader:
         child_dirs = os.walk(root_dir)
         monte_dict = defaultdict(lambda: defaultdict(list))
         for child_dir in child_dirs:
-            if "run-" in child_dir[0].split('/')[-1]:
+            # set_trace()
+            if "run-" in os.path.split(child_dir[0])[-1]:
                 file_path = Path(child_dir[0]) / "model_summary.txt"
                 if file_path.is_file():
                     with open(file_path) as txt_sum_file:
