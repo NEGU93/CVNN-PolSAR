@@ -6,7 +6,7 @@ out/
 data/
 results/
 **/job.sh
-job.sbatch
+**/job.sbatch
 slurm*
 
 # python cache
