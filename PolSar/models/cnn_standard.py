@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
@@ -19,7 +21,7 @@ cnn_params_model = {
     'kernel_size':  3,
     'stride': 1,
     'complex_filters': [6, 12],
-    'real_filters': [8, 22],
+    'real_filters': [int(np.ceil(6*math.sqrt(2))), int(np.ceil(12*math.sqrt(2)))],
     'pool_size': 2,
     'kernel_init': ComplexHeNormal(),
     'loss': ComplexAverageCrossEntropy(),       # End of II.A.4
