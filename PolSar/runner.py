@@ -27,10 +27,10 @@ def add_constants(dictionary: Dict) -> List[Dict]:
 
 class SimulationScheduler(ABC):
 
-    def __init__(self, json_config_filename: str):
-        root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
-        self.default_config_path = str(root_path / json_config_filename)
-        self.name = json_config_filename.split('_')[0]
+    def __init__(self):
+        # root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
+        # self.default_config_path = str(root_path / json_config_filename)
+        self.name = "simulation scheduler"  # json_config_filename.split('_')[0]
 
     def run_simulation(self, params: str):
         raise NotImplementedError(f"Need to implement this function first")
@@ -43,7 +43,7 @@ class SimulationScheduler(ABC):
     def get_params(params_dict: Dict) -> str:
         result = ""
         for key, value in params_dict.items():
-            if value and key[0] != '_':     # Second if removes the underscores used for comments
+            if value and key[0] != '_':  # Second if removes the underscores used for comments
                 result += f" --{key}{f' {value}' if not isinstance(value, bool) else ''}"
         return result
 
@@ -59,6 +59,7 @@ class SimulationScheduler(ABC):
 
         with open(args.config_file[0]) as json_file:
             config_json = json.load(json_file)
+            self.name = str(json_file).split('_')[0]
         # config_json = [add_constants(conf) for conf in config_json]        # TODO: Horrible, think this better.
         # set_trace()
         # config_json = [item for sublist in config_json for item in sublist]
@@ -87,5 +88,4 @@ class LocalRunner(SimulationScheduler):
 
 
 if __name__ == "__main__":
-    LocalRunner("sf_simulations.json")()
-
+    LocalRunner()()
