@@ -1,2 +1,8 @@
 numpy
+pandas
+tensorflow-probability==0.14.1
+tensorflow-datasets
+tensorflow-addons
+matplotlib
+sklearn
 cvnn
