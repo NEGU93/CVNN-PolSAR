@@ -2,10 +2,6 @@ import numpy as np
 from imageio import imread
 from pathlib import Path
 from os import path
-from typing import Tuple
-from pdb import set_trace
-import matplotlib.pyplot as plt
-import tensorflow as tf
 import sys
 sys.path.insert(1, '../')
 if path.exists('/media/barrachina/data/datasets/PolSar/San Francisco/PolSF'):
@@ -20,7 +16,7 @@ elif path.exists('/scratchm/jbarrach'):
     root_path = None    # TODO
 else:
     raise FileNotFoundError("path of the san francisco dataset not found")
-from dataset_reader import labels_to_rgb, SF_COLORS, PolsarDatasetHandler
+from dataset_reader import PolsarDatasetHandler
 
 
 AVAILABLE_IMAGES = {

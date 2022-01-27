@@ -1,19 +1,17 @@
 import os.path
-import random
 import timeit
 from abc import ABC, abstractmethod
 import numpy as np
 import matplotlib.pyplot as plt
 import spectral.io.envi as envi
 from pathlib import Path
-import scipy.io
 from pdb import set_trace
 import tikzplotlib
 import tensorflow as tf
 from typing import Tuple, Optional, List, Union
 from sklearn.model_selection import train_test_split
 import sklearn
-from cvnn.utils import standarize, randomize, transform_to_real_map_function, create_folder
+from cvnn.utils import standarize, transform_to_real_map_function
 
 BUFFER_SIZE = 32000
 
