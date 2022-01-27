@@ -45,10 +45,10 @@ def _get_tf_mlp_model(input_shape, num_classes, dtype, name='mlp'):
         raise ValueError(f"Cannot use Tensorflow for creating a complex model")
     in1 = Input(shape=input_shape, dtype=dtype)
     h = Flatten(dtype=dtype)(in1)
-    shape = mlp_hyper_params['shape']
+    shape = mlp_hyper_params['shape'].copy()
     for i in range(len(mlp_hyper_params['shape'])):
         multiplier = _get_ratio_capacity_equivalent([input_shape[-1]] + mlp_hyper_params['shape'] + [num_classes])
-        shape[i] = int(np.round(shape[i] * multiplier))
+        shape[i] = int(np.round(shape[i] * multiplier[i]))
     for sh in shape:
         h = Dense(sh, activation=tf_mlp_hyper_params['activation'], dtype=dtype)(h)
         h = Dropout(rate=0.5)(h)
