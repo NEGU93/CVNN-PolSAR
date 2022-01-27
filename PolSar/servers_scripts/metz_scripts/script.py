@@ -28,6 +28,7 @@ class MetzScheduler(SimulationScheduler):
 #SBATCH -e logslurms/slurm-%j.err
 #SBATCH -o logslurms/slurm-%j.out
 
+python3 -m pip install virtualenv --user
 virtualenv -p python3 venv --system-dependencies
 source venv/bin/activate
 python3 -m pip install -r requirements.txt
