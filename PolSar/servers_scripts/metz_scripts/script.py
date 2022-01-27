@@ -37,7 +37,7 @@ python3 ../../principal_simulation.py{params}
 
     @staticmethod
     def submit_job(job):
-        with open('job.sbatch', 'w') as fp:
+        with open('job.sh', 'w') as fp:
             fp.write(job)
         # os.system("sbatch job.sbatch")
         os.system("chmod +x job.sh")
