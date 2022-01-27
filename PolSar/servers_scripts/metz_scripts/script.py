@@ -27,6 +27,10 @@ class MetzScheduler(SimulationScheduler):
 #SBATCH --mail-type=ALL
 #SBATCH -e logslurms/slurm-%j.err
 #SBATCH -o logslurms/slurm-%j.out
+
+virtualenv -p python3 venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
     
 python3 ../../principal_simulation.py{params}
 """
