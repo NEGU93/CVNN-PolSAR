@@ -10,7 +10,7 @@ from pdb import set_trace
 
 class MetzScheduler(SimulationScheduler):
 
-    def __init__(self, json_config_filename: str = "ober_simulations.json"):
+    def __init__(self, json_config_filename: str):
         super().__init__()
         root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
         self.default_config_path = str(root_path / ("../../" + json_config_filename))
@@ -30,7 +30,7 @@ class MetzScheduler(SimulationScheduler):
 
 virtualenv -p python3 venv --system-dependencies
 source venv/bin/activate
-python -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
     
 python3 ../../principal_simulation.py{params}
 """

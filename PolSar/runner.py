@@ -27,7 +27,7 @@ def add_constants(dictionary: Dict) -> List[Dict]:
 
 class SimulationScheduler(ABC):
 
-    def __init__(self, json_config_filename: str = "ober_simulations.json"):
+    def __init__(self, json_config_filename: str):
         root_path = pathlib.Path(pathlib.Path(__file__).parent.resolve())
         self.default_config_path = str(root_path / json_config_filename)
         self.name = json_config_filename.split('_')[0]
@@ -49,9 +49,9 @@ class SimulationScheduler(ABC):
 
     def parse_input(self):
         parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-        parser.add_argument('--iterations', nargs=1, type=int, default=[10],
+        parser.add_argument("-I", '--iterations', nargs=1, type=int, default=[1],
                             help='(int) iterations to be done')
-        parser.add_argument('--config_file', nargs=1, type=str, default=[self.default_config_path])
+        parser.add_argument("-CF", '--config_file', nargs=1, type=str, required=True)
         return parser.parse_args()
 
     def __call__(self, *args, **kwargs):
