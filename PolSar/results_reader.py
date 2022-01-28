@@ -25,12 +25,9 @@ try:
 
     AVAILABLE_LIBRARIES.add('matplotlib')
     DEFAULT_MATPLOTLIB_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
-except ImportError as e:
-    print("Matplotlib not installed, consider installing it to get more plotting capabilities")
-if 'matplotlib' in AVAILABLE_LIBRARIES:
     try:
         import seaborn as sns
-
+        DEFAULT_MATPLOTLIB_COLORS = sns.color_palette()  # plt.rcParams['axes.prop_cycle'].by_key()['color']
         AVAILABLE_LIBRARIES.add('seaborn')
     except ImportError as e:
         print("Seaborn not installed, consider installing it to get more plotting capabilities")
@@ -40,6 +37,9 @@ if 'matplotlib' in AVAILABLE_LIBRARIES:
         AVAILABLE_LIBRARIES.add('tikzplotlib')
     except ImportError as e:
         print("Tikzplotlib not installed, consider installing it to get more plotting capabilities")
+
+except ImportError as e:
+    print("Matplotlib not installed, consider installing it to get more plotting capabilities")
 
 DEFAULT_PLOTLY_COLORS = [
     'rgb(31, 119, 180)',  # Blue
@@ -461,16 +461,16 @@ class SeveralMonteCarloPlotter:
         # Prepare data
         frames = []
         # color_pal = []
+        assert len(data) == len(labels), f"len(data) = {len(data)} does not match len(labels) = {len(labels)}"
         for i, mc_run in enumerate(data):
             # color_pal += sns.color_palette()[:len(df.network.unique())]
             filter = mc_run['epoch'] == epochs[i]
             t_data = mc_run[filter].assign(name=labels[i])
             frames.append(t_data)
         result = pd.concat(frames)
-
         # Run figure
         fig = plt.figure()
-        ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette()[2:])
+        ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette())
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
         # Make black lines the color of the box
@@ -498,17 +498,19 @@ class SeveralMonteCarloPlotter:
         return fig, ax
 
     def plot(self, data, labels: List[str], keys: Union[str, List[str]] = "val_accuracy",
-             ax=None, library="seaborn", showfig=False):
+             ax=None, library="seaborn", showfig=False, savefile=None):
         """
         :param data:
         :param ax: (Optional) axis on which to plot the data
         :param keys:
         :return:
         """
-        self._plot_line_confidence_interval_matplotlib(ax=ax, keys=keys, data=data, labels=labels, showfig=showfig)
+        self._plot_line_confidence_interval_matplotlib(ax=ax, keys=keys, data=data, labels=labels, showfig=showfig,
+                                                       savefile=savefile)
 
     def _plot_line_confidence_interval_matplotlib(self, keys: Union[List[str], str], labels: List[str],
-                                                  data, ax=None, showfig=False, x_axis='epoch'):
+                                                  data, ax=None, showfig=False, x_axis='epoch',
+                                                  savefile=None, extension=".svg"):
         if isinstance(keys, str):
             keys = [keys]
         keys = list(keys)
@@ -526,16 +528,16 @@ class SeveralMonteCarloPlotter:
                 data_50 = stats[key]['50%'].tolist()
                 data_25 = stats[key]['25%'].tolist()
                 data_75 = stats[key]['75%'].tolist()
-                ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
                         label=labels[i] + " " + key)
                 ax.plot(x, data_50, '--',
-                        color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)])
+                        color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)])
                 # label=key + ' median')
                 ax.fill_between(x, data_25, data_75,
-                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
                                 alpha=.4)  # , label=key + ' interquartile')
                 ax.fill_between(x, data_min, data_max,
-                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(data)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
                                 alpha=.15)  # , label=key + ' border')
         # title = title[:-3] + key
         #
@@ -545,6 +547,16 @@ class SeveralMonteCarloPlotter:
         ax.grid()
         ax.legend()
         # set_trace()
+        if savefile is not None:
+            if not savefile.endswith(extension):
+                savefile += extension
+            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
+            fig.savefig(savefile, transparent=True)
+            if 'tikzplotlib' not in AVAILABLE_LIBRARIES:
+                raise ModuleNotFoundError(
+                    "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
+            else:
+                tikzplotlib.save(Path(os.path.split(savefile)[0]) / ("tikz_line_plot.tex"))
         if showfig and fig:
             fig.show()
 
@@ -559,6 +571,15 @@ if __name__ == "__main__":
     data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
                                                    '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
                                                    '"cvnn", "model": "cao"}'))
-    SeveralMonteCarloPlotter().box_plot(labels=["Pauli vector", "Coherency Matrix"], data=data,
-                                        showfig=False, library='seaborn', key='val_accuracy',
-                                        savefile="/home/barrachina/Dropbox/thesis/CVNN-thesis-Agustin/ppts/20211119 - JDD/sf-boxplot-val_acc")
+    data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+                                                   '"random", "dataset_mode": "k", "dtype": "real_imag", "library": '
+                                                   '"tensorflow", "model": "cao"}'))
+    data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+                                                   '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+                                                   '"tensorflow", "model": "cao"}'))
+    # SeveralMonteCarloPlotter().box_plot(labels=["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"], data=data,
+    #                                     showfig=True, library='seaborn', key='val_accuracy',
+    #                                     savefile="/home/barrachina/Dropbox/Apps/Overleaf/EUSIPCO 2022/img/sf-boxplot-val_acc")
+    SeveralMonteCarloPlotter().plot(data=data, labels=["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"], showfig=True,
+                                    library='seaborn', keys='val_accuracy',
+                                    savefile="/home/barrachina/Dropbox/Apps/Overleaf/EUSIPCO 2022/img/sf-plot-val-acc")
