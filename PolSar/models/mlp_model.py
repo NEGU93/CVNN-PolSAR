@@ -52,7 +52,7 @@ def _get_tf_mlp_model(input_shape, num_classes, dtype, name='mlp'):
     for sh in shape:
         h = Dense(sh, activation=tf_mlp_hyper_params['activation'], dtype=dtype)(h)
         h = Dropout(rate=0.5)(h)
-    out = Dense(num_classes, activation='linear', dtype=dtype)(h)
+    out = Dense(num_classes, activation='softmax', dtype=dtype)(h)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=mlp_hyper_params['optimizer'], loss=tf_mlp_hyper_params['loss'],
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'), ComplexAverageAccuracy(name='average_accuracy')]
