@@ -146,6 +146,7 @@ class MainWindow(QMainWindow):
         # widget.setLayout(hlayout)
         self.setCentralWidget(widget)
         self.show()
+        self.update_information()
 
     # Layouts
     def _get_accuracy_layout(self):
@@ -391,7 +392,15 @@ class MainWindow(QMainWindow):
         rb5 = QRadioButton("tan", self)
         rb5.toggled.connect(lambda: self.update_information("model", rb5.text()))
 
+        rb6 = QRadioButton("cnn", self)
+        rb6.toggled.connect(lambda: self.update_information("model", rb6.text()))
+
+        rb7 = QRadioButton("mlp", self)
+        rb7.toggled.connect(lambda: self.update_information("model", rb7.text()))
+
         self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb7)
+        self.btngroup[-1].addButton(rb6)
         self.btngroup[-1].addButton(rb5)
         self.btngroup[-1].addButton(rb4)
         self.btngroup[-1].addButton(rb3)
@@ -404,6 +413,8 @@ class MainWindow(QMainWindow):
         vlayout.addWidget(rb3)
         vlayout.addWidget(rb4)
         vlayout.addWidget(rb5)
+        vlayout.addWidget(rb6)
+        vlayout.addWidget(rb7)
         vlayout.addStretch()
 
         return vlayout
@@ -531,7 +542,6 @@ class MainWindow(QMainWindow):
             self.tableAccWidget.setItem(0, 4, QTableWidgetItem(f"00.00%"))
             self.tableAccWidget.setItem(0, 5, QTableWidgetItem(f"00.00%"))
 
-
     def _verify_combinations(self, key, value):
         if value == "complex":
             if hasattr(self, 'cvnn_library_rb'):  # It wont exists if I still didnt create the radiobutton.
@@ -553,11 +563,12 @@ class MainWindow(QMainWindow):
                 if hasattr(self, 'pauli_rb'):
                     self.pauli_rb.setEnabled(True)
 
-    def update_information(self, key, value):
-        self.params[key] = value
+    def update_information(self, key=None, value=None):
+        if key and value:
+            self.params[key] = value
+            self._verify_combinations(key, value)
         self.params_label.setText(str(self.params))
         # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
-        self._verify_combinations(key, value)
         json_key = json.dumps(self.params, sort_keys=True)
         self.get_image(self.simulation_results.get_image(json_key))
         self.get_image_ground_truth()
