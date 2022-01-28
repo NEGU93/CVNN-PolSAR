@@ -17,12 +17,12 @@ class MetzScheduler(SimulationScheduler):
         os.makedirs(str(root_path / "logslurms"), exist_ok=True)  # Ensure the log directory exists
 
     def run_simulation(self, params: str):
-        # #SBATCH --exclude=sh[00,10-16]
         return f"""#!/bin/bash 
     
 #SBATCH --job-name={self.name}
 #SBATCH --nodes=1
 #SBATCH --partition=gpu_prod_long
+#SBATCH --exclude=sh[03]
 #SBATCH --time=24:00:00
 #SBATCH --mail-user=joseagustin.barra@gmail.com 
 #SBATCH --mail-type=ALL
