@@ -593,7 +593,7 @@ class PolsarDatasetHandler(ABC):
             if os.path.isfile(temp_path / (config_string + "_patches.npy")):
                 print(f"Loading dataset {config_string}_patches.npy")
                 start = timeit.default_timer()
-                self.patches = np.load(str(temp_path / (config_string + "_patches.npy")))
+                self.patches = np.load(str(temp_path / (config_string + "_patches.npy"))).astype(np.complex64)
                 self.label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
                 print(f"Load done in {timeit.default_timer() - start} seconds")
             else:
@@ -603,12 +603,14 @@ class PolsarDatasetHandler(ABC):
                                                                                   stride=stride, pad=pad)
                 # print(f"patches shape after sliding window op{patches.shape}")
                 if not os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
-                    np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), self.patches)
+                    np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")),
+                            self.patches.astype(np.complex64))
                     np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), self.label_patches)
                 if classification:
                     self.patches, self.label_patches = self._to_classification(x=self.patches, y=self.label_patches,
                                                                                mask=remove_unlabeled)
-                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), self.patches)
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")),
+                            self.patches.astype(np.complex64))
                     np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), self.label_patches)
                 print(f"Computation done in {timeit.default_timer() - start} seconds")
         else:
@@ -671,7 +673,7 @@ class PolsarDatasetHandler(ABC):
     def open_t_dataset_t3(path: str):
         path = Path(path)
         first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
-        T = np.zeros(first_read.shape + (6,), dtype=complex)
+        T = np.zeros(first_read.shape + (6,), dtype=np.complex64)
 
         # Diagonal
         T[:, :, 0] = first_read
@@ -685,7 +687,7 @@ class PolsarDatasetHandler(ABC):
                                 1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
         T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
                                 1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
-        return T
+        return T.astype(np.complex64)
 
     @staticmethod
     def open_s_dataset(path: str):
@@ -703,13 +705,13 @@ class PolsarDatasetHandler(ABC):
 
         assert np.all(s_21 == s_12)
 
-        return np.stack((s_11, s_12, s_22), axis=-1)
+        return np.stack((s_11, s_12, s_22), axis=-1).astype(np.complex64)
 
     @staticmethod
     def open_dataset_t6(path: str):
         path = Path(path)
         first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
-        T = np.zeros(first_read.shape + (21,), dtype=complex)
+        T = np.zeros(first_read.shape + (21,), dtype=np.complex64)
 
         # Diagonal
         T[:, :, 0] = first_read
@@ -753,7 +755,7 @@ class PolsarDatasetHandler(ABC):
 
         T[:, :, 20] = standarize(envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
                                  1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0))
-        return T
+        return T.astype(np.complex64)
 
     # Debug
     def print_ground_truth(self, label: Optional = None, path=None, t=None, mask: Optional = None, ax=None):
