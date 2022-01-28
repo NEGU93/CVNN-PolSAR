@@ -17,6 +17,7 @@ class MetzScheduler(SimulationScheduler):
         os.makedirs(str(root_path / "logslurms"), exist_ok=True)  # Ensure the log directory exists
 
     def run_simulation(self, params: str):
+        # #SBATCH --exclude=sh[00,10-16]
         return f"""#!/bin/bash 
     
 #SBATCH --job-name={self.name}
