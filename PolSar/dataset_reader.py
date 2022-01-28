@@ -580,39 +580,39 @@ class PolsarDatasetHandler(ABC):
 
     def apply_sliding(self, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
                       classification: bool = False, remove_unlabeled: bool = False):
-        # if not hasattr(self, "patches"):
-        if isinstance(size, int):
-            size = (size, size)
+        if not hasattr(self, "patches"):
+            if isinstance(size, int):
+                size = (size, size)
+            else:
+                size = tuple(size)
+                assert len(size) == 2
+            pad = self._parse_pad(pad, size)
+            temp_path = self.root_path / "dataset_preprocess_cache"
+            os.makedirs(str(temp_path), exist_ok=True)
+            config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_window{size}_stride{stride}_pad{pad}"
+            if os.path.isfile(temp_path / (config_string + "_patches.npy")):
+                print(f"Loading dataset {config_string}_patches.npy")
+                start = timeit.default_timer()
+                self.patches = np.load(str(temp_path / (config_string + "_patches.npy")))
+                self.label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
+                print(f"Load done in {timeit.default_timer() - start} seconds")
+            else:
+                print(f"Computing dataset {config_string}_patches.npy")
+                start = timeit.default_timer()
+                self.patches, self.label_patches = self._sliding_window_operation(self.image, self.labels, size=size,
+                                                                                  stride=stride, pad=pad)
+                # print(f"patches shape after sliding window op{patches.shape}")
+                if not os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
+                    np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), self.patches)
+                    np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), self.label_patches)
+                if classification:
+                    self.patches, self.label_patches = self._to_classification(x=self.patches, y=self.label_patches,
+                                                                               mask=remove_unlabeled)
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), self.patches)
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), self.label_patches)
+                print(f"Computation done in {timeit.default_timer() - start} seconds")
         else:
-            size = tuple(size)
-            assert len(size) == 2
-        pad = self._parse_pad(pad, size)
-        temp_path = self.root_path / "dataset_preprocess_cache"
-        os.makedirs(str(temp_path), exist_ok=True)
-        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_window{size}_stride{stride}_pad{pad}"
-        # if os.path.isfile(temp_path / (config_string + "_patches.npy")):
-        #     print(f"Loading dataset {config_string}_patches.npy")
-        #     start = timeit.default_timer()
-        #     self.patches = np.load(str(temp_path / (config_string + "_patches.npy")))
-        #     self.label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
-        #     print(f"Load done in {timeit.default_timer() - start} seconds")
-        # else:
-        print(f"Computing dataset {config_string}_patches.npy")
-        start = timeit.default_timer()
-        self.patches, self.label_patches = self._sliding_window_operation(self.image, self.labels, size=size,
-                                                                          stride=stride, pad=pad)
-        # print(f"patches shape after sliding window op{patches.shape}")
-        if not os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
-            np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), self.patches)
-            np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), self.label_patches)
-        if classification:
-            self.patches, self.label_patches = self._to_classification(x=self.patches, y=self.label_patches,
-                                                                       mask=remove_unlabeled)
-            np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), self.patches)
-            np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), self.label_patches)
-        print(f"Computation done in {timeit.default_timer() - start} seconds")
-        # else:
-        #     print("Using previously computed values. Attention! if parameters have changed it will not take effect")
+            print("Using previously computed values. Attention! if parameters have changed it will not take effect")
         # print(f"patches shape before going out of apply slifing {patches.shape}")
         return self.patches, self.label_patches
 
