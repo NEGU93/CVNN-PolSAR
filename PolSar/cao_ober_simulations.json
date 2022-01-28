@@ -1,0 +1,16 @@
+[
+     {
+        "model": "cao",
+        "epochs": 300,
+        "dataset": "OBER",
+        "coherency": true
+    },
+    {
+        "model": "cao",
+        "epochs": 300,
+        "dataset": "OBER",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true
+    }
+]
