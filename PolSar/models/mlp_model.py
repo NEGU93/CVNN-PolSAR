@@ -10,7 +10,7 @@ from cvnn.real_equiv_tools import _get_ratio_capacity_equivalent
 
 mlp_hyper_params = {
     'activation': 'cart_relu',
-    'shape': [96, 180],              # I just use the lowest error
+    'shape': [50, 25],              # I just use the lowest error
     'optimizer': Adam(learning_rate=0.01, beta_1=0.9),
     'loss': ComplexAverageCrossEntropy()
 }

@@ -1,13 +1,13 @@
 [
     {
         "model": "mlp",
-        "epochs": 2000,
+        "epochs": 1000,
         "dataset": "OBER",
         "coherency": true
     },
     {
         "model": "mlp",
-        "epochs": 2000,
+        "epochs": 1000,
         "dataset": "OBER",
         "tensorflow": true,
         "real_mode": true,
