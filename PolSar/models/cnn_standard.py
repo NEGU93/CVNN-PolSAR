@@ -4,9 +4,11 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Activation, BatchNormalization
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Input, AveragePooling2D
-from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, ComplexFlatten, ComplexDense
+from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, ComplexFlatten, ComplexDense, \
+    ComplexBatchNormalization
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
 from cvnn.losses import ComplexAverageCrossEntropy
 from cvnn.initializers import ComplexHeNormal
@@ -21,12 +23,13 @@ cnn_params_model = {
     'kernel_size':  3,
     'stride': 1,
     'complex_filters': [6, 12],
-    'real_filters': [int(np.ceil(6*math.sqrt(2))), int(np.ceil(12*math.sqrt(2)))],
+    'real_filters': [int(6*math.sqrt(2)), int(12*math.sqrt(2))],
     'pool_size': 2,
     'kernel_init': ComplexHeNormal(),
     'loss': ComplexAverageCrossEntropy(),       # End of II.A.4
     'activation': 'cart_relu',
-    'optimizer': Adam(learning_rate=0.001, beta_1=0.9)
+    'real_act': 'relu',
+    'optimizer': Adam(learning_rate=0.01, beta_1=0.9)
 }
 
 
@@ -39,14 +42,18 @@ def _get_model(input_shape, num_classes, dtype, name='cnn'):
     c1 = ComplexConv2D(filters=cnn_params_model[filters][0], kernel_size=cnn_params_model['kernel_size'],
                        strides=cnn_params_model['stride'], padding=cnn_params_model['padding'],
                        kernel_initializer=cnn_params_model['kernel_init'],
-                       activation=cnn_params_model['activation'], dtype=dtype)(in1)
-    p1 = ComplexAvgPooling2D(pool_size=cnn_params_model['pool_size'], dtype=dtype)(c1)
+                       activation='linear', dtype=dtype)(in1)
+    # conv = ComplexBatchNormalization(dtype=dtype)(c1)
+    conv = Activation(cnn_params_model['activation'])(c1)
+    p1 = ComplexAvgPooling2D(pool_size=cnn_params_model['pool_size'], dtype=dtype)(conv)
     c2 = ComplexConv2D(filters=cnn_params_model[filters][1], kernel_size=cnn_params_model['kernel_size'],
                        strides=cnn_params_model['stride'], padding=cnn_params_model['padding'],
                        kernel_initializer=cnn_params_model['kernel_init'],
-                       activation=cnn_params_model['activation'], dtype=dtype)(p1)
-    flat = ComplexFlatten(dtype=dtype)(c2)
-    out = ComplexDense(num_classes, activation=cart_softmax, dtype=dtype)(flat)
+                       activation='linear', dtype=dtype)(p1)
+    # conv = ComplexBatchNormalization(dtype=dtype)(c2)
+    conv = Activation(cnn_params_model['activation'])(c2)
+    flat = ComplexFlatten(dtype=dtype)(conv)
+    out = ComplexDense(num_classes, activation='cart_softmax', dtype=dtype)(flat)
     model = Model(inputs=in1, outputs=out, name=name)
     model.compile(optimizer=cnn_params_model['optimizer'], loss=cnn_params_model['loss'],
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'),
@@ -61,12 +68,16 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_cnn'):
     in1 = Input(shape=input_shape)
     c1 = Conv2D(filters=cnn_params_model[filters][0], kernel_size=cnn_params_model['kernel_size'],
                 strides=cnn_params_model['stride'], padding=cnn_params_model['padding'], kernel_initializer="he_normal",
-                activation=cnn_params_model['activation'])(in1)
-    p1 = AveragePooling2D(pool_size=cnn_params_model['pool_size'])(c1)
+                activation='linear')(in1)
+    # bn1 = BatchNormalization()(c1)
+    a1 = Activation(cnn_params_model['real_act'])(c1)
+    p1 = AveragePooling2D(pool_size=cnn_params_model['pool_size'])(a1)
     c2 = Conv2D(filters=cnn_params_model[filters][1], kernel_size=cnn_params_model['kernel_size'],
                 strides=cnn_params_model['stride'], padding=cnn_params_model['padding'], kernel_initializer="he_normal",
-                activation=cnn_params_model['activation'])(p1)
-    flat = Flatten(dtype=dtype)(c2)
+                activation='linear')(p1)
+    # bn2 = BatchNormalization()(c2)
+    a2 = Activation(cnn_params_model['real_act'])(c2)
+    flat = Flatten(dtype=dtype)(a2)
     out = Dense(num_classes, activation='softmax')(flat)
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=cnn_params_model['optimizer'], loss=cnn_params_model['loss'],

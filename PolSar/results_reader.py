@@ -133,20 +133,6 @@ class ResultReader:
                                 "dataset_method": self._get_dataset_method(simu_params),
                                 "balance": self._get_balance(simu_params)
                             }
-                            if (Path(child_dir[0]) / 'evaluate.csv').is_file():
-                                monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
-                                    str(Path(child_dir[0]) / 'evaluate.csv'))
-                            if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
-                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
-                                    str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
-                            if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
-                                monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
-                                    str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
-                            if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
-                                monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
-                                    str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
-                            monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
-                                str(Path(child_dir[0]) / 'history_dict.csv'))
                             monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
                                 str(Path(child_dir[0]) / 'prediction.png'))
                             if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
@@ -171,6 +157,20 @@ class ResultReader:
                                                             "bottle_neck": None,
                                                             "upsampling": None
                                                         })
+                            if (Path(child_dir[0]) / 'evaluate.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                                    str(Path(child_dir[0]) / 'evaluate.csv'))
+                            if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                    str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                            if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
+                                    str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
+                            if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
+                                monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
+                                    str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
+                            monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
+                                str(Path(child_dir[0]) / 'history_dict.csv'))
                         else:
                             print("No history_dict found on path " + child_dir[0])
                 else:

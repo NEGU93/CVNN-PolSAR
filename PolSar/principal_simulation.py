@@ -308,10 +308,15 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
 
 
 def get_final_model_results(root_path, model_name: str,
-                            dataset_handler,  # dataset parameters
+                            dataset_handler,
+                            # mode: str, balance: str, dataset_name: str,
                             dropout, channels: int = 3,  # model hyper-parameters
                             complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
                             use_mask: bool = True, tensorflow: bool = False):
+    # dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
+    #                                        complex_mode=complex_mode, real_mode=real_mode,
+    #                                        balance=(balance == "dataset"),
+    #                                        normalize=False, classification=MODEL_META[model_name]['task'])
     model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
                              weights=None,  # I am not training, so no need to use weights in the loss function here
                              channels=channels, real_mode=real_mode, dropout=dropout,
@@ -479,9 +484,9 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                                              percentage=percentage, debug=debug, dropout=dropout)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
-    get_final_model_results(temp_path, dataset_handler=dataset_handler, model_name=model_name,
-                            tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
-                            channels=3 if mode == "s" else 6, dropout=dropout, use_mask=True)
+    # get_final_model_results(temp_path, balance=balance, dataset_name=dataset_name,  mode=mode, model_name=model_name,
+    #                         tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
+    #                         channels=3 if mode == "s" else 6, dropout=dropout, use_mask=True)
 
 
 if __name__ == "__main__":
