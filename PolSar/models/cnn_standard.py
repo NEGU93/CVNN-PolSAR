@@ -11,7 +11,7 @@ from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, Compl
     ComplexBatchNormalization
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
 from cvnn.losses import ComplexAverageCrossEntropy
-from cvnn.initializers import ComplexHeNormal
+from cvnn.initializers import ComplexHeNormal, ComplexGlorotUniform
 from cvnn.activations import cart_softmax
 
 
@@ -25,9 +25,9 @@ cnn_params_model = {
     'complex_filters': [6, 12],
     'real_filters': [int(6*math.sqrt(2)), int(12*math.sqrt(2))],
     'pool_size': 2,
-    'kernel_init': ComplexHeNormal(),
+    'kernel_init': ComplexGlorotUniform(),
     'loss': ComplexAverageCrossEntropy(),       # End of II.A.4
-    'activation': 'cart_relu',
+    'activation': 'cart_sigmoid',
     'real_act': 'relu',
     'optimizer': Adam(learning_rate=0.01, beta_1=0.9)
 }

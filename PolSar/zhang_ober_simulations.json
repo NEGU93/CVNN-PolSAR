@@ -1,0 +1,16 @@
+[
+    {
+        "model": "zhang",
+        "epochs": 500,
+        "dataset": "OBER",
+        "coherency": true
+    },
+    {
+        "model": "zhang",
+        "epochs": 500,
+        "dataset": "OBER",
+        "tensorflow": true, 
+        "real_mode": true,
+        "coherency": true
+    }
+]

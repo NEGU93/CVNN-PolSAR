@@ -23,7 +23,7 @@ zhang_params_model = {
     'loss': ComplexMeanSquareError(),       # End of II.A.4
     'tf_loss': MeanSquaredError(),
     'activation': 'cart_sigmoid',           # "Note that the sigmoid function is used in this paper." but cart or polar?
-    'optimizer': SGD(learning_rate=0.08)    # Start of II.B. Learning rate of 0.5 for Flevoland and 0.8 for ober data
+    'optimizer': SGD(learning_rate=0.1)    # Start of II.B. Learning rate of 0.5 for Flevoland and 0.8 for ober data
 }
 
 

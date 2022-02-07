@@ -470,7 +470,7 @@ class SeveralMonteCarloPlotter:
         result = pd.concat(frames)
         # Run figure
         fig = plt.figure()
-        ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette())
+        ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette(), notch=True)
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
         # Make black lines the color of the box
@@ -565,21 +565,25 @@ if __name__ == "__main__":
     simulation_results = ResultReader(root_dir=
                                       "/media/barrachina/data/results/new method")
     lst = list(simulation_results.monte_dict.keys())
-    data = [simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": "random", '
-                                               '"dataset_mode": "k", "dtype": "complex", "library": "cvnn", '
-                                               '"model": "cao"}')]
-    data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
-                                                   '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
-                                                   '"cvnn", "model": "cao"}'))
-    data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
-                                                   '"random", "dataset_mode": "k", "dtype": "real_imag", "library": '
-                                                   '"tensorflow", "model": "cao"}'))
-    data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
-                                                   '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-                                                   '"tensorflow", "model": "cao"}'))
-    # SeveralMonteCarloPlotter().box_plot(labels=["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"], data=data,
-    #                                     showfig=True, library='seaborn', key='val_accuracy',
-    #                                     savefile="/home/barrachina/Dropbox/Apps/Overleaf/EUSIPCO 2022/img/sf-boxplot-val_acc")
-    SeveralMonteCarloPlotter().plot(data=data, labels=["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"], showfig=True,
-                                    library='seaborn', keys='val_accuracy',
-                                    savefile="/home/barrachina/Dropbox/Apps/Overleaf/EUSIPCO 2022/img/sf-plot-val-acc")
+    key = '{"balance": "none", "dataset": "OBER", "dataset_method": "random", "dataset_mode": "coh", "dtype": ' \
+          '"complex", "library": "cvnn", "model": "cao"}'
+    print(simulation_results.get_total_count(key))
+    simulation_results.get_stats(key)
+
+    # data = [simulation_results.get_pandas_data('{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
+    #                                            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
+    #                                            '"model": "cao"}')]
+    # data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "OBER", "dataset_method": '
+    #                                                '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+    #                                                '"tensorflow", "model": "cao"}'))
+    # # data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+    # #                                                '"random", "dataset_mode": "k", "dtype": "real_imag", "library": '
+    # #                                                '"tensorflow", "model": "cao"}'))
+    # # data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+    # #                                                '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+    # #                                                '"tensorflow", "model": "cao"}'))
+    # SeveralMonteCarloPlotter().box_plot(labels=["CV Coh", "RV Coh"], data=data,
+    #                                     showfig=True, library='seaborn', key='val_accuracy')
+    # # SeveralMonteCarloPlotter().plot(data=data, labels=["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"], showfig=True,
+    # #                                 library='seaborn', keys='val_accuracy',
+    # #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/EUSIPCO 2022/img/sf-plot-val-acc")
