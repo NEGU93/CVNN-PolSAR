@@ -25,10 +25,9 @@ cnn_params_model = {
     'complex_filters': [6, 12],
     'real_filters': [int(6*math.sqrt(2)), int(12*math.sqrt(2))],
     'pool_size': 2,
-    'kernel_init': ComplexGlorotUniform(),
+    'kernel_init': ComplexHeNormal(),
     'loss': ComplexAverageCrossEntropy(),       # End of II.A.4
-    'activation': 'cart_sigmoid',
-    'real_act': 'relu',
+    'activation': 'cart_relu',
     'optimizer': Adam(learning_rate=0.01, beta_1=0.9)
 }
 
@@ -67,16 +66,18 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_cnn'):
     filters = "real_filters"
     in1 = Input(shape=input_shape)
     c1 = Conv2D(filters=cnn_params_model[filters][0], kernel_size=cnn_params_model['kernel_size'],
-                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'], kernel_initializer="he_normal",
+                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'],
+                kernel_initializer=cnn_params_model['kernel_init'],
                 activation='linear')(in1)
     # bn1 = BatchNormalization()(c1)
-    a1 = Activation(cnn_params_model['real_act'])(c1)
+    a1 = Activation(cnn_params_model['activation'])(c1)
     p1 = AveragePooling2D(pool_size=cnn_params_model['pool_size'])(a1)
     c2 = Conv2D(filters=cnn_params_model[filters][1], kernel_size=cnn_params_model['kernel_size'],
-                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'], kernel_initializer="he_normal",
+                strides=cnn_params_model['stride'], padding=cnn_params_model['padding'],
+                kernel_initializer=cnn_params_model['kernel_init'],
                 activation='linear')(p1)
     # bn2 = BatchNormalization()(c2)
-    a2 = Activation(cnn_params_model['real_act'])(c2)
+    a2 = Activation(cnn_params_model['activation'])(c2)
     flat = Flatten(dtype=dtype)(a2)
     out = Dense(num_classes, activation='softmax')(flat)
     model = Model(inputs=[in1], outputs=[out], name=name)
