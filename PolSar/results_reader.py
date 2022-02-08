@@ -387,32 +387,8 @@ class MonteCarloPlotter:
 
 class SeveralMonteCarloPlotter:
 
-    def _bar_plot(self, labels: List[str], data: List, index: int, showfig=False, savefile=None, colors=None,
-                  extension: str = ".svg"):
-        assert index < len(data)
-        if colors is None:
-            colors = DEFAULT_MATPLOTLIB_COLORS
-        borders = 0.2
-        classes = len(data[0][index]) - 1       # 3
-        x = range(len(labels))          # 4
-        offset = linspace(-borders, borders, classes)       # classes = 3
-        fig, ax = plt.subplots()
-        classes_results = []
-        for i, mc_run in enumerate(data):
-            tmp = []
-            for j in range(len(mc_run[index])-1):
-                tmp.append(mc_run[index][str(j)][str(j)])
-            classes_results.append(tmp)
-        arr = np.array(classes_results)
-        for j in range(len(offset)):
-            ax.bar(x + offset[j], arr[:, j], align='center', width=3*borders/classes,
-                   tick_label=labels, color=colors[j])
-        min_lim = 0.5
-        max_lim = 1.
-        ax.set_ylim((min_lim, max_lim))
-        minor_ticks = np.arange(min_lim, max_lim, 0.05)
-        ax.set_yticks(minor_ticks, minor=True)
-        ax.grid(axis='y', which='both')
+    @staticmethod
+    def _save_show_figure(fig, showfig=False, savefile=None, extension=".svg"):
         if savefile is not None:
             if not savefile.endswith(extension):
                 savefile += extension
@@ -420,13 +396,39 @@ class SeveralMonteCarloPlotter:
             fig.savefig(savefile, transparent=True)
             if 'tikzplotlib' not in AVAILABLE_LIBRARIES:
                 raise ModuleNotFoundError(
-                    "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
+                    "No Tikzplotlib installed, function will not save tikz file")
             else:
-                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tex"))
+                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tikz"))
         if showfig and fig:
             fig.show()
 
-
+    def bar_plot(self, labels: List[str], data: List, index: int, showfig=False, savefile=None, colors=None,
+                 extension: str = ".svg"):
+        assert index < len(data)
+        if colors is None:
+            colors = DEFAULT_MATPLOTLIB_COLORS
+        borders = 0.2
+        classes = len(data[0][index]) - 1  # 3
+        x = range(len(labels))  # 4
+        offset = linspace(-borders, borders, classes)  # classes = 3
+        fig, ax = plt.subplots()
+        classes_results = []
+        for i, mc_run in enumerate(data):
+            tmp = []
+            for j in range(len(mc_run[index]) - 1):
+                tmp.append(mc_run[index][str(j)][str(j)])
+            classes_results.append(tmp)
+        arr = np.array(classes_results)
+        for j in range(len(offset)):
+            ax.bar(x + offset[j], arr[:, j], align='center', width=3 * borders / classes,
+                   tick_label=labels, color=colors[j])
+        min_lim = 0.5
+        max_lim = 1.
+        ax.set_ylim((min_lim, max_lim))
+        minor_ticks = np.arange(min_lim, max_lim, 0.05)
+        ax.set_yticks(minor_ticks, minor=True)
+        ax.grid(axis='y', which='both')
+        self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
 
     def box_plot(self, labels: List[str], data: List, ax=None,
                  key='val_accuracy', library='seaborn', epoch=-1, showfig=False, savefile: Optional[str] = None):
@@ -539,18 +541,7 @@ class SeveralMonteCarloPlotter:
                 line.set_mfc(col)
                 line.set_mec(col)
 
-        if savefile is not None:
-            if not savefile.endswith(extension):
-                savefile += extension
-            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
-            fig.savefig(savefile, transparent=True)
-            if 'tikzplotlib' not in AVAILABLE_LIBRARIES:
-                raise ModuleNotFoundError(
-                    "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
-            else:
-                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tex"))
-        if showfig:
-            fig.show()
+        self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
         return fig, ax
 
     def plot(self, data, labels: List[str], keys: Union[str, List[str]] = "val_accuracy",
@@ -600,22 +591,9 @@ class SeveralMonteCarloPlotter:
         #
         # ax.set_title(title)
         ax.set_xlabel(x_axis)
-        # ax.set_ylabel(key)
         ax.grid()
         ax.legend()
-        # set_trace()
-        if savefile is not None:
-            if not savefile.endswith(extension):
-                savefile += extension
-            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
-            fig.savefig(savefile, transparent=True)
-            if 'tikzplotlib' not in AVAILABLE_LIBRARIES:
-                raise ModuleNotFoundError(
-                    "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
-            else:
-                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tex"))
-        if showfig and fig:
-            fig.show()
+        self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
 
 
 if __name__ == "__main__":
@@ -642,24 +620,18 @@ if __name__ == "__main__":
         '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
         '"tensorflow", "model": "mlp"}'
     ]
+    labels = ["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN", "CV-MLP", "RV-MLP"]
     data = [simulation_results.get_conf_stats(k) for k in keys]
-    SeveralMonteCarloPlotter()._bar_plot(labels=["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN",  "CV-MLP", "RV-MLP"],
-                                         data=data, colors=COLORS['OBER'], index=-1,
-                                         savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-bars")
+    SeveralMonteCarloPlotter().bar_plot(labels=labels,
+                                        data=data, colors=COLORS['OBER'], index=-1,
+                                        savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-bars")
     data = [simulation_results.get_pandas_data(k) for k in keys]
-    SeveralMonteCarloPlotter().box_plot(labels=["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN",  "CV-MLP", "RV-MLP"],
+    SeveralMonteCarloPlotter().box_plot(labels=labels,
                                         data=data, showfig=True,
                                         savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-boxplot",
                                         library='seaborn', key='val_accuracy')
-    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
-    #                                 library='seaborn', keys='val_accuracy',
-    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-mlp")
-    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
-    #                                 library='seaborn', keys='val_loss',
-    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-loss-mlp")
-    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
-    #                                 library='seaborn', keys='accuracy',
-    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-train-acc-mlp")
-    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
-    #                                 library='seaborn', keys='loss',
-    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-train-loss-mlp")
+    for i in range(3):
+        SeveralMonteCarloPlotter().plot(data=data[2*i:2*i+2], labels=labels[2*i:2*i+2], showfig=True,
+                                    library='seaborn', keys='val_accuracy',
+                                    savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-" + labels[2*i][-3])
+

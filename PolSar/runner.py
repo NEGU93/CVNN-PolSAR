@@ -41,7 +41,7 @@ class SimulationScheduler(ABC):
     def get_params(params_dict: Dict) -> str:
         result = ""
         for key, value in params_dict.items():
-            if value and key[0] != '_':  # Second if removes the underscores used for comments
+            if value and key[0] != '_':  # Removes the underscore used for comments
                 result += f" --{key}{f' {value}' if not isinstance(value, bool) else ''}"
         return result
 
@@ -72,7 +72,7 @@ class SimulationScheduler(ABC):
 class LocalRunner(SimulationScheduler):
 
     def run_simulation(self, params: str):
-        return f"python3 principal_simulation.py{params}"
+        return f"""python3 principal_simulation.py{params}"""
 
     @staticmethod
     def submit_job(job):

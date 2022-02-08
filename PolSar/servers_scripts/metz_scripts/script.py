@@ -43,8 +43,6 @@ python3 ../../principal_simulation.py{params}
         with open('job.sh', 'w') as fp:
             fp.write(job)
         os.system("sbatch job.sh")
-        # os.system("chmod +x job.sh")
-        # os.system("./job.sh")
 
 
 if __name__ == "__main__":
