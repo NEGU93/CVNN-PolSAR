@@ -1,6 +1,8 @@
 import os
 import json
 import re
+from numpy import linspace
+import numpy as np
 from math import sqrt
 from pdb import set_trace
 from pathlib import Path
@@ -10,6 +12,7 @@ import pandas as pd
 from cvnn.utils import REAL_CAST_MODES
 from principal_simulation import get_final_model_results, _get_dataset_handler
 from typing import List, Optional, Union
+from dataset_reader import COLORS
 
 AVAILABLE_LIBRARIES = set()
 try:
@@ -27,6 +30,7 @@ try:
     DEFAULT_MATPLOTLIB_COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
     try:
         import seaborn as sns
+
         DEFAULT_MATPLOTLIB_COLORS = sns.color_palette()  # plt.rcParams['axes.prop_cycle'].by_key()['color']
         AVAILABLE_LIBRARIES.add('seaborn')
     except ImportError as e:
@@ -222,6 +226,14 @@ class ResultReader:
             self.monte_dict[json_key]['eval_stats'] = pandas_dict.groupby(pandas_dict.index).describe()
         return self.monte_dict[json_key]['eval_stats']
 
+    def get_eval_data(self, json_key: str):
+        if len(self.monte_dict[json_key]['eval_data']) == 0:
+            self.monte_dict[json_key]['eval_data'] = []
+            for data_results_dict in self.monte_dict[json_key]['eval']:
+                result_pandas = pd.read_csv(data_results_dict, index_col=0)
+                self.monte_dict[json_key]['eval_data'].append(result_pandas)
+        return self.monte_dict[json_key]['eval_data']
+
     def get_conf_stats(self, json_key: str):
         if len(self.monte_dict[json_key]['conf_stats']) == 0:
             cm = []
@@ -375,6 +387,47 @@ class MonteCarloPlotter:
 
 class SeveralMonteCarloPlotter:
 
+    def _bar_plot(self, labels: List[str], data: List, index: int, showfig=False, savefile=None, colors=None,
+                  extension: str = ".svg"):
+        assert index < len(data)
+        if colors is None:
+            colors = DEFAULT_MATPLOTLIB_COLORS
+        borders = 0.2
+        classes = len(data[0][index]) - 1       # 3
+        x = range(len(labels))          # 4
+        offset = linspace(-borders, borders, classes)       # classes = 3
+        fig, ax = plt.subplots()
+        classes_results = []
+        for i, mc_run in enumerate(data):
+            tmp = []
+            for j in range(len(mc_run[index])-1):
+                tmp.append(mc_run[index][str(j)][str(j)])
+            classes_results.append(tmp)
+        arr = np.array(classes_results)
+        for j in range(len(offset)):
+            ax.bar(x + offset[j], arr[:, j], align='center', width=3*borders/classes,
+                   tick_label=labels, color=colors[j])
+        min_lim = 0.5
+        max_lim = 1.
+        ax.set_ylim((min_lim, max_lim))
+        minor_ticks = np.arange(min_lim, max_lim, 0.05)
+        ax.set_yticks(minor_ticks, minor=True)
+        ax.grid(axis='y', which='both')
+        if savefile is not None:
+            if not savefile.endswith(extension):
+                savefile += extension
+            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
+            fig.savefig(savefile, transparent=True)
+            if 'tikzplotlib' not in AVAILABLE_LIBRARIES:
+                raise ModuleNotFoundError(
+                    "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
+            else:
+                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tex"))
+        if showfig and fig:
+            fig.show()
+
+
+
     def box_plot(self, labels: List[str], data: List, ax=None,
                  key='val_accuracy', library='seaborn', epoch=-1, showfig=False, savefile: Optional[str] = None):
         """
@@ -455,7 +508,8 @@ class SeveralMonteCarloPlotter:
         epochs = []
         for i in range(len(data)):
             if epoch == -1:
-                epochs.append(max(data[i].epoch))  # get last epoch
+                # set_trace()
+                epochs.append(int(data[i][data[i][key] == max(data[i][key])].iloc[-1].epoch))
             else:
                 epochs.append(epoch)
         # Prepare data
@@ -464,6 +518,7 @@ class SeveralMonteCarloPlotter:
         assert len(data) == len(labels), f"len(data) = {len(data)} does not match len(labels) = {len(labels)}"
         for i, mc_run in enumerate(data):
             # color_pal += sns.color_palette()[:len(df.network.unique())]
+            # set_trace()
             filter = mc_run['epoch'] == epochs[i]
             t_data = mc_run[filter].assign(name=labels[i])
             frames.append(t_data)
@@ -471,6 +526,7 @@ class SeveralMonteCarloPlotter:
         # Run figure
         fig = plt.figure()
         ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette(), notch=True)
+        ax.grid(axis='y', which='major')
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
         # Make black lines the color of the box
@@ -492,7 +548,7 @@ class SeveralMonteCarloPlotter:
                 raise ModuleNotFoundError(
                     "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
             else:
-                tikzplotlib.save(Path(os.path.split(savefile)[0]) / ("tikz_box_plot.tex"))
+                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tex"))
         if showfig:
             fig.show()
         return fig, ax
@@ -528,16 +584,17 @@ class SeveralMonteCarloPlotter:
                 data_50 = stats[key]['50%'].tolist()
                 data_25 = stats[key]['25%'].tolist()
                 data_75 = stats[key]['75%'].tolist()
-                ax.plot(x, data_mean, color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                ax.plot(x, data_mean,
+                        color=DEFAULT_MATPLOTLIB_COLORS[(i * len(keys) + j) % len(DEFAULT_MATPLOTLIB_COLORS)],
                         label=labels[i] + " " + key)
                 ax.plot(x, data_50, '--',
-                        color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)])
+                        color=DEFAULT_MATPLOTLIB_COLORS[(i * len(keys) + j) % len(DEFAULT_MATPLOTLIB_COLORS)])
                 # label=key + ' median')
                 ax.fill_between(x, data_25, data_75,
-                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                                color=DEFAULT_MATPLOTLIB_COLORS[(i * len(keys) + j) % len(DEFAULT_MATPLOTLIB_COLORS)],
                                 alpha=.4)  # , label=key + ' interquartile')
                 ax.fill_between(x, data_min, data_max,
-                                color=DEFAULT_MATPLOTLIB_COLORS[(i*len(keys)+j) % len(DEFAULT_MATPLOTLIB_COLORS)],
+                                color=DEFAULT_MATPLOTLIB_COLORS[(i * len(keys) + j) % len(DEFAULT_MATPLOTLIB_COLORS)],
                                 alpha=.15)  # , label=key + ' border')
         # title = title[:-3] + key
         #
@@ -556,7 +613,7 @@ class SeveralMonteCarloPlotter:
                 raise ModuleNotFoundError(
                     "No Tikzplotlib installed, function " + self._box_plot_seaborn.__name__ + " will not save tex file")
             else:
-                tikzplotlib.save(Path(os.path.split(savefile)[0]) / ("tikz_line_plot.tex"))
+                tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tex"))
         if showfig and fig:
             fig.show()
 
@@ -565,25 +622,44 @@ if __name__ == "__main__":
     simulation_results = ResultReader(root_dir=
                                       "/media/barrachina/data/results/new method")
     lst = list(simulation_results.monte_dict.keys())
-    key = '{"balance": "none", "dataset": "OBER", "dataset_method": "random", "dataset_mode": "coh", "dtype": ' \
-          '"complex", "library": "cvnn", "model": "cao"}'
-    print(simulation_results.get_total_count(key))
-    simulation_results.get_stats(key)
-
-    # data = [simulation_results.get_pandas_data('{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
-    #                                            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
-    #                                            '"model": "cao"}')]
-    # data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "OBER", "dataset_method": '
-    #                                                '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-    #                                                '"tensorflow", "model": "cao"}'))
-    # # data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
-    # #                                                '"random", "dataset_mode": "k", "dtype": "real_imag", "library": '
-    # #                                                '"tensorflow", "model": "cao"}'))
-    # # data.append(simulation_results.get_pandas_data('{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
-    # #                                                '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-    # #                                                '"tensorflow", "model": "cao"}'))
-    # SeveralMonteCarloPlotter().box_plot(labels=["CV Coh", "RV Coh"], data=data,
-    #                                     showfig=True, library='seaborn', key='val_accuracy')
-    # # SeveralMonteCarloPlotter().plot(data=data, labels=["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"], showfig=True,
-    # #                                 library='seaborn', keys='val_accuracy',
-    # #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/EUSIPCO 2022/img/sf-plot-val-acc")
+    keys = [
+        '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
+        '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
+        '"model": "cao"}',
+        '{"balance": "none", "dataset": "OBER", "dataset_method": '
+        '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+        '"tensorflow", "model": "cao"}',
+        '{"balance": "none", "dataset": "OBER", "dataset_method": '
+        '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
+        '"cvnn", "model": "cnn"}',
+        '{"balance": "none", "dataset": "OBER", "dataset_method": '
+        '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+        '"tensorflow", "model": "cnn"}',
+        '{"balance": "none", "dataset": "OBER", "dataset_method": '
+        '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
+        '"cvnn", "model": "mlp"}',
+        '{"balance": "none", "dataset": "OBER", "dataset_method": '
+        '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+        '"tensorflow", "model": "mlp"}'
+    ]
+    data = [simulation_results.get_conf_stats(k) for k in keys]
+    SeveralMonteCarloPlotter()._bar_plot(labels=["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN",  "CV-MLP", "RV-MLP"],
+                                         data=data, colors=COLORS['OBER'], index=-1,
+                                         savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-bars")
+    data = [simulation_results.get_pandas_data(k) for k in keys]
+    SeveralMonteCarloPlotter().box_plot(labels=["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN",  "CV-MLP", "RV-MLP"],
+                                        data=data, showfig=True,
+                                        savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-boxplot",
+                                        library='seaborn', key='val_accuracy')
+    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
+    #                                 library='seaborn', keys='val_accuracy',
+    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-mlp")
+    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
+    #                                 library='seaborn', keys='val_loss',
+    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-loss-mlp")
+    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
+    #                                 library='seaborn', keys='accuracy',
+    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-train-acc-mlp")
+    # SeveralMonteCarloPlotter().plot(data=data, labels=["CV-MLP", "RV-MLP"], showfig=True,
+    #                                 library='seaborn', keys='loss',
+    #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-train-loss-mlp")
