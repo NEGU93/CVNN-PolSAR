@@ -32,7 +32,7 @@ class MetzScheduler(SimulationScheduler):
 python3 -m pip install virtualenv --user
 python3 -m virtualenv venv --system-site-packages
 source venv/bin/activate
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r sondra-pip.txt
 python3 -m pip install cvnn -U
     
 python3 ../../principal_simulation.py{params}
