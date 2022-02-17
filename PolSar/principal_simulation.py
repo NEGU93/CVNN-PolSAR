@@ -25,6 +25,7 @@ from dataset_reader import labels_to_rgb, COLORS
 from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from dataset_readers.sf_data_reader import SanFranciscoDataset
 from dataset_readers.bretigny_dataset import BretignyDataset
+from dataset_readers.flevoland_data_reader import FlevolandDataset
 from models.cao_fcnn import get_cao_fcnn_model
 from models.zhang_cnn import get_zhang_cnn_model
 from models.own_unet import get_my_unet_model
@@ -53,6 +54,7 @@ DATASET_META = {
     # "SF-RISAT": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "OBER": {"classes": 3, "orientation": "vertical", "percentage": (0.85, 0.15)},
+    "FLEVOLAND": {"classes": 15, "orientation": "horizontal", "percentage": (0.85, 0.15)},
     "BRET": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
 }
 
@@ -161,6 +163,11 @@ def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balan
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
                                                   balance_dataset=balance, classification=classification)
+    elif dataset_name == "FLEVOLAND":
+        if mode != "t":
+            raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
+        dataset_handler = FlevolandDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
+                                           balance_dataset=balance, classification=classification)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler

@@ -33,6 +33,7 @@ class MSAWDataset(PolsarDatasetHandler):
             # im = plt.imread(str(file))
             # im = Image.open(str(file))
             im = io.imread(str(file))
+            set_trace()
             tiles.append(im)
         return np.array(tiles)
 

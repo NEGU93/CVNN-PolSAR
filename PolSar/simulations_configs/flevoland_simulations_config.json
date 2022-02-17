@@ -1,0 +1,16 @@
+[
+    {
+       "model": "cao",
+       "epochs": 1000,
+       "dataset": "FLEVOLAND",
+       "coherency": true
+   },
+   {
+       "model": "cao",
+       "epochs": 1000,
+       "dataset": "FLEVOLAND",
+       "tensorflow": true,
+       "real_mode": true,
+       "coherency": true
+   }
+]
