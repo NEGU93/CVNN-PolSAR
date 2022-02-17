@@ -86,10 +86,8 @@ SF_COLORS = {
     ]
 }
 
-COLORS = {"BRET": BRET_COLORS, "OBER": OBER_COLORS, **SF_COLORS}
-
 # https://imagecolorpicker.com/en
-FLEVOLAND = np.array([
+FLEVOLAND_15 = np.array([
     [255, 0, 0],  # Red; Steambeans
     [90, 11, 226],  # Purple; Peas
     [0, 131, 74],  # Green; Forest
@@ -106,9 +104,9 @@ FLEVOLAND = np.array([
     [0, 0, 254],  # Blue; Water
     [255, 217, 160]  # Beige; Buildings
 ])
-FLEVOLAND = np.divide(FLEVOLAND, 255.0).astype(np.float32)
+FLEVOLAND_15 = np.divide(FLEVOLAND_15, 255.0).astype(np.float32)
 
-FLEVOLAND_2 = np.array([
+FLEVOLAND_14 = np.array([
     [255, 128, 0],  # Orange; Potatoes
     [138, 42, 116],  # Dark Purple; Fruit
     [0, 0, 255],  # Blue; Oats
@@ -123,9 +121,12 @@ FLEVOLAND_2 = np.array([
     [204, 1, 102],  # Bordeaux; Rapeseed
     [255, 204, 204],  # Beige; Gress
     [102, 0, 204],  # Purple; Bare Soil
-
 ])
-FLEVOLAND_2 = np.divide(FLEVOLAND_2, 255.0).astype(np.float32)
+FLEVOLAND_14 = np.divide(FLEVOLAND_14, 255.0).astype(np.float32)
+
+COLORS = {"BRET": BRET_COLORS, "OBER": OBER_COLORS,
+          "FLEVOLAND_15": FLEVOLAND_15, "FLEVOLAND_14": FLEVOLAND_14,
+          **SF_COLORS}
 
 DEFAULT_PLOTLY_COLORS = [
     [31, 119, 180],  # Blue
@@ -168,10 +169,10 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
         fig, ax = plt.subplots()
     alpha = 1.
     # set_trace()
-    # if t is not None:
-    #     alpha = 0.4
-    #     rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
-    #     ax.imshow(rgb)
+    if t is not None:
+        alpha = 0.8
+        rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
+        ax.imshow(rgb)
     ax.imshow(labels_rgb, alpha=alpha)
     if fig is not None and path is not None:
         path = str(path)
@@ -208,10 +209,10 @@ def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=N
             colors = BRET_COLORS
         elif np.max(labels) == 15:
             print("Using Flevoland dataset colors")
-            colors = FLEVOLAND
+            colors = FLEVOLAND_15
         elif np.max(labels) == 14:
             print("Using Flevoland 2 dataset colors")
-            colors = FLEVOLAND_2
+            colors = FLEVOLAND_14
         else:
             print("Using Plotly dataset colors")
             colors = DEFAULT_PLOTLY_COLORS
