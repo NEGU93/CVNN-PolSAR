@@ -22,9 +22,9 @@ import tensorflow_datasets as tfds
 from typing import Optional, List, Union, Tuple
 from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
 from dataset_reader import labels_to_rgb, COLORS
-from Oberpfaffenhofen.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
-from San_Francisco.sf_data_reader import SanFranciscoDataset
-from Bretigny_ONERA.bretigny_dataset import BretignyDataset
+from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
+from dataset_readers.sf_data_reader import SanFranciscoDataset
+from dataset_readers.bretigny_dataset import BretignyDataset
 from models.cao_fcnn import get_cao_fcnn_model
 from models.zhang_cnn import get_zhang_cnn_model
 from models.own_unet import get_my_unet_model

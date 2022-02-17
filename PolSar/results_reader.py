@@ -280,6 +280,22 @@ class ResultReader:
     def get_total_count(self, json_key):
         return self.get_eval_stats(json_key=json_key)['train']['count'][0]
 
+    def find_closest_to(self, json_key, dataset, key_to_find, metric):
+        if key_to_find == 'median':
+            key_to_find = '50%'
+        data = self.get_eval_stats(json_key=json_key)
+        diff = 1.
+        closest_path = None
+        for data_results_dict in self.monte_dict[json_key]['eval']:
+            result_pandas = pd.read_csv(data_results_dict, index_col=0)
+            tmp_diff = np.abs(data[dataset][key_to_find][metric] - result_pandas[dataset][metric])
+            if tmp_diff < diff:
+                closest_path = data_results_dict
+            if diff == 0.:
+                return closest_path
+        return closest_path
+
+
     """
     Methods to parse simulation parameters
     """
@@ -403,7 +419,7 @@ class SeveralMonteCarloPlotter:
             fig.show()
 
     def bar_plot(self, labels: List[str], data: List, index: int, showfig=False, savefile=None, colors=None,
-                 extension: str = ".svg"):
+                 extension: str = ".svg", min_lim=0.0):
         assert index < len(data)
         if colors is None:
             colors = DEFAULT_MATPLOTLIB_COLORS
@@ -422,7 +438,6 @@ class SeveralMonteCarloPlotter:
         for j in range(len(offset)):
             ax.bar(x + offset[j], arr[:, j], align='center', width=3 * borders / classes,
                    tick_label=labels, color=colors[j])
-        min_lim = 0.5
         max_lim = 1.
         ax.set_ylim((min_lim, max_lim))
         minor_ticks = np.arange(min_lim, max_lim, 0.05)
@@ -597,41 +612,67 @@ class SeveralMonteCarloPlotter:
 
 
 if __name__ == "__main__":
+    PLOT_OBER = False
+    PLOT_SF = True
     simulation_results = ResultReader(root_dir=
                                       "/media/barrachina/data/results/new method")
     lst = list(simulation_results.monte_dict.keys())
-    keys = [
-        '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
-        '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
-        '"model": "cao"}',
-        '{"balance": "none", "dataset": "OBER", "dataset_method": '
-        '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-        '"tensorflow", "model": "cao"}',
-        '{"balance": "none", "dataset": "OBER", "dataset_method": '
-        '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
-        '"cvnn", "model": "cnn"}',
-        '{"balance": "none", "dataset": "OBER", "dataset_method": '
-        '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-        '"tensorflow", "model": "cnn"}',
-        '{"balance": "none", "dataset": "OBER", "dataset_method": '
-        '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
-        '"cvnn", "model": "mlp"}',
-        '{"balance": "none", "dataset": "OBER", "dataset_method": '
-        '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-        '"tensorflow", "model": "mlp"}'
-    ]
-    labels = ["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN", "CV-MLP", "RV-MLP"]
-    data = [simulation_results.get_conf_stats(k) for k in keys]
-    SeveralMonteCarloPlotter().bar_plot(labels=labels,
-                                        data=data, colors=COLORS['OBER'], index=-1,
-                                        savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-bars")
-    data = [simulation_results.get_pandas_data(k) for k in keys]
-    SeveralMonteCarloPlotter().box_plot(labels=labels,
-                                        data=data, showfig=True,
-                                        savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-boxplot",
-                                        library='seaborn', key='val_accuracy')
-    for i in range(3):
-        SeveralMonteCarloPlotter().plot(data=data[2*i:2*i+2], labels=labels[2*i:2*i+2], showfig=True,
-                                    library='seaborn', keys='val_accuracy',
-                                    savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-" + labels[2*i][-3])
+    if PLOT_SF:
+        sf_keys = [
+            '{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+            '"random", "dataset_mode": "k", "dtype": "complex", "library": '
+            '"cvnn", "model": "cao"}',
+            '{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": "random", '
+            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
+            '"model": "cao"}',
+            '{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+            '"random", "dataset_mode": "k", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "cao"}',
+            '{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "cao"}'
+        ]
+        for k in sf_keys:
+            print(simulation_results.find_closest_to(k, key_to_find='50%', dataset='val', metric='accuracy'))
+        labels = ["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"]
+        data = [simulation_results.get_conf_stats(k) for k in sf_keys]
+        SeveralMonteCarloPlotter().bar_plot(labels=labels,
+                                            data=data, colors=COLORS['SF-AIRSAR'], index=-1, showfig=True, min_lim=0.8,
+                                            savefile="/home/barrachina/Dropbox/Apps/Overleaf/ICIP 2022/img/sf-bars")
+
+    if PLOT_OBER:
+        keys = [
+            '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
+            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
+            '"model": "cao"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "cao"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
+            '"cvnn", "model": "cnn"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "cnn"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "complex", "library": '
+            '"cvnn", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "mlp"}'
+        ]
+        labels = ["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN", "CV-MLP", "RV-MLP"]
+        data = [simulation_results.get_conf_stats(k) for k in keys]
+        SeveralMonteCarloPlotter().bar_plot(labels=labels,
+                                            data=data, colors=COLORS['OBER'], index=-1, min_lim=0.5,
+                                            savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-bars")
+        data = [simulation_results.get_pandas_data(k) for k in keys]
+        SeveralMonteCarloPlotter().box_plot(labels=labels,
+                                            data=data, showfig=True,
+                                            savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-boxplot",
+                                            library='seaborn', key='val_accuracy')
+        for i in range(3):
+            SeveralMonteCarloPlotter().plot(data=data[2*i:2*i+2], labels=labels[2*i:2*i+2], showfig=True,
+                                        library='seaborn', keys='val_accuracy',
+                                        savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-" + labels[2*i][-3])
 

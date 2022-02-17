@@ -78,11 +78,11 @@ SF_COLORS = {
         [255, 0, 255]
     ],
     "SF-AIRSAR": [
-        [0, 255, 255],
-        [255, 255, 0],
-        [0, 0, 255],
-        [255, 0, 0],
-        [0, 255, 0]
+        [0, 1., 1.],      # Light blue (bare soil)
+        [1., 1., 0],      # Yellow (Mountain)
+        [0, 0, 1.],        # Blue (Water)
+        [1., 0, 0],        # Red (Buildings)
+        [0, 1., 0]         # Green (Vegetation)
     ]
 }
 
