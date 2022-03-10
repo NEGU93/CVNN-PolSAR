@@ -30,13 +30,15 @@ BASE_PATHS = {
     "OBER": str(
         root_drive / "datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6/PauliRGB_T1.bmp"),
     "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-Pauli.bmp"),
-    "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp")
+    "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp"),
+    "FLEVOLAND": str(root_drive / "datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3/PauliRGB.bmp")
 }
 GROUND_TRUTH_PATHS = {
     "BRET": str(root_drive / "datasets/PolSar/Bretigny-ONERA/labels_4roi.png"),
     "OBER": str(root_drive / "datasets/PolSar/Oberpfaffenhofen/ground_truth.png"),
     "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-label3d.png"),
-    "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-label3d.png")
+    "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-label3d.png"),
+    "FLEVOLAND": str(root_drive / "datasets/PolSar/Flevoland/AIRSAR_Flevoland/ground_truth.png")
 }
 START_VALUES = {
     "dataset": 'SF-AIRSAR',
@@ -433,7 +435,11 @@ class MainWindow(QMainWindow):
         rb4 = QRadioButton("BRET", self)
         rb4.toggled.connect(lambda: self.update_information("dataset", rb4.text()))
 
+        rb5 = QRadioButton("FLEVOLAND", self)
+        rb5.toggled.connect(lambda: self.update_information("dataset", rb5.text()))
+
         self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb5)
         self.btngroup[-1].addButton(rb4)
         self.btngroup[-1].addButton(rb3)
         self.btngroup[-1].addButton(rb2)
@@ -444,6 +450,7 @@ class MainWindow(QMainWindow):
         vlayout.addWidget(rb2)
         vlayout.addWidget(rb3)
         vlayout.addWidget(rb4)
+        vlayout.addWidget(rb5)
         vlayout.addStretch()
 
         return vlayout
