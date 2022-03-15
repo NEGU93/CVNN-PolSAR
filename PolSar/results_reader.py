@@ -220,14 +220,21 @@ class ResultReader:
 
     def get_eval_stats(self, json_key: str):
         if len(self.monte_dict[json_key]['eval_stats']) == 0:
+            pandas_dict = self.get_final_results_eval(json_key)
+            self.monte_dict[json_key]['eval_stats'] = pandas_dict.groupby(pandas_dict.index).describe()
+        return self.monte_dict[json_key]['eval_stats']
+
+    def get_final_results_eval(self, json_key: str):
+        if len(self.monte_dict[json_key]['eval_results']) == 0:
             pandas_dict = pd.DataFrame()
             for data_results_dict in self.monte_dict[json_key]['eval']:
                 result_pandas = pd.read_csv(data_results_dict, index_col=0)
                 pandas_dict = pd.concat([pandas_dict, result_pandas], sort=False)
-            self.monte_dict[json_key]['eval_stats'] = pandas_dict.groupby(pandas_dict.index).describe()
-        return self.monte_dict[json_key]['eval_stats']
+            self.monte_dict[json_key]['eval_results'] = pandas_dict
+        return self.monte_dict[json_key]['eval_results']
 
     def get_eval_data(self, json_key: str):
+        # TODO: I think eval_data and eval_results are the same XD
         if len(self.monte_dict[json_key]['eval_data']) == 0:
             self.monte_dict[json_key]['eval_data'] = []
             for data_results_dict in self.monte_dict[json_key]['eval']:
@@ -485,7 +492,7 @@ class SeveralMonteCarloPlotter:
         self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
 
     def box_plot(self, labels: List[str], data: List, ax=None,
-                 key='val_accuracy', library='seaborn', epoch=-1, showfig=False, savefile: Optional[str] = None):
+                 key='val_accuracy', library='seaborn', showfig=False, savefile: Optional[str] = None):
         """
         Saves/shows a box plot of the results.
         :param labels: List of labels of each simulation to compare
@@ -499,37 +506,50 @@ class SeveralMonteCarloPlotter:
         :param savefile: String with the path + filename where to save the boxplot. If None (default) no figure is saved
         """
         if library == 'plotly':
-            self._box_plot_plotly(labels=labels, mc_runs=data, key=key, epoch=epoch, showfig=showfig, savefile=savefile)
+            self._box_plot_plotly(labels=labels, mc_runs=data, key=key, showfig=showfig, savefile=savefile)
         # TODO: https://seaborn.pydata.org/examples/grouped_boxplot.html
         elif library == 'seaborn':
-            self._box_plot_seaborn(labels=labels, data=data, key=key, epoch=epoch, showfig=showfig, savefile=savefile)
+            self._box_plot_seaborn(labels=labels, data=data, key=key, showfig=showfig, savefile=savefile)
         else:
             raise ModuleNotFoundError(f"Library {library} requested for plotting unknown")
         return None
 
+    @staticmethod
+    def get_metric_and_dataset_from_key(key: str):
+        """
+        Testing:
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("val_average_accuracy") == ("val", "average_accuracy")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("val_average") == ("val", "average")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("average_accuracy") == ("train", "average_accuracy")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("average_accuracy") == ("train", "average_accuracy")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("test_average_accuracy") == ("test", "average_accuracy")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("test_accuracy") == ("test", "accuracy")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("val_losodan") == ("val", "losodan")
+        assert SeveralMonteCarloPlotter.get_metric_and_dataset_from_key("losodan") == ("train", "losodan")
+        """
+        split = key.split('_')
+        if len(split) == 1 or split[0] not in ["val", "test"]:
+            return 'train', key
+        else:
+            return tuple([split[0], "_".join(split[1:])])
+
     def _box_plot_plotly(self, labels: List[str], mc_runs: List,
-                         key='accuracy', epoch=-1, showfig=False, savefile=None, extension=".svg"):
+                         key='accuracy', showfig=False, savefile=None):
         if 'plotly' not in AVAILABLE_LIBRARIES:
             raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
                                       f"was called but will be omitted")
         savefig = False
         if savefile is not None:
             savefig = True
-        epochs = []
-        for i in range(len(mc_runs)):
-            if epoch == -1:
-                epochs.append(max(mc_runs[i].epoch))  # get last epoch
-            else:
-                epochs.append(epoch)
+        dataset, metric = self.get_metric_and_dataset_from_key(key)
         # Prepare data
         fig = go.Figure()
         # color_pal = []
         for i, mc_run in enumerate(mc_runs):
             # color_pal += sns.color_palette()[:len(df.network.unique())]
-            filter = mc_run['epoch'] == epochs[i]
-            data = mc_run[filter]
+            data = mc_run[mc_run.index.isin([metric])]
             fig.add_trace(go.Box(
-                y=data[key],
+                y=data[dataset],
                 name=labels[i],
                 whiskerwidth=0.2,
                 notched=True,  # confidence intervals for the median
@@ -561,27 +581,19 @@ class SeveralMonteCarloPlotter:
         if 'seaborn' not in AVAILABLE_LIBRARIES:
             raise ModuleNotFoundError(
                 "No Seaborn installed, function " + self._box_plot_seaborn.__name__ + " was called but will be omitted")
-        epochs = []
-        for i in range(len(data)):
-            if epoch == -1:
-                # set_trace()
-                epochs.append(int(data[i][data[i][key] == max(data[i][key])].iloc[-1].epoch))
-            else:
-                epochs.append(epoch)
+        dataset, metric = self.get_metric_and_dataset_from_key(key)
         # Prepare data
         frames = []
         # color_pal = []
         assert len(data) == len(labels), f"len(data) = {len(data)} does not match len(labels) = {len(labels)}"
         for i, mc_run in enumerate(data):
-            # color_pal += sns.color_palette()[:len(df.network.unique())]
-            # set_trace()
-            filter = mc_run['epoch'] == epochs[i]
-            t_data = mc_run[filter].assign(name=labels[i])
+            t_data = mc_run[mc_run.index.isin([metric])].assign(name=labels[i])
             frames.append(t_data)
         result = pd.concat(frames)
         # Run figure
         fig = plt.figure()
-        ax = sns.boxplot(x='name', y=key, data=result, boxprops=dict(alpha=.3), palette=sns.color_palette(), notch=True)
+        ax = sns.boxplot(x='name', y=dataset, data=result, boxprops=dict(alpha=.3),
+                         palette=sns.color_palette(), notch=True)
         ax.grid(axis='y', which='major')
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
@@ -731,7 +743,8 @@ class SeveralMonteCarloPlotter:
 
 if __name__ == "__main__":
     PLOT_OBER = False
-    PLOT_SF = True
+    PLOT_SF = False
+    PLOT_FLEV = True
     simulation_results = ResultReader(root_dir=
                                       "/media/barrachina/data/results/new method")
     lst = list(simulation_results.monte_dict.keys())
@@ -764,7 +777,6 @@ if __name__ == "__main__":
                                             data=data, showfig=True,
                                             savefile=None,
                                             library='plotly', key='val_accuracy')
-
     if PLOT_OBER:
         keys = [
             '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
@@ -800,3 +812,18 @@ if __name__ == "__main__":
         #     SeveralMonteCarloPlotter().plot(data=data[2*i:2*i+2], labels=labels[2*i:2*i+2], showfig=True,
         #                                 library='seaborn', keys='val_accuracy',
         #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-" + labels[2*i][-3])
+    if PLOT_FLEV:
+        keys = [
+            '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": "random", '
+            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
+            '"model": "cao"}',
+            '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "cao"}',
+        ]
+        labels = ["CV-FCNN", "RV-FCNN"]
+        data = [simulation_results.get_final_results_eval(k) for k in keys]
+        SeveralMonteCarloPlotter().box_plot(labels=labels, data=data, showfig=True,
+                                            savefile=None, library='seaborn', key='val_accuracy')
+        SeveralMonteCarloPlotter().box_plot(labels=labels, data=data, showfig=True,
+                                            savefile=None, library='seaborn', key='val_average_accuracy')

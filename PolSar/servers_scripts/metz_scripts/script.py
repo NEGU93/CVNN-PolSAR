@@ -24,7 +24,6 @@ class MetzScheduler(SimulationScheduler):
 #SBATCH --partition=gpu_prod_long
 #SBATCH --exclude=sh[03]
 #SBATCH --time=24:00:00
-#SBATCH --mail-user=joseagustin.barra@gmail.com 
 #SBATCH --mail-type=ALL
 #SBATCH -e logslurms/slurm-%j.err
 #SBATCH -o logslurms/slurm-%j.out

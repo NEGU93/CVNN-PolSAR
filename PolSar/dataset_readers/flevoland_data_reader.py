@@ -23,7 +23,7 @@ class FlevolandDataset(PolsarDatasetHandler):
 
     def __init__(self, *args, **kwargs):
         super(FlevolandDataset, self).__init__(root_path=os.path.dirname(labels_path),
-                                               name="FLEVOLAND_15", mode='t', *args, **kwargs)
+                                               name="FLEVOLAND", mode='t', *args, **kwargs)
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
