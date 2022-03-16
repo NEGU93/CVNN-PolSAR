@@ -14,6 +14,11 @@ elif os.path.exists('/usr/users/gpu-prof/gpu_barrachina/onera/PolSar'):
     dataset_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3"
     labels_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat"
     NOTIFY = True
+elif path.exists("/scratchm/jbarrach/Flevoland"):
+    sys.path.insert(1, '/scratchm/jbarrach/onera/PolSar')
+    labels_path = '/scratchm/jbarrach/Flevoland/Label_Flevoland_15cls.mat'
+    dataset_path = '/scratchm/jbarrach/Flevoland/T3'
+    NOTIFY = True
 else:
     raise FileNotFoundError("path of the flevoland dataset not found")
 from dataset_reader import PolsarDatasetHandler
