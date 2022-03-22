@@ -55,6 +55,9 @@ class SanFranciscoDataset(PolsarDatasetHandler):
             data = self.open_s_dataset(str(Path(root_path) / self.name / folder))
         elif self.mode == "t":
             data = self.open_t_dataset_t3(str(Path(root_path) / self.name / folder / "T4"))
+        elif self.mode == "k":
+            mat = self.open_s_dataset(str(Path(root_path) / self.name / folder))    # s11, s12, s22
+            data = self._get_k_vector(HH=mat[:, :, 0], VV=mat[:, :, 2], HV=mat[:, :, 1])
         else:
             raise ValueError(f"Mode {self.mode} not supported.")
         data = data[

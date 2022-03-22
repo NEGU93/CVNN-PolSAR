@@ -101,11 +101,6 @@ class BretignyDataset(PolsarDatasetHandler):
         mat['VV'] = mat['VV'][:-3]
         return mat
 
-    @staticmethod
-    def _get_k_vector(HH, VV, HV):
-        k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-        return tf.transpose(k, perm=[1, 2, 0])
-
     def _get_coherency_matrix(self, HH, VV, HV, kernel_shape=3):
         # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
         k = self._get_k_vector(HH, VV, HV)
