@@ -766,3 +766,8 @@ class PolsarDatasetHandler(ABC):
             mask = self.get_sparse_labels()
         return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
                                   path=path, ax=ax)
+
+    @staticmethod
+    def _get_k_vector(HH, VV, HV):
+        k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
+        return tf.transpose(k, perm=[1, 2, 0])
