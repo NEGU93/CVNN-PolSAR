@@ -58,7 +58,10 @@ class GaronDataset(PolsarDatasetHandler):
     def get_image(self, image_number: Optional[int] = None) -> np.ndarray:
         if image_number is None:
             image_number = self.image_number
-        return np.load(self.root_path / available_images[image_number])
+        if self.mode == 's':
+            return np.load(self.root_path / available_images[image_number])
+        else:
+            raise ValueError(f"Sorry, dataset mode {self.mode} not supported")
 
     def get_dataset_date(self, image_number: Optional[int] = None):
         # TODO: parse the date?

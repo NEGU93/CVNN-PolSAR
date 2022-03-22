@@ -238,6 +238,48 @@ def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=N
     return ground_truth
 
 
+def mean_filter(input, filter_size=3):
+    """
+    Performs mean filter on an image with a filter of size (filter_size, filter_size)
+    :param input: Image of shape (Height, Width, Channels)
+    :param filter_size:
+    :return:
+    """
+    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start 9xhxw
+    filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype)
+    filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
+                                        filters=filter, padding="SAME")
+    filtered_T_imag = tf.nn.convolution(input=tf.expand_dims(tf.math.imag(input_transposed), axis=-1),
+                                        filters=filter, padding="SAME")
+    filtered_T = tf.complex(filtered_T_real, filtered_T_imag)
+    my_filter_result = tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
+    my_filter_result = my_filter_result / (filter_size * filter_size)
+    # This method would be better but it has problems with tf 2.4.1 (used on conda-develop)
+    # tf_mean_real = tfa.image.mean_filter2d(tf.math.real(input), filter_shape=filter_size, padding="CONSTANT")
+    # tf_mean_imag = tfa.image.mean_filter2d(tf.math.imag(input), filter_shape=filter_size, padding="CONSTANT")
+    # tf_mean = tf.complex(tf_mean_real, tf_mean_imag)
+    # assert np.allclose(tf_mean, my_filter_result)
+    if filter_size == 1:
+        assert np.all(my_filter_result == input), "mean filter of size 1 changed the input matrix"
+    return my_filter_result
+
+
+def _remove_lower_part(coh):
+    mask = np.array(
+        [True, True, True,
+         False, True, True,
+         False, False, True]
+    )
+    masked_coh = tf.boolean_mask(coh, mask, axis=2)
+    return masked_coh
+
+
+def reorder(matrix):
+    return tf.transpose(np.array([
+        matrix[:, :, 0], matrix[:, :, 3], matrix[:, :, 5], matrix[:, :, 1], matrix[:, :, 2], matrix[:, :, 4]
+    ]), perm=[1, 2, 0])
+
+
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
@@ -673,21 +715,21 @@ class PolsarDatasetHandler(ABC):
     @staticmethod
     def open_t_dataset_t3(path: str):
         path = Path(path)
-        first_read = standarize(envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0))
+        first_read = envi.open(path / 'T11.bin.hdr', path / 'T11.bin').read_band(0)
         T = np.zeros(first_read.shape + (6,), dtype=np.complex64)
 
         # Diagonal
         T[:, :, 0] = first_read
-        T[:, :, 1] = standarize(envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0))
-        T[:, :, 2] = standarize(envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0))
+        T[:, :, 1] = envi.open(path / 'T22.bin.hdr', path / 'T22.bin').read_band(0)
+        T[:, :, 2] = envi.open(path / 'T33.bin.hdr', path / 'T33.bin').read_band(0)
 
         # Upper part
-        T[:, :, 3] = standarize(envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0))
-        T[:, :, 4] = standarize(envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0))
-        T[:, :, 5] = standarize(envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0))
+        T[:, :, 3] = envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0)
+        T[:, :, 4] = envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0)
+        T[:, :, 5] = envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
+                                1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0)
         return T.astype(np.complex64)
 
     @staticmethod
@@ -767,7 +809,21 @@ class PolsarDatasetHandler(ABC):
         return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
                                   path=path, ax=ax)
 
+    """
+        Input format conversion
+    """
     @staticmethod
     def _get_k_vector(HH, VV, HV):
         k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-        return tf.transpose(k, perm=[1, 2, 0])
+        return tf.transpose(k, perm=[1, 2, 0], conjugate=False)
+
+    def _get_coherency_matrix(self, HH, VV, HV, kernel_shape=3):
+        # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
+        k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
+        tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
+        T_mat = tf.linalg.matmul(tf_k, tf_k,
+                                 adjoint_b=True)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
+        one_channel_T = tf.reshape(T_mat, shape=(T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
+        removed_lower_part_T = _remove_lower_part(one_channel_T)  # hxwx9 to hxwx6 removing lower part of matrix
+        filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
+        return reorder(filtered_T)       # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])

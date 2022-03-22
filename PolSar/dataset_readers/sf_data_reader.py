@@ -2,6 +2,7 @@ import numpy as np
 from imageio import imread
 from pathlib import Path
 from os import path
+from pdb import set_trace
 import sys
 sys.path.insert(1, '../')
 if path.exists('/media/barrachina/data/datasets/PolSar/San Francisco/PolSF'):
@@ -52,9 +53,9 @@ class SanFranciscoDataset(PolsarDatasetHandler):
             raise FileNotFoundError("path of the san francisco dataset not found")
         folder = "SAN_FRANCISCO_" + self.name[3:]
         if self.mode == "s":
-            data = self.open_s_dataset(str(Path(root_path) / self.name / folder))
+            data = self.open_s_dataset(str(Path(root_path) / self.name / folder / "S2"))
         elif self.mode == "t":
-            data = self.open_t_dataset_t3(str(Path(root_path) / self.name / folder / "T4"))
+            data = self.open_t_dataset_t3(str(Path(root_path) / self.name / folder / "T3"))
         elif self.mode == "k":
             mat = self.open_s_dataset(str(Path(root_path) / self.name / folder))    # s11, s12, s22
             data = self._get_k_vector(HH=mat[:, :, 0], VV=mat[:, :, 2], HV=mat[:, :, 1])
@@ -67,3 +68,17 @@ class SanFranciscoDataset(PolsarDatasetHandler):
         if AVAILABLE_IMAGES[self.name]["y_inverse"]:
             data = np.flip(data, axis=0)
         return data
+
+
+def test_coh_matrix_generator(kernel_shape=7):
+    dataset_handler = SanFranciscoDataset(mode='t', dataset_name="SF-AIRSAR")
+    coh = dataset_handler.get_image()
+    dataset_handler.mode = 's'
+    raw_s = dataset_handler.get_image()  # s_11, s_12, s_22
+    manual_coh = dataset_handler._get_coherency_matrix(HH=raw_s[:, :, 0], VV=raw_s[:, :, 2], HV=raw_s[:, :, 1],
+                                                       kernel_shape=kernel_shape).numpy()
+    return np.allclose(coh, manual_coh)
+
+
+if __name__ == "__main__":
+    test_coh_matrix_generator(kernel_shape=1)
