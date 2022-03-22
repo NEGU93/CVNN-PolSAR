@@ -1,16 +1,18 @@
 [
     {
        "model": "cao",
-       "epochs": 1000,
+       "epochs": 500,
        "dataset": "FLEVOLAND",
-       "coherency": true
+       "coherency": true,
+       "balance": "loss"
    },
    {
        "model": "cao",
-       "epochs": 1000,
+       "epochs": 500,
        "dataset": "FLEVOLAND",
        "tensorflow": true,
        "real_mode": true,
-       "coherency": true
+       "coherency": true,
+       "balance": "loss"
    }
 ]

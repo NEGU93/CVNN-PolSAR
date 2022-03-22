@@ -297,10 +297,14 @@ class ResultReader:
         for data_results_dict in self.monte_dict[json_key]['eval']:
             result_pandas = pd.read_csv(data_results_dict, index_col=0)
             tmp_diff = np.abs(data[dataset][key_to_find][metric] - result_pandas[dataset][metric])
+            # print(result_pandas[dataset][metric])
             if tmp_diff < diff:
                 closest_path = data_results_dict
+                diff = tmp_diff
             if diff == 0.:
+                print("Found exact value")
                 return closest_path
+        print("Found close value")
         return closest_path
 
     """
@@ -424,95 +428,11 @@ class SeveralMonteCarloPlotter:
                 tikzplotlib.save(Path(str(savefile).split('.')[0] + ".tikz"))
         if showfig and fig:
             fig.show()
+        plt.close(fig)
 
-    def bar_plot(self, labels: List[str], data: List, index: int, library="seaborn",
-                 showfig=False, savefile=None, colors=None, extension: str = ".svg", min_lim=0.0):
-        if library == "seaborn":
-            self._matplotlib_bar_plot(labels=labels, data=data, index=index, showfig=showfig, savefile=savefile,
-                                      colors=colors, extension=extension, min_lim=min_lim)
-        elif library == "plotly":
-            self._plotly_bar_plot(labels=labels, data=data, index=index, showfig=showfig, savefile=savefile,
-                                      colors=colors, min_lim=min_lim)
-
-    def _plotly_bar_plot(self, labels: List[str], data: List, index: int, showfig=False, savefile=None, colors=None,
-                         min_lim=0.0):
-        assert index < len(data)
-        savefig = False
-        if savefile is not None:
-            savefig = True
-        df_list = []
-        for dat in data:
-            tmp_dict = {f"class {j}": dat[index][str(j)][j] for j in range(len(dat[index])-1)}
-            df_list.append(tmp_dict)
-        # set_trace()
-        plotly_colors = [plotly.colors.label_rgb(color) for color in [plotly.colors.convert_to_RGB_255(color) for color in colors]]
-        fig = go.Figure(
-            data=[go.Bar(name=key, x=labels, y=[elem[key] for elem in df_list],
-                         marker_color=plotly_colors[i]) for i, key in enumerate(df_list[0].keys())]
-        )
-        if savefig:
-            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
-            if not str(savefile).endswith(".html"):
-                savefile = str(savefile) + ".html"
-            plotly.offline.plot(fig,
-                                filename=str(savefile),
-                                config=PLOTLY_CONFIG, auto_open=showfig)
-            # fig.write_image(str(self.path / ("plots/lines/montecarlo_" + key.replace(" ", "_"))) + extension)
-        elif showfig:
-            fig.show(config=PLOTLY_CONFIG)
-
-    def _matplotlib_bar_plot(self, labels: List[str], data: List, index: int, showfig=False, savefile=None, colors=None,
-                 extension: str = ".svg", min_lim=0.0):
-        assert index < len(data)
-        if colors is None:
-            colors = DEFAULT_MATPLOTLIB_COLORS
-        borders = 0.2
-        classes = len(data[0][index]) - 1  # 3
-        x = range(len(labels))  # 4
-        offset = linspace(-borders, borders, classes)  # classes = 3
-        fig, ax = plt.subplots()
-        classes_results = []
-        for i, mc_run in enumerate(data):
-            tmp = []
-            for j in range(len(mc_run[index]) - 1):
-                tmp.append(mc_run[index][str(j)][str(j)])
-            classes_results.append(tmp)
-        arr = np.array(classes_results)
-        for j in range(len(offset)):
-            ax.bar(x + offset[j], arr[:, j], align='center', width=3 * borders / classes,
-                   tick_label=labels, color=colors[j])
-            for location, val in enumerate(arr[:, j]):
-                ax.text((x + offset[j] - 0.05)[location], val, f"{val:.2%}",
-                        color='black', fontweight='bold', rotation=90, ha='left', va='top')
-        max_lim = 1.
-        ax.set_ylim((min_lim, max_lim))
-        minor_ticks = np.arange(min_lim, max_lim, 0.05)
-        ax.set_yticks(minor_ticks, minor=True)
-        ax.grid(axis='y', which='both')
-        self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
-
-    def box_plot(self, labels: List[str], data: List, ax=None,
-                 key='val_accuracy', library='seaborn', showfig=False, savefile: Optional[str] = None):
-        """
-        Saves/shows a box plot of the results.
-        :param labels: List of labels of each simulation to compare
-        :param data: List of pandas describe() dataframes wrt epochs
-        :param key: String stating what to plot using tf.keras.History labels. ex. `val_accuracy` for the validation acc
-        :param library: string stating the library to be used to generate the box plot.
-            - `plotly <https://plotly.com/python/>`_
-            - `seaborn <https://seaborn.pydata.org/>`_
-        :param epoch: Which epoch to use for the box plot. If -1 (default) it will use the last epoch.
-        :param showfig: If True, it will show the grated box plot
-        :param savefile: String with the path + filename where to save the boxplot. If None (default) no figure is saved
-        """
-        if library == 'plotly':
-            self._box_plot_plotly(labels=labels, mc_runs=data, key=key, showfig=showfig, savefile=savefile)
-        # TODO: https://seaborn.pydata.org/examples/grouped_boxplot.html
-        elif library == 'seaborn':
-            self._box_plot_seaborn(labels=labels, data=data, key=key, showfig=showfig, savefile=savefile)
-        else:
-            raise ModuleNotFoundError(f"Library {library} requested for plotting unknown")
-        return None
+    @staticmethod
+    def _to_string_label(ylabel):
+        return ylabel.replace("_", " ").replace("val", "validation")
 
     @staticmethod
     def get_metric_and_dataset_from_key(key: str):
@@ -533,8 +453,148 @@ class SeveralMonteCarloPlotter:
         else:
             return tuple([split[0], "_".join(split[1:])])
 
+    @staticmethod
+    def get_key_from_metric_and_dataset(dataset: str, metric: str):
+        metric = metric.replace(" ", "_")
+        if dataset == "train":
+            return metric
+        else:
+            return '_'.join([dataset, metric])
+
+    """--------------
+        BAR PLOT
+    --------------"""
+    def per_class_bar_plot(self, labels: List[str], data: List,
+                           dataset,
+                           library="seaborn", print_values=True,
+                           showfig=False, savefile=None, colors=None, extension: str = ".svg", min_lim=0.0):
+        """
+        Plots bar accuracy per class of each simulation model separately.
+        :param labels:
+        :param data:
+        :param index:
+        :param library:
+        :param showfig:
+        :param savefile:
+        :param colors:
+        :param extension:
+        :param min_lim:
+        :return:
+        """
+        if library == "seaborn":
+            self._matplotlib_bar_plot(labels=labels, data=data, dataset=dataset,
+                                      showfig=showfig, savefile=savefile, print_values=print_values,
+                                      colors=colors, extension=extension, min_lim=min_lim)
+        elif library == "plotly":
+            self._plotly_bar_plot(labels=labels, data=data, dataset=dataset,
+                                  showfig=showfig, savefile=savefile, colors=colors)
+
+    def _plotly_bar_plot(self, labels: List[str], data: List, dataset, showfig=False, savefile=None, colors=None):
+        d_index = ['train', 'val', 'test'].index(dataset)
+        savefig = False
+        if savefile is not None:
+            savefig = True
+        df_list = []
+        for dat in data:
+            tmp_dict = {f"class {j}": dat[d_index][str(j)][str(j)] for j in range(len(dat[d_index])-1)}
+            df_list.append(tmp_dict)
+        plotly_colors = [plotly.colors.label_rgb(color) for color in [plotly.colors.convert_to_RGB_255(color) for color in colors]]
+        fig = go.Figure(
+            data=[go.Bar(name=key, x=labels, y=[elem[key] for elem in df_list],
+                         marker_color=plotly_colors[i]) for i, key in enumerate(df_list[0].keys())]
+        )
+        fig.update_layout(
+            title=f"{' vs '.join(labels)} {dataset} per class accuracy",
+            yaxis=dict(
+                title=f"{dataset} accuracy",
+                autorange=True,
+                showgrid=True,
+                dtick=0.05,
+            ),
+            xaxis=dict(
+                title="model / classes"
+            ),
+            showlegend=True
+        )
+        if savefig:
+            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
+            if not str(savefile).endswith(".html"):
+                savefile = str(savefile) + ".html"
+            plotly.offline.plot(fig,
+                                filename=str(savefile),
+                                config=PLOTLY_CONFIG, auto_open=showfig)
+            # fig.write_image(str(self.path / ("plots/lines/montecarlo_" + key.replace(" ", "_"))) + extension)
+        elif showfig:
+            fig.show(config=PLOTLY_CONFIG)
+
+    def _matplotlib_bar_plot(self, labels: List[str], data: List, dataset,
+                             showfig=False, savefile=None, colors=None,
+                             extension: str = ".svg", min_lim=0.0, print_values=True):
+        if colors is None:
+            colors = DEFAULT_MATPLOTLIB_COLORS
+        borders = 0.2
+        d_index = ['train', 'val', 'test'].index(dataset)
+        classes = len(data[0][d_index]) - 1  # 3
+        x = range(len(labels))  # 4
+        offset = linspace(-borders, borders, classes)  # classes = 3
+        fig, ax = plt.subplots()
+        classes_results = []
+        for i, mc_run in enumerate(data):
+            tmp = []
+            for j in range(len(mc_run[d_index]) - 1):
+                tmp.append(mc_run[d_index][str(j)][str(j)])
+            classes_results.append(tmp)
+        arr = np.array(classes_results)
+        for j in range(len(offset)):
+            ax.bar(x + offset[j], arr[:, j], align='center', width=3 * borders / classes,
+                   tick_label=labels, color=colors[j])
+            if print_values:
+                for location, val in enumerate(arr[:, j]):
+                    ax.text((x + offset[j] - 0.05)[location], val, f"{val:.2%}",
+                            color='black', fontweight='bold', rotation=90, ha='left', va='top')
+        max_lim = 1.
+        ax.set_ylim((min_lim, max_lim))
+        minor_ticks = np.arange(min_lim, max_lim, 0.05)
+        ax.set_yticks(minor_ticks, minor=True)
+        ax.set_ylabel(f"{dataset} accuracy")
+        ax.grid(axis='y', which='both')
+        self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
+
+    """--------------
+        BOX PLOT
+    --------------"""
+    def violin_plot(self, labels: List[str], data: List,
+                    key='val_accuracy', library='seaborn', showfig=False, savefile: Optional[str] = None):
+        self.box_plot(labels=labels, data=data, key=key, library=library, showfig=showfig, savefile=savefile,
+                      violin_plot=True)
+
+    def box_plot(self, labels: List[str], data: List, violin_plot=False,
+                 key='val_accuracy', library='seaborn', showfig=False, savefile: Optional[str] = None):
+        """
+        Saves/shows a box plot of the results.
+        :param labels: List of labels of each simulation to compare
+        :param data: List of pandas describe() dataframes wrt epochs
+        :param key: String stating what to plot using tf.keras.History labels. ex. `val_accuracy` for the validation acc
+        :param library: string stating the library to be used to generate the box plot.
+            - `plotly <https://plotly.com/python/>`_
+            - `seaborn <https://seaborn.pydata.org/>`_
+        :param epoch: Which epoch to use for the box plot. If -1 (default) it will use the last epoch.
+        :param showfig: If True, it will show the grated box plot
+        :param savefile: String with the path + filename where to save the boxplot. If None (default) no figure is saved
+        """
+        if library == 'plotly':
+            self._box_plot_plotly(labels=labels, mc_runs=data, key=key, showfig=showfig, savefile=savefile,
+                                  violin_plot=violin_plot)
+        # TODO: https://seaborn.pydata.org/examples/grouped_boxplot.html
+        elif library == 'seaborn':
+            self._box_plot_seaborn(labels=labels, data=data, key=key, showfig=showfig, savefile=savefile,
+                                   violin_plot=violin_plot)
+        else:
+            raise ModuleNotFoundError(f"Library {library} requested for plotting unknown")
+        return None
+
     def _box_plot_plotly(self, labels: List[str], mc_runs: List,
-                         key='accuracy', showfig=False, savefile=None):
+                         key='accuracy', showfig=False, savefile=None, violin_plot=False):
         if 'plotly' not in AVAILABLE_LIBRARIES:
             raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
                                       f"was called but will be omitted")
@@ -548,23 +608,35 @@ class SeveralMonteCarloPlotter:
         for i, mc_run in enumerate(mc_runs):
             # color_pal += sns.color_palette()[:len(df.network.unique())]
             data = mc_run[mc_run.index.isin([metric])]
-            fig.add_trace(go.Box(
-                y=data[dataset],
-                name=labels[i],
-                whiskerwidth=0.2,
-                notched=True,  # confidence intervals for the median
-                fillcolor=add_transparency(DEFAULT_PLOTLY_COLORS[i], 0.5),
-                boxpoints='suspectedoutliers',  # to mark the suspected outliers
-                line=dict(color=DEFAULT_PLOTLY_COLORS[i]),
-                boxmean=True  # Interesting how sometimes it falls outside the box
-            ))
+            if not violin_plot:
+                fig.add_trace(go.Box(
+                    y=data[dataset],
+                    name=labels[i],
+                    whiskerwidth=0.2,
+                    notched=True,  # confidence intervals for the median
+                    fillcolor=add_transparency(DEFAULT_PLOTLY_COLORS[i], 0.5),
+                    boxpoints='suspectedoutliers',  # to mark the suspected outliers
+                    line=dict(color=DEFAULT_PLOTLY_COLORS[i]),
+                    boxmean=True  # Interesting how sometimes it falls outside the box
+                ))
+            else:
+                fig.add_trace(go.Violin(
+                    y=data[dataset],
+                    name=labels[i],
+                    fillcolor=add_transparency(DEFAULT_PLOTLY_COLORS[i], 0.5),
+                    line=dict(color=DEFAULT_PLOTLY_COLORS[i]),
+                    box_visible=True, meanline_visible=True
+                ))
         fig.update_layout(
-            title='Plotly Box Plot',
+            title=f"{' vs '.join(labels)} {dataset} {metric.replace('_', ' ')} {'violin' if violin_plot else 'box'} plot",
             yaxis=dict(
-                title=key,
+                title=f"{dataset} {metric.replace('_', ' ')}",
                 autorange=True,
                 showgrid=True,
                 dtick=0.05,
+            ),
+            xaxis=dict(
+              title="model"
             ),
             showlegend=True
         )
@@ -577,7 +649,7 @@ class SeveralMonteCarloPlotter:
             fig.show(config=PLOTLY_CONFIG)
 
     def _box_plot_seaborn(self, labels: List[str], data: List,
-                          key='accuracy', epoch=-1, showfig=False, savefile=None, extension=".svg"):
+                          key='accuracy', showfig=False, savefile=None, extension=".svg", violin_plot=False):
         if 'seaborn' not in AVAILABLE_LIBRARIES:
             raise ModuleNotFoundError(
                 "No Seaborn installed, function " + self._box_plot_seaborn.__name__ + " was called but will be omitted")
@@ -592,9 +664,15 @@ class SeveralMonteCarloPlotter:
         result = pd.concat(frames)
         # Run figure
         fig = plt.figure()
-        ax = sns.boxplot(x='name', y=dataset, data=result, boxprops=dict(alpha=.3),
-                         palette=sns.color_palette(), notch=True)
+        if not violin_plot:
+            ax = sns.boxplot(x='name', y=dataset, data=result, boxprops=dict(alpha=.3),
+                             palette=sns.color_palette(), notch=True)
+        else:
+            ax = sns.violinplot(x='name', y=dataset, data=result,   # boxprops=dict(alpha=.3),
+                                palette=sns.color_palette())
         ax.grid(axis='y', which='major')
+        ax.set_ylabel(f"{dataset} {metric.replace('_', ' ')}")
+        ax.set_xlabel("model")
         # palette=color_pal)
         # sns.despine(offset=1, trim=True)
         # Make black lines the color of the box
@@ -610,6 +688,9 @@ class SeveralMonteCarloPlotter:
         self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
         return fig, ax
 
+    """--------------
+        LINE PLOT
+    --------------"""
     def plot(self, data, labels: List[str], keys: Union[str, List[str]] = "val_accuracy",
              ax=None, library="seaborn", showfig=False, savefile=None):
         """
@@ -625,16 +706,13 @@ class SeveralMonteCarloPlotter:
             self._plot_line_confidence_interval_plotly(keys=keys, labels=labels, data=data, showfig=showfig,
                                                        savefile=savefile)
 
-    @staticmethod
-    def _to_string_label(ylabel):
-        return ylabel.replace("_", " ").replace("val", "validation")
-
     def _plot_line_confidence_interval_matplotlib(self, keys: Union[List[str], str], labels: List[str],
                                                   data, ax=None, showfig=False, x_axis='epoch',
                                                   savefile=None, extension=".svg"):
         if isinstance(keys, str):
             keys = [keys]
         keys = list(keys)
+        metrics = set([self.get_metric_and_dataset_from_key(key)[1] for key in keys])
         if ax is None:
             fig, ax = plt.subplots()
         else:
@@ -651,7 +729,7 @@ class SeveralMonteCarloPlotter:
                 data_75 = stats[key]['75%'].tolist()
                 ax.plot(x, data_mean,
                         color=DEFAULT_MATPLOTLIB_COLORS[(i * len(keys) + j) % len(DEFAULT_MATPLOTLIB_COLORS)],
-                        label=labels[i] + " " + key)
+                        label=labels[i] + " " + key.replace('_', ' '))
                 ax.plot(x, data_50, '--',
                         color=DEFAULT_MATPLOTLIB_COLORS[(i * len(keys) + j) % len(DEFAULT_MATPLOTLIB_COLORS)])
                 # label=key + ' median')
@@ -665,6 +743,7 @@ class SeveralMonteCarloPlotter:
         #
         # ax.set_title(title)
         ax.set_xlabel(x_axis)
+        ax.set_ylabel("; ".join(keys).replace('_', ' '))
         ax.grid()
         ax.legend()
         self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
@@ -740,14 +819,118 @@ class SeveralMonteCarloPlotter:
         elif showfig:
             fig.show(config=PLOTLY_CONFIG)
 
+    """--------------------
+        HISTOGRAM PLOT
+    --------------------"""
+    def histogram_plot(self, labels: List[str], data: List, key='val_accuracy', library='seaborn',
+                       showfig=False, savefile: Optional[str] = None, extension=".svg"):
+        if library == 'plotly':
+            self._plotly_histogram_plot(labels=labels, mc_runs=data, key=key, showfig=showfig, savefile=savefile)
+        elif library == 'seaborn':
+            self._matplotlib_histogram_plot(labels=labels, data=data, key=key,
+                                            showfig=showfig, savefile=savefile, extension=extension)
+        else:
+            raise ModuleNotFoundError(f"Library {library} requested for plotting unknown")
+        return None
+
+    def _plotly_histogram_plot(self, labels: List[str], mc_runs: List,
+                         key='accuracy', showfig=False, savefile=None):
+        if 'plotly' not in AVAILABLE_LIBRARIES:
+            raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
+                                      f"was called but will be omitted")
+        savefig = False
+        if savefile is not None:
+            savefig = True
+        dataset, metric = self.get_metric_and_dataset_from_key(key)
+        fig = go.Figure()
+        for i, mc_run in enumerate(mc_runs):
+            # color_pal += sns.color_palette()[:len(df.network.unique())]
+            data = mc_run[mc_run.index.isin([metric])]
+            fig.add_trace(go.Histogram(
+                x=data[dataset],
+                name=labels[i],
+                # line=dict(color=DEFAULT_PLOTLY_COLORS[i]),
+            ))
+        fig.update_layout(
+            # barmode='overlay',
+            title=f"{' vs '.join(labels)} {dataset} {metric.replace('_', ' ')} histogram",
+            yaxis=dict(
+                title="count",
+            ),
+            xaxis=dict(
+                title=f"{dataset} {metric.replace('_', ' ')}",
+            ),
+            showlegend=True
+        )
+        # fig.update_traces(opacity=0.75)
+        if savefig:
+            if not savefile.endswith('.html'):
+                savefile += '.html'
+            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
+            plotly.offline.plot(fig, filename=savefile, config=PLOTLY_CONFIG, auto_open=showfig)
+        elif showfig:
+            fig.show(config=PLOTLY_CONFIG)
+
+    def _matplotlib_histogram_plot(self, labels: List[str], data: List, key='accuracy',
+                                   showfig=False, savefile=None, extension=".svg"):
+        if 'seaborn' not in AVAILABLE_LIBRARIES:
+            raise ModuleNotFoundError(
+                "No Seaborn installed, function " + self._box_plot_seaborn.__name__ + " was called but will be omitted")
+        dataset, metric = self.get_metric_and_dataset_from_key(key)
+        # Prepare data
+        frames = []
+        # color_pal = []
+        assert len(data) == len(labels), f"len(data) = {len(data)} does not match len(labels) = {len(labels)}"
+        for i, mc_run in enumerate(data):
+            t_data = mc_run[mc_run.index.isin([metric])].assign(name=labels[i])
+            frames.append(t_data)
+        result = pd.concat(frames)
+        # Run figure
+        fig = plt.figure()
+        ax = sns.histplot(x=dataset, data=result, hue="name", kde=False)
+        ax.set_xlabel(f"{dataset} {metric.replace('_', ' ')}")
+        ax.set_ylabel("count")
+        self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
+        return fig, ax
+
+
+def plot_all(simulations, models_params, library, root_path, labels, colors=None, showfig=False,
+             y_min_bar_plot=0.0, print_values_bar_plot=True):
+    datasets = ['val', 'train', 'test']
+    metrics = ['loss', 'accuracy', 'average_accuracy']
+    data = [simulations.get_pandas_data(k) for k in models_params]
+    final_results = [simulations.get_final_results_eval(k) for k in models_params]
+    conf_stats = [simulations.get_conf_stats(k) for k in models_params]
+    for dset in datasets:
+        for metric in metrics:
+            key = SeveralMonteCarloPlotter().get_key_from_metric_and_dataset(dataset=dset, metric=metric)
+            if dset != "test":
+                SeveralMonteCarloPlotter().plot(data=data, labels=labels, keys=key, library=library,
+                                                showfig=showfig, savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/lines-plot")
+            SeveralMonteCarloPlotter().histogram_plot(labels=labels, data=final_results, showfig=showfig,
+                                                      savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/histogram",
+                                                      library=library, key=key)
+            SeveralMonteCarloPlotter().box_plot(labels=labels, data=final_results, showfig=showfig,
+                                                savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/box-plot",
+                                                library=library, key=key)
+            SeveralMonteCarloPlotter().violin_plot(labels=labels, data=final_results, showfig=showfig,
+                                                   savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/violin-plot",
+                                                   library=library, key=key)
+            if metric == "accuracy":
+                SeveralMonteCarloPlotter().per_class_bar_plot(labels=labels, showfig=showfig,
+                                                              data=conf_stats, colors=colors, library=library,
+                                                              dataset=dset,
+                                                              min_lim=y_min_bar_plot,
+                                                              print_values=print_values_bar_plot,
+                                                              savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/per-class-bar")
+
 
 if __name__ == "__main__":
     PLOT_OBER = False
     PLOT_SF = False
     PLOT_FLEV = True
-    simulation_results = ResultReader(root_dir=
-                                      "/media/barrachina/data/results/new method")
-    lst = list(simulation_results.monte_dict.keys())
+    simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
+    # lst = list(simulation_results.monte_dict.keys())
     if PLOT_SF:
         sf_keys = [
             '{"balance": "none", "dataset": "SF-AIRSAR", "dataset_method": '
@@ -763,20 +946,10 @@ if __name__ == "__main__":
             '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
             '"tensorflow", "model": "cao"}'
         ]
-        for k in sf_keys:
-            print(simulation_results.find_closest_to(k, key_to_find='50%', dataset='val', metric='accuracy'))
         labels = ["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"]
-        data = [simulation_results.get_conf_stats(k) for k in sf_keys]
-        SeveralMonteCarloPlotter().bar_plot(labels=labels, library='plotly',
-                                            data=data, colors=COLORS['SF-AIRSAR'], index=-1, showfig=True, min_lim=0.8,
-                                            savefile=None)
-        data = [simulation_results.get_pandas_data(k) for k in sf_keys]
-        SeveralMonteCarloPlotter().plot(data=data, labels=labels, keys="val_accuracy", library="plotly",
-                                        showfig=True, savefile=None)
-        SeveralMonteCarloPlotter().box_plot(labels=labels,
-                                            data=data, showfig=True,
-                                            savefile=None,
-                                            library='plotly', key='val_accuracy')
+        plot_all(simulations=simulation_results, models_params=sf_keys, library="plotly",
+                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/SF-AIRSAR/",
+                 labels=labels, colors=COLORS['SF-AIRSAR'])
     if PLOT_OBER:
         keys = [
             '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
@@ -799,19 +972,9 @@ if __name__ == "__main__":
             '"tensorflow", "model": "mlp"}'
         ]
         labels = ["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN", "CV-MLP", "RV-MLP"]
-        data = [simulation_results.get_conf_stats(k) for k in keys]
-        SeveralMonteCarloPlotter().bar_plot(labels=labels, showfig=True,
-                                            data=data, colors=COLORS['OBER'], index=-1, min_lim=0.5,
-                                            savefile=None)
-        # data = [simulation_results.get_pandas_data(k) for k in keys]
-        # SeveralMonteCarloPlotter().box_plot(labels=labels,
-        #                                     data=data, showfig=True,
-        #                                     savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/ober-boxplot",
-        #                                     library='seaborn', key='val_accuracy')
-        # for i in range(3):
-        #     SeveralMonteCarloPlotter().plot(data=data[2*i:2*i+2], labels=labels[2*i:2*i+2], showfig=True,
-        #                                 library='seaborn', keys='val_accuracy',
-        #                                 savefile="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img/line_plots/ober-plot-val-acc-" + labels[2*i][-3])
+        plot_all(simulations=simulation_results, models_params=keys, library="plotly",
+                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/Oberpfaffenhofen/",
+                 labels=labels, colors=COLORS['OBER'])
     if PLOT_FLEV:
         keys = [
             '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": "random", '
@@ -822,8 +985,12 @@ if __name__ == "__main__":
             '"tensorflow", "model": "cao"}',
         ]
         labels = ["CV-FCNN", "RV-FCNN"]
-        data = [simulation_results.get_final_results_eval(k) for k in keys]
-        SeveralMonteCarloPlotter().box_plot(labels=labels, data=data, showfig=True,
-                                            savefile=None, library='seaborn', key='val_accuracy')
-        SeveralMonteCarloPlotter().box_plot(labels=labels, data=data, showfig=True,
-                                            savefile=None, library='seaborn', key='val_average_accuracy')
+        library = "seaborn"
+        library_paths = {
+            "seaborn": "/home/barrachina/gretsi_images/",
+            "plotly": "/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/Flevoland/"
+        }
+        plot_all(simulations=simulation_results, models_params=keys, library=library,
+                 y_min_bar_plot=0.8, print_values_bar_plot=False,
+                 root_path=library_paths[library], labels=labels, colors=COLORS['FLEVOLAND'])
+

@@ -54,7 +54,7 @@ DATASET_META = {
     # "SF-RISAT": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "OBER": {"classes": 3, "orientation": "vertical", "percentage": (0.85, 0.15)},
-    "FLEVOLAND": {"classes": 15, "orientation": "horizontal", "percentage": (0.85, 0.15)},
+    "FLEVOLAND": {"classes": 15, "orientation": "horizontal", "percentage": (0.8, 0.1, 0.1)},
     "BRET": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
 }
 
