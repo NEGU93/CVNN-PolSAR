@@ -65,7 +65,7 @@ class BretignyDataset(PolsarDatasetHandler):
         mat['VV'] = mat['VV'][:-3]
         return mat
 
-    def _get_bret_coherency_dataset(self, kernel_shape=3):
+    def _get_bret_coherency_dataset(self, kernel_shape=1):
         mat = self._open_data()
         T = self._get_coherency_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'], kernel_shape=kernel_shape)
         return T
