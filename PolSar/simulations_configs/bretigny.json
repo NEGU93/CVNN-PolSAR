@@ -1,0 +1,30 @@
+[
+    {
+       "model": "cao",
+       "epochs": 150,
+       "dataset": "BRET",
+       "coherency": true
+   },
+   {
+       "model": "cao",
+       "epochs": 150,
+       "dataset": "BRET",
+       "tensorflow": true,
+       "real_mode": true,
+       "coherency": true
+   },
+   {
+        "model": "cao",
+        "epochs": 150,
+        "dataset": "BRET",
+        "coherency": false
+    },
+    {
+        "model": "cao",
+        "epochs": 150,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false
+    }
+]

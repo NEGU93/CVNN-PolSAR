@@ -926,8 +926,8 @@ def plot_all(simulations, models_params, library, root_path, labels, colors=None
 
 
 if __name__ == "__main__":
-    PLOT_OBER = False
-    PLOT_SF = False
+    PLOT_OBER = True
+    PLOT_SF = True
     PLOT_FLEV = True
     simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
     # lst = list(simulation_results.monte_dict.keys())
@@ -985,7 +985,7 @@ if __name__ == "__main__":
             '"tensorflow", "model": "cao"}',
         ]
         labels = ["CV-FCNN", "RV-FCNN"]
-        library = "seaborn"
+        library = "plotly"
         library_paths = {
             "seaborn": "/home/barrachina/gretsi_images/",
             "plotly": "/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/Flevoland/"
