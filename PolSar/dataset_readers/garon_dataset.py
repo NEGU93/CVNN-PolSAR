@@ -58,8 +58,11 @@ class GaronDataset(PolsarDatasetHandler):
     def get_image(self, image_number: Optional[int] = None) -> np.ndarray:
         if image_number is None:
             image_number = self.image_number
+        s_raw = np.load(self.root_path / available_images[image_number])
         if self.mode == 's':
-            return np.load(self.root_path / available_images[image_number])
+            return s_raw
+        elif self.mode == 't':
+            return self.numpy_coh_matrix(HH=s_raw[:, :, 0], VV=s_raw[:, :, 3], HV=s_raw[:, :, 1], kernel_shape=1)
         else:
             raise ValueError(f"Sorry, dataset mode {self.mode} not supported")
 
@@ -72,9 +75,11 @@ class GaronDataset(PolsarDatasetHandler):
     def get_sparse_labels(self) -> np.ndarray:
         return self.get_image().astype(int)
 
+    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: str = "PauliRGB.png"):
+        super(GaronDataset, self).print_image_png(savefile=savefile, showfig=showfig,
+                                                  img_name=f"{self.image_number}_{img_name}")
+
 
 if __name__ == "__main__":
-    save_to_mat(1)
-    save_to_mat(2)
-    save_to_mat(3)
-    save_to_mat(4)
+    data_handler = GaronDataset(mode='t')
+    data_handler.print_image_png(savefile=True)

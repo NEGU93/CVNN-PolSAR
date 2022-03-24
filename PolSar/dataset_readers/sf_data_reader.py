@@ -81,4 +81,6 @@ def test_coh_matrix_generator(kernel_shape=7):
 
 
 if __name__ == "__main__":
-    test_coh_matrix_generator(kernel_shape=1)
+    # test_coh_matrix_generator(kernel_shape=1)
+    data_handler = SanFranciscoDataset(mode='t', dataset_name="SF-AIRSAR")
+    data_handler.print_image_png()

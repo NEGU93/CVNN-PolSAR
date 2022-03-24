@@ -852,10 +852,12 @@ class PolsarDatasetHandler(ABC):
     @staticmethod
     def _get_k_vector(HH, VV, HV):
         k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-        return tf.transpose(k, perm=[1, 2, 0], conjugate=False)
+        # tf.transpose(k, perm=[1, 2, 0], conjugate=False)
+        return np.transpose(k, axes=[1, 2, 0])
 
     def _get_coherency_matrix(self, HH, VV, HV, kernel_shape=3):
         # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
+        print("WARNING: _get_coherency_matrix is deprected. Use numpy_coh_matrix instead.")
         k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
         tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
         T_mat = tf.linalg.matmul(tf_k, tf_k,
@@ -863,4 +865,50 @@ class PolsarDatasetHandler(ABC):
         one_channel_T = tf.reshape(T_mat, shape=(T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
         removed_lower_part_T = _remove_lower_part(one_channel_T)  # hxwx9 to hxwx6 removing lower part of matrix
         filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
-        return reorder(filtered_T)       # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
+        return reorder(filtered_T).numpy()       # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
+
+    def numpy_coh_matrix(self, HH, VV, HV, kernel_shape=3):
+        print(f"WARNING: TODO: Coherency matrix function does not perform mean for the moment.")
+        k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
+        np_k = np.expand_dims(k, axis=-1)
+        t_mat = np.matmul(np_k, np.transpose(np.conjugate(np_k), axes=[0, 1, 3, 2]))
+        one_channel_T = np.reshape(t_mat, newshape=(t_mat.shape[0], t_mat.shape[1], t_mat.shape[2] * t_mat.shape[3]))
+        mask = np.array(
+            [True, True, True,
+             False, True, True,
+             False, False, True]
+        )
+        removed_lower_part_T = one_channel_T[:, :, mask]
+        filtered_T = removed_lower_part_T
+        return np.transpose(
+            np.array([
+                filtered_T[:, :, 0], filtered_T[:, :, 3], filtered_T[:, :, 5],
+                filtered_T[:, :, 1], filtered_T[:, :, 2], filtered_T[:, :, 4]
+            ]), axes=[1, 2, 0])
+
+    @staticmethod
+    def remove_outliers(data, iqr=(1, 99)):
+        low = np.nanpercentile(data, iqr[0])
+        high = np.nanpercentile(data, iqr[1])
+        return low, high
+
+    def normalize_without_outliers(self, data):
+        low, high = self.remove_outliers(data)
+        return (data - low) / (high - low)
+
+    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: str = "PauliRGB.png"):
+        if not self.mode == 't':
+            raise f"Sorry, for the moment it is only possible to print image in mode 't', " \
+                  f"current instance has mode {self.mode}"
+        diagonal = self.image[:, :, :3].astype(np.float32)
+        diagonal[diagonal == 0] = float("nan")
+        diag_db = 10*np.log10(diagonal)
+        noramlized_diag = np.zeros(shape=diag_db.shape)
+        noramlized_diag[:, :, 0] = self.normalize_without_outliers(diag_db[:, :, 0])
+        noramlized_diag[:, :, 2] = self.normalize_without_outliers(diag_db[:, :, 1])
+        noramlized_diag[:, :, 1] = self.normalize_without_outliers(diag_db[:, :, 2])
+        if showfig:
+            plt.imshow(noramlized_diag)
+            plt.show()
+        if savefile:
+            plt.imsave(self.root_path / img_name, np.clip(noramlized_diag, a_min=0., a_max=1.))
