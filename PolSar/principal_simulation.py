@@ -400,13 +400,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     val_ds = ds_list[1]
     # tf.config.list_physical_devices()
     # print(f"memory usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
-    # set_trace()
+    set_trace()
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
     weights = dataset_handler.get_weights()
     model = _get_model(model_name=model_name,
-                       channels=3 if mode == "s" else 6,  # TODO: isn't 'k' an option?
+                       channels=6 if mode == "t" else 3,
                        weights=weights if balance == "loss" else None,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
                        complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
