@@ -11,7 +11,7 @@ import tensorflow as tf
 from typing import Tuple, Optional, List, Union
 from sklearn.model_selection import train_test_split
 import sklearn
-from cvnn.utils import standarize, transform_to_real_map_function
+from cvnn.utils import standarize, transform_to_real_map_function, REAL_CAST_MODES
 
 BUFFER_SIZE = 32000
 
@@ -280,6 +280,21 @@ def reorder(matrix):
     ]), perm=[1, 2, 0])
 
 
+def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
+    if mode not in REAL_CAST_MODES:
+        raise KeyError(f"Unknown real cast mode {mode}")
+    if mode == 'real_imag':
+        ret_value = np.concatenate([np.real(image), np.imag(image)], axis=-1)
+    elif mode == 'amplitude_phase':
+        ret_value = np.concatenate([np.abs(image), np.angle(image)], axis=-1)
+    elif mode == 'amplitude_only':
+        ret_value = np.abs(image)
+    elif mode == 'real_only':
+        ret_value = np.real(image)
+    else:
+        raise KeyError(f"Real cast mode {mode} not implemented")
+    return ret_value, label
+
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
@@ -353,7 +368,7 @@ class PolsarDatasetHandler(ABC):
             if self.complex_mode:
                 ds_list = [(x, y) for i, (x, y) in enumerate(zip(x_patches, y_patches))]
             else:
-                ds_list = [transform_to_real_map_function(x, y, self.real_mode)
+                ds_list = [transform_to_real_with_numpy(x, y, self.real_mode)
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return tuple(ds_list)
 

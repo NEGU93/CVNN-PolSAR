@@ -400,7 +400,6 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     val_ds = ds_list[1]
     # tf.config.list_physical_devices()
     # print(f"memory usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
-    set_trace()
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
