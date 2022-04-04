@@ -295,6 +295,7 @@ def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
         raise KeyError(f"Real cast mode {mode} not implemented")
     return ret_value, label
 
+
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',

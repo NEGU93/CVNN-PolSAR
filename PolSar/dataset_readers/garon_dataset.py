@@ -51,7 +51,7 @@ class GaronDataset(PolsarDatasetHandler):
     
     def __init__(self, mode: str, image_number: int = 1, *args, **kwargs):
         self.image_number = int(image_number)
-        assert image_number < len(available_images)
+        assert image_number < len(available_images) + 1
         super(GaronDataset, self).__init__(root_path=dataset_path, name="GARON", mode=mode,
                                            *args, **kwargs)
 
@@ -75,11 +75,13 @@ class GaronDataset(PolsarDatasetHandler):
     def get_sparse_labels(self) -> np.ndarray:
         return self.get_image().astype(int)
 
-    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: str = "PauliRGB.png"):
-        super(GaronDataset, self).print_image_png(savefile=savefile, showfig=showfig,
-                                                  img_name=f"{self.image_number}_{img_name}")
+    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: Optional[str] = None):
+        if img_name is None:
+            img_name = str((Path(dataset_path) / available_images[self.image_number]).with_suffix(".png"))
+        super(GaronDataset, self).print_image_png(savefile=savefile, showfig=showfig, img_name=img_name)
 
 
 if __name__ == "__main__":
-    data_handler = GaronDataset(mode='t')
-    data_handler.print_image_png(savefile=True)
+    for key in [4]:
+        data_handler = GaronDataset(mode='t', image_number=key)
+        data_handler.print_image_png(savefile=True)
