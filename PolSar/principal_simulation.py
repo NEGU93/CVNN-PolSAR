@@ -1,5 +1,6 @@
 import argparse
 import os
+import gc
 import os.path
 from argparse import RawTextHelpFormatter
 from pathlib import Path
@@ -18,7 +19,6 @@ from pandas import DataFrame
 from os import makedirs
 from tensorflow.keras import callbacks
 import tensorflow as tf
-import tensorflow_datasets as tfds
 from typing import Optional, List, Union, Tuple
 from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
 from dataset_reader import labels_to_rgb, COLORS
@@ -74,6 +74,8 @@ MODEL_META = {
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
+
+Notify = None
 
 
 def get_callbacks_list(early_stop, temp_path):
@@ -346,17 +348,19 @@ def _eval_list_to_dict(evaluate, metrics):
 
 def _get_confusion_matrix(ds, model, num_classes):
     # x_input, y_true = np.concatenate([x for x, y in ds], axis=0), np.concatenate([y for x, y in ds], axis=0)
+    # x_input, y_true = ds
+    # prediction = model.predict(x_input)
     x_input, y_true = ds
     prediction = model.predict(x_input)
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
-        real_prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
+        real_prediction = (np.real(prediction) + np.imag(prediction)) / 2.
     else:
         real_prediction = prediction
-    real_flatten_prediction = tf.reshape(real_prediction, shape=[-1, num_classes])
-    flatten_y_true = tf.reshape(y_true, shape=[-1, num_classes])
+    real_flatten_prediction = np.reshape(real_prediction, newshape=[-1, num_classes])
+    flatten_y_true = np.reshape(y_true, newshape=[-1, num_classes])
     mask = np.invert(np.all(flatten_y_true == 0, axis=1))
-    flatten_filtered_y_true = tf.boolean_mask(flatten_y_true, mask)
-    filtered_y_pred = tf.boolean_mask(real_flatten_prediction, mask)
+    flatten_filtered_y_true = flatten_y_true[mask]      # tf.boolean_mask(flatten_y_true, mask)
+    filtered_y_pred = real_flatten_prediction[mask]     # tf.boolean_mask(real_flatten_prediction, mask)
     sparse_flatten_filtered_y_true = tf.argmax(filtered_y_pred, axis=-1)
     sparse_flatten_filtered_y_pred = tf.argmax(flatten_filtered_y_true, axis=-1)
     conf = tf.math.confusion_matrix(labels=sparse_flatten_filtered_y_true, predictions=sparse_flatten_filtered_y_pred)
@@ -399,7 +403,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     train_ds = ds_list[0]
     val_ds = ds_list[1]
     # tf.config.list_physical_devices()
-    # print(f"memory usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
+    # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10**9} GB")
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
@@ -414,24 +418,46 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     history = model.fit(x=train_ds[0], y=train_ds[1], epochs=epochs, batch_size=MODEL_META[model_name]['batch_size'],
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
     df = DataFrame.from_dict(history.history)
-    # Get best model
-    # checkpoint_model = model
-    checkpoint_model = open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+    del model
+    # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
+    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
                                         weights=weights if balance == "loss" else None,
                                         channels=3 if mode == "s" else 6, dropout=dropout, real_mode=real_mode,
                                         tensorflow=tensorflow, num_classes=DATASET_META[dataset_name]["classes"])
-    evaluate = {'train': _eval_list_to_dict(evaluate=checkpoint_model.evaluate(train_ds[0], train_ds[1],
-                                                                               batch_size=MODEL_META[model_name][
-                                                                                   'batch_size']),
-                                            metrics=checkpoint_model.metrics_names)}
+    # train_dataset = tf.data.Dataset.from_tensor_slices((train_ds[0], train_ds[1])).batch(MODEL_META[model_name]['batch_size'])
+    eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    # eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    # eval_result = checkpoint_model.evaluate(train_dataset)
+    evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
+    del checkpoint_model
+    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                  weights=weights if balance == "loss" else None,
+                                                  channels=3 if mode == "s" else 6, dropout=dropout, real_mode=real_mode,
+                                                  tensorflow=tensorflow, num_classes=DATASET_META[dataset_name]["classes"])
     train_confusion_matrix = _get_confusion_matrix(train_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
     if val_ds:
-        evaluate['val'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(val_ds[0], val_ds[1]),
-                                             metrics=checkpoint_model.metrics_names)
+        del checkpoint_model
+        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                      weights=weights if balance == "loss" else None,
+                                                      channels=3 if mode == "s" else 6, dropout=dropout,
+                                                      real_mode=real_mode,
+                                                      tensorflow=tensorflow,
+                                                      num_classes=DATASET_META[dataset_name]["classes"])
+        evaluate['val'] = _eval_list_to_dict(
+            # evaluate=checkpoint_model.evaluate(val_ds),
+            evaluate=checkpoint_model.evaluate(val_ds[0], val_ds[1]),
+            metrics=checkpoint_model.metrics_names)
         val_confusion_matrix = _get_confusion_matrix(val_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
         val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
     if len(ds_list) >= 3:
+        del checkpoint_model
+        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                      weights=weights if balance == "loss" else None,
+                                                      channels=3 if mode == "s" else 6, dropout=dropout,
+                                                      real_mode=real_mode,
+                                                      tensorflow=tensorflow,
+                                                      num_classes=DATASET_META[dataset_name]["classes"])
         test_ds = ds_list[2]
         evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_ds[0], test_ds[1]),
                                               metrics=checkpoint_model.metrics_names)
@@ -439,6 +465,12 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         test_confusion_matrix.to_csv(str(temp_path / 'test_confusion_matrix.csv'))
     eval_df = DataFrame.from_dict(evaluate)
     return df, dataset_handler, eval_df
+
+
+def clear_and_open_saved_model(*args,**kwargs):
+    tf.keras.backend.clear_session()
+    gc.collect()
+    return open_saved_model(*args, **kwargs)
 
 
 def parse_dropout(dropout):
@@ -496,6 +528,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
 
 
 if __name__ == "__main__":
+    # os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
     args = parse_input()
     start_time = time.monotonic()
     if Notify is not None:
@@ -508,9 +541,9 @@ if __name__ == "__main__":
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
                     dropout=args.dropout)
     except Exception as e:
+        traceback.print_exc()
         if Notify is not None:
             notify.send(f"{socket.gethostname()}: {e}")
-            traceback.print_exc()
             raise e
     else:
         if Notify is not None:
