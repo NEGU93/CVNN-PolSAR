@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import time
 from datetime import timedelta
+
 try:
     from notify_run import Notify
 except ImportError:
@@ -74,8 +75,6 @@ MODEL_META = {
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
-
-Notify = None
 
 
 def get_callbacks_list(early_stop, temp_path):
@@ -359,8 +358,8 @@ def _get_confusion_matrix(ds, model, num_classes):
     real_flatten_prediction = np.reshape(real_prediction, newshape=[-1, num_classes])
     flatten_y_true = np.reshape(y_true, newshape=[-1, num_classes])
     mask = np.invert(np.all(flatten_y_true == 0, axis=1))
-    flatten_filtered_y_true = flatten_y_true[mask]      # tf.boolean_mask(flatten_y_true, mask)
-    filtered_y_pred = real_flatten_prediction[mask]     # tf.boolean_mask(real_flatten_prediction, mask)
+    flatten_filtered_y_true = flatten_y_true[mask]  # tf.boolean_mask(flatten_y_true, mask)
+    filtered_y_pred = real_flatten_prediction[mask]  # tf.boolean_mask(real_flatten_prediction, mask)
     sparse_flatten_filtered_y_true = tf.argmax(filtered_y_pred, axis=-1)
     sparse_flatten_filtered_y_pred = tf.argmax(flatten_filtered_y_true, axis=-1)
     conf = tf.math.confusion_matrix(labels=sparse_flatten_filtered_y_true, predictions=sparse_flatten_filtered_y_pred)
@@ -421,9 +420,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     del model
     # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                        weights=weights if balance == "loss" else None,
-                                        channels=3 if mode == "s" else 6, dropout=dropout, real_mode=real_mode,
-                                        tensorflow=tensorflow, num_classes=DATASET_META[dataset_name]["classes"])
+                                                  weights=weights if balance == "loss" else None,
+                                                  channels=3 if mode == "s" else 6, dropout=dropout,
+                                                  real_mode=real_mode, tensorflow=tensorflow,
+                                                  num_classes=DATASET_META[dataset_name]["classes"])
     # train_dataset = tf.data.Dataset.from_tensor_slices((train_ds[0], train_ds[1])).batch(MODEL_META[model_name]['batch_size'])
     eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
     # eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
@@ -432,8 +432,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     del checkpoint_model
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
                                                   weights=weights if balance == "loss" else None,
-                                                  channels=3 if mode == "s" else 6, dropout=dropout, real_mode=real_mode,
-                                                  tensorflow=tensorflow, num_classes=DATASET_META[dataset_name]["classes"])
+                                                  channels=3 if mode == "s" else 6, dropout=dropout,
+                                                  real_mode=real_mode,
+                                                  tensorflow=tensorflow,
+                                                  num_classes=DATASET_META[dataset_name]["classes"])
     train_confusion_matrix = _get_confusion_matrix(train_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
     if val_ds:
@@ -467,7 +469,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     return df, dataset_handler, eval_df
 
 
-def clear_and_open_saved_model(*args,**kwargs):
+def clear_and_open_saved_model(*args, **kwargs):
     tf.keras.backend.clear_session()
     gc.collect()
     return open_saved_model(*args, **kwargs)
