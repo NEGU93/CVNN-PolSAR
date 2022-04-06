@@ -345,12 +345,12 @@ def _eval_list_to_dict(evaluate, metrics):
     return return_dict
 
 
-def _get_confusion_matrix(ds, model, num_classes):
+def _get_confusion_matrix(prediction, y_true, num_classes):
     # x_input, y_true = np.concatenate([x for x, y in ds], axis=0), np.concatenate([y for x, y in ds], axis=0)
     # x_input, y_true = ds
     # prediction = model.predict(x_input)
-    x_input, y_true = ds
-    prediction = model.predict(x_input)
+    # x_input, y_true = ds
+    # prediction = model.predict(x_input)
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         real_prediction = (np.real(prediction) + np.imag(prediction)) / 2.
     else:
@@ -360,8 +360,8 @@ def _get_confusion_matrix(ds, model, num_classes):
     mask = np.invert(np.all(flatten_y_true == 0, axis=1))
     flatten_filtered_y_true = flatten_y_true[mask]  # tf.boolean_mask(flatten_y_true, mask)
     filtered_y_pred = real_flatten_prediction[mask]  # tf.boolean_mask(real_flatten_prediction, mask)
-    sparse_flatten_filtered_y_true = tf.argmax(filtered_y_pred, axis=-1)
-    sparse_flatten_filtered_y_pred = tf.argmax(flatten_filtered_y_true, axis=-1)
+    sparse_flatten_filtered_y_true = np.argmax(filtered_y_pred, axis=-1)
+    sparse_flatten_filtered_y_pred = np.argmax(flatten_filtered_y_true, axis=-1)
     conf = tf.math.confusion_matrix(labels=sparse_flatten_filtered_y_true, predictions=sparse_flatten_filtered_y_pred)
     conf_df = DataFrame(data=conf.numpy())
     conf_df['Total'] = conf_df.sum(axis=1)
@@ -424,46 +424,29 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
-    # train_dataset = tf.data.Dataset.from_tensor_slices((train_ds[0], train_ds[1])).batch(MODEL_META[model_name]['batch_size'])
-    eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
-    # eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
-    # eval_result = checkpoint_model.evaluate(train_dataset)
+    train_x = tf.convert_to_tensor(train_ds[0])
+    eval_result = checkpoint_model.evaluate(train_x, train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    predict_result = checkpoint_model.predict(train_x, batch_size=MODEL_META[model_name]['batch_size'])
+    # eval_result = checkpoint_model.evaluate(train_x, train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
     evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
-    del checkpoint_model
-    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights if balance == "loss" else None,
-                                                  channels=3 if mode == "s" else 6, dropout=dropout,
-                                                  real_mode=real_mode,
-                                                  tensorflow=tensorflow,
-                                                  num_classes=DATASET_META[dataset_name]["classes"])
-    train_confusion_matrix = _get_confusion_matrix(train_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
+    train_confusion_matrix = _get_confusion_matrix(predict_result, train_ds[1], DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
     if val_ds:
-        del checkpoint_model
-        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights if balance == "loss" else None,
-                                                      channels=3 if mode == "s" else 6, dropout=dropout,
-                                                      real_mode=real_mode,
-                                                      tensorflow=tensorflow,
-                                                      num_classes=DATASET_META[dataset_name]["classes"])
+        val_x = tf.convert_to_tensor(val_ds[0])
+        predict_result = checkpoint_model.predict(val_x, batch_size=MODEL_META[model_name]['batch_size'])
         evaluate['val'] = _eval_list_to_dict(
-            # evaluate=checkpoint_model.evaluate(val_ds),
-            evaluate=checkpoint_model.evaluate(val_ds[0], val_ds[1]),
-            metrics=checkpoint_model.metrics_names)
-        val_confusion_matrix = _get_confusion_matrix(val_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
+            evaluate=checkpoint_model.evaluate(val_x, val_ds[1]),
+            metrics=checkpoint_model.metrics_names
+        )
+        val_confusion_matrix = _get_confusion_matrix(predict_result, val_ds[1], DATASET_META[dataset_name]["classes"])
         val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
     if len(ds_list) >= 3:
-        del checkpoint_model
-        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights if balance == "loss" else None,
-                                                      channels=3 if mode == "s" else 6, dropout=dropout,
-                                                      real_mode=real_mode,
-                                                      tensorflow=tensorflow,
-                                                      num_classes=DATASET_META[dataset_name]["classes"])
         test_ds = ds_list[2]
-        evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_ds[0], test_ds[1]),
+        test_x = tf.convert_to_tensor(test_ds[0])
+        predict_result = checkpoint_model.predict(test_x, batch_size=MODEL_META[model_name]['batch_size'])
+        evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_x, test_ds[1]),
                                               metrics=checkpoint_model.metrics_names)
-        test_confusion_matrix = _get_confusion_matrix(test_ds, checkpoint_model, DATASET_META[dataset_name]["classes"])
+        test_confusion_matrix = _get_confusion_matrix(predict_result, test_ds[1], DATASET_META[dataset_name]["classes"])
         test_confusion_matrix.to_csv(str(temp_path / 'test_confusion_matrix.csv'))
     eval_df = DataFrame.from_dict(evaluate)
     return df, dataset_handler, eval_df
