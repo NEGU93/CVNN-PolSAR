@@ -158,22 +158,22 @@ def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balan
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
-                                              complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
+                                              complex_mode=complex_mode, real_mode=real_mode,
                                               classification=classification, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "BRET":
         dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                          normalize=normalize, balance_dataset=balance, classification=classification,
+                                          balance_dataset=balance, classification=classification,
                                           coh_kernel_size=coh_kernel_size)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
-        dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
+        dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode,
                                                   balance_dataset=balance, classification=classification,
                                                   coh_kernel_size=coh_kernel_size)
     elif dataset_name == "FLEVOLAND":
         if mode != "t":
             raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
-        dataset_handler = FlevolandDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
+        dataset_handler = FlevolandDataset(complex_mode=complex_mode, real_mode=real_mode,
                                            balance_dataset=balance, classification=classification,
                                            coh_kernel_size=coh_kernel_size)
     else:
@@ -393,7 +393,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     dataset_name = dataset_name.upper()
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
-                                           complex_mode=complex_mode, real_mode=real_mode, normalize=False,
+                                           complex_mode=complex_mode, real_mode=real_mode,
                                            balance=(balance == "dataset"),
                                            classification=MODEL_META[model_name]['task'] == 'classification')
     ds_list = dataset_handler.get_dataset(method=dataset_method,
@@ -524,7 +524,6 @@ if __name__ == "__main__":
     # os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
     args = parse_input()
     start_time = time.monotonic()
-    set_trace()
     if Notify is not None:
         notify = Notify()
         notify.send(f"{socket.gethostname()}: Running simulation with params {' '.join(sys.argv[1:])}")
