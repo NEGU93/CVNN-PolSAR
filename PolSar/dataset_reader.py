@@ -300,9 +300,10 @@ def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
-                 normalize: bool = False, balance_dataset: bool = False, classification: bool = False):
+                 balance_dataset: bool = False, classification: bool = False, coh_kernel_size: int = 1):
         self.root_path = Path(str(root_path))
         self.name = name
+        self.coh_kernel_size = coh_kernel_size
         assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
         self.real_mode = real_mode.lower()

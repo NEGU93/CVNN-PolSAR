@@ -29,6 +29,8 @@ class FlevolandDataset(PolsarDatasetHandler):
     def __init__(self, *args, **kwargs):
         super(FlevolandDataset, self).__init__(root_path=os.path.dirname(labels_path),
                                                name="FLEVOLAND", mode='t', *args, **kwargs)
+        if self.coh_kernel_size > 1:
+            print(f"WARNING: Ignoring parameter coh_kernel_size = {self.coh_kernel_size}")
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:

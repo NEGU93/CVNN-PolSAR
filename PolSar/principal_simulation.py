@@ -135,7 +135,10 @@ def parse_input():
                              'downsampling, bottle neck, upsampling sections (in order). '
                              'Example: `python main.py --dropout 0.1 None 0.3` will use 10%% dropout on the '
                              'downsampling part and 30%% on the upsamlpling part and no dropout on the bottle neck.')
-    parser.add_argument('--coherency', action='store_true', help='Use coherency matrix instead of s')
+    parser.add_argument('--coherency', type=int, nargs='?', default=0, const=1,
+                        help='Use coherency matrix instead of s. '
+                             '(Optional) followed by an integer stating the '
+                             'boxcar size used for coherency matrix averaging.')
     parser.add_argument("--dataset", nargs=1, type=str, default=["SF-AIRSAR"],
                         help="dataset to be used. Available options:\n" +
                              "".join([f"\t- {dataset}\n" for dataset in DATASET_META.keys()]))
@@ -149,26 +152,30 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, normalize: bool = False,
-                         classification: bool = False):
+def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, coh_kernel_size: int,
+                         normalize: bool = False, classification: bool = False):
+    coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
                                               complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
-                                              classification=classification)
+                                              classification=classification, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "BRET":
         dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                          normalize=normalize, balance_dataset=balance, classification=classification)
+                                          normalize=normalize, balance_dataset=balance, classification=classification,
+                                          coh_kernel_size=coh_kernel_size)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
-                                                  balance_dataset=balance, classification=classification)
+                                                  balance_dataset=balance, classification=classification,
+                                                  coh_kernel_size=coh_kernel_size)
     elif dataset_name == "FLEVOLAND":
         if mode != "t":
             raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = FlevolandDataset(complex_mode=complex_mode, real_mode=real_mode, normalize=normalize,
-                                           balance_dataset=balance, classification=classification)
+                                           balance_dataset=balance, classification=classification,
+                                           coh_kernel_size=coh_kernel_size)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler
@@ -373,7 +380,7 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
 
 
 def run_model(model_name: str, balance: str, tensorflow: bool,
-              mode: str, complex_mode: bool, real_mode: str,
+              mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
               early_stop: Union[bool, int], epochs: int, temp_path, dropout,
               dataset_name: str, dataset_method: str, percentage: Optional[Union[Tuple[float], float]] = None,
               debug: bool = False):
@@ -385,7 +392,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Dataset
     dataset_name = dataset_name.upper()
     mode = mode.lower()
-    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
+    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
                                            complex_mode=complex_mode, real_mode=real_mode, normalize=False,
                                            balance=(balance == "dataset"),
                                            classification=MODEL_META[model_name]['task'] == 'classification')
@@ -491,7 +498,7 @@ def parse_dropout(dropout):
 
 def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                 mode: str, complex_mode: bool, real_mode: str,
-                early_stop: Union[int, bool], epochs: int,
+                early_stop: Union[int, bool], epochs: int, coh_kernel_size: int,
                 dataset_name: str, dataset_method: str, dropout,
                 percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False):
     temp_path = create_folder("./log/")
@@ -504,7 +511,8 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                                              mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                              early_stop=early_stop, temp_path=temp_path, epochs=epochs,
                                              dataset_name=dataset_name, dataset_method=dataset_method,
-                                             percentage=percentage, debug=debug, dropout=dropout)
+                                             percentage=percentage, debug=debug, dropout=dropout,
+                                             coh_kernel_size=coh_kernel_size)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
     # get_final_model_results(temp_path, balance=balance, dataset_name=dataset_name,  mode=mode, model_name=model_name,
@@ -516,12 +524,14 @@ if __name__ == "__main__":
     # os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
     args = parse_input()
     start_time = time.monotonic()
+    set_trace()
     if Notify is not None:
         notify = Notify()
         notify.send(f"{socket.gethostname()}: Running simulation with params {' '.join(sys.argv[1:])}")
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
-                    mode="t" if args.coherency else "s", complex_mode=True if args.real_mode == 'complex' else False,
+                    mode="t" if args.coherency else "s", coh_kernel_size=args.coherency,
+                    complex_mode=True if args.real_mode == 'complex' else False,
                     real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
                     dropout=args.dropout)
