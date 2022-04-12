@@ -1,5 +1,6 @@
 import os.path
 import timeit
+from scipy.ndimage import uniform_filter
 from abc import ABC, abstractmethod
 import numpy as np
 import matplotlib.pyplot as plt
@@ -869,7 +870,6 @@ class PolsarDatasetHandler(ABC):
         return reorder(filtered_T).numpy()       # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
 
     def numpy_coh_matrix(self, HH, VV, HV, kernel_shape=3):
-        print(f"WARNING: TODO: Coherency matrix function does not perform mean for the moment.")
         k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
         np_k = np.expand_dims(k, axis=-1)
         t_mat = np.matmul(np_k, np.transpose(np.conjugate(np_k), axes=[0, 1, 3, 2]))
@@ -881,11 +881,13 @@ class PolsarDatasetHandler(ABC):
         )
         removed_lower_part_T = one_channel_T[:, :, mask]
         filtered_T = removed_lower_part_T
-        return np.transpose(
+        ordered_filtered_t = np.transpose(
             np.array([
                 filtered_T[:, :, 0], filtered_T[:, :, 3], filtered_T[:, :, 5],
                 filtered_T[:, :, 1], filtered_T[:, :, 2], filtered_T[:, :, 4]
             ]), axes=[1, 2, 0])
+        return uniform_filter(ordered_filtered_t, mode="constant",          # TODO: use constant mode?
+                              size=(kernel_shape,) * (len(ordered_filtered_t.shape) - 1) + (1, ))
 
     @staticmethod
     def remove_outliers(data, iqr=(1, 99)):

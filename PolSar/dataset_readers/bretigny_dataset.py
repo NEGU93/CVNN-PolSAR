@@ -84,4 +84,5 @@ class BretignyDataset(PolsarDatasetHandler):
 
 if __name__ == "__main__":
     data_handler = BretignyDataset(mode='t')
+    data_handler.get_image()
     data_handler.print_image_png(savefile=True, showfig=True)
