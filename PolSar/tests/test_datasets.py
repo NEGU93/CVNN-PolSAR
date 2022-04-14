@@ -12,7 +12,7 @@ from principal_simulation import _get_dataset_handler, MODEL_META, DATASET_META
 def test_dataset():
     model = "cao"
     for dataset in DATASET_META.keys():
-        for mode in ["t", "s"]:
+        for mode in ["s", "t"]:
             for dataset_method in ["random", "separate", "single_separated_image"]:
                 if not (mode == "s" and (dataset == "OBER" or dataset == "FLEV")):
                     print(f"Testing dataset {dataset} in mode {mode} with method {dataset_method}")

@@ -356,6 +356,17 @@ class PolsarDatasetHandler(ABC):
 
     @abstractmethod
     def get_image(self) -> np.ndarray:
+        """
+        Must open the image. It must be:
+            - numpy array
+            - Data type np.complex
+            - Shape (Width, Height, channels), with channels = 3 if self.mode = 'k' or 's'
+                and channels = 6 if self.mode = 't'
+
+            S format: (s_11, s_12, s_22) or equivalently (HH, HV, VV)
+            T format:
+        :return: The opened numpy image.
+        """
         pass
 
     @abstractmethod
@@ -479,9 +490,10 @@ class PolsarDatasetHandler(ABC):
             return self.image
         else:
             if self.mode == 's':
-                k_vector = self._get_k_vector(HH=self.image[:, :, 0], VV=self.image[:, :, 1], HV=self.image[:, :, 2])
+                k_vector = self._get_k_vector(HH=self.image[:, :, 0], VV=self.image[:, :, 2], HV=self.image[:, :, 1])
             elif self.mode == 'k':
-                k_vector = self.image
+                raise NotImplementedError("Sorry, I still have not implemented the method to get the coh matrix from"
+                                          " the pauli vector")
             else:
                 raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
             return self.numpy_coh_matrix(HH=k_vector[:, :, 0], VV=k_vector[:, :, 1], HV=k_vector[:, :, 2],
