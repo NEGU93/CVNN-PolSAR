@@ -32,13 +32,6 @@ class FlevolandDataset(PolsarDatasetHandler):
         if self.coh_kernel_size > 1:
             print(f"WARNING: Ignoring parameter coh_kernel_size = {self.coh_kernel_size}")
 
-    def print_ground_truth(self, t=None, *args, **kwargs):
-        if t is None:
-            t = self.get_image()
-        super(FlevolandDataset, self).print_ground_truth(t=t,
-                                                         path=Path(os.path.dirname(labels_path)) / "ground_truth.png",
-                                                         *args, **kwargs)
-
     def get_image(self):
         return self.open_t_dataset_t3(dataset_path)
 

@@ -53,7 +53,7 @@ DATASET_META = {
     # "SF-ALOS2": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     # "SF-GF3": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
     # "SF-RISAT": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
+    # "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
     "OBER": {"classes": 3, "orientation": "vertical", "percentage": (0.85, 0.15)},
     "FLEVOLAND": {"classes": 15, "orientation": "horizontal", "percentage": (0.8, 0.1, 0.1)},
     "BRET": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
@@ -152,30 +152,27 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, coh_kernel_size: int,
-                         classification: bool = False):
+def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool = False,
+                         coh_kernel_size: int = 1):
     coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
                                               complex_mode=complex_mode, real_mode=real_mode,
-                                              classification=classification, coh_kernel_size=coh_kernel_size)
+                                              coh_kernel_size=coh_kernel_size)
     elif dataset_name == "BRET":
         dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                          balance_dataset=balance, classification=classification,
-                                          coh_kernel_size=coh_kernel_size)
+                                          balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode,
-                                                  balance_dataset=balance, classification=classification,
-                                                  coh_kernel_size=coh_kernel_size)
+                                                  balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "FLEVOLAND":
         if mode != "t":
             raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = FlevolandDataset(complex_mode=complex_mode, real_mode=real_mode,
-                                           balance_dataset=balance, classification=classification,
-                                           coh_kernel_size=coh_kernel_size)
+                                           balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler

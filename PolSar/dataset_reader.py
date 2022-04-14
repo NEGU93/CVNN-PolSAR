@@ -341,7 +341,7 @@ class PolsarDatasetHandler(ABC):
     @property
     def labels(self):
         if self._labels is None:
-            self._labels = self.get_labels()
+            self._labels = self.sparse_to_categorical_2D(self.sparse_labels)
         return self._labels
 
     @property
@@ -414,7 +414,7 @@ class PolsarDatasetHandler(ABC):
                                                                shuffle=shuffle,
                                                                classification=classification)
         elif method == "single_separated_image":
-            assert classification, f"Can't apply classification to the full image."
+            assert not classification, f"Can't apply classification to the full image."
             x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
                                                                             orientation=orientation, pad=True)
         else:
@@ -451,15 +451,18 @@ class PolsarDatasetHandler(ABC):
         return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
                                   path=path, ax=ax)
 
+    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: str = "PauliRGB.png"):
+        coh_matrix = self.get_coherency_matrix(kernel_shape=1)
+        rgb_image = self._coh_to_rgb(coh_matrix=coh_matrix)
+        if showfig:
+            plt.imshow(rgb_image)
+            plt.show()
+        if savefile:
+            plt.imsave(self.root_path / img_name, np.clip(rgb_image, a_min=0., a_max=1.))
+
     """
         GETTERS
     """
-
-    def get_labels(self) -> np.ndarray:
-        """
-        :return: One hot encoded labels
-        """
-        return self.sparse_to_categorical_2D(self.sparse_labels)
 
     def get_pauli_vector(self):
         if self.mode == 'k':
@@ -481,8 +484,8 @@ class PolsarDatasetHandler(ABC):
                 k_vector = self.image
             else:
                 raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
-            return self._get_coherency_matrix(HH=k_vector[:, :, 0], VV=k_vector[:, :, 1], HV=k_vector[:, :, 2],
-                                              kernel_shape=kernel_shape)
+            return self.numpy_coh_matrix(HH=k_vector[:, :, 0], VV=k_vector[:, :, 1], HV=k_vector[:, :, 2],
+                                         kernel_shape=kernel_shape)
 
     """
         PRIVATE
@@ -528,7 +531,7 @@ class PolsarDatasetHandler(ABC):
             y[i] = np.expand_dims(y[i], axis=0)
         return x, y
 
-    # Parse input methods
+    # Parser/check input
     @staticmethod
     def _parse_percentage(percentage) -> List[float]:
         if isinstance(percentage, int):
@@ -573,6 +576,28 @@ class PolsarDatasetHandler(ABC):
             pad = tuple(pad)
         return pad
 
+    # Methods to print rgb image
+    def _coh_to_rgb(self, coh_matrix):
+        diagonal = coh_matrix[:, :, :3].astype(np.float32)
+        diagonal[diagonal == 0] = float("nan")
+        diag_db = 10 * np.log10(diagonal)
+        noramlized_diag = np.zeros(shape=diag_db.shape)
+        noramlized_diag[:, :, 0] = self.normalize_without_outliers(diag_db[:, :, 0])
+        noramlized_diag[:, :, 2] = self.normalize_without_outliers(diag_db[:, :, 1])
+        noramlized_diag[:, :, 1] = self.normalize_without_outliers(diag_db[:, :, 2])
+        return noramlized_diag
+
+    @staticmethod
+    def remove_outliers(data, iqr=(1, 99)):
+        low = np.nanpercentile(data, iqr[0])
+        high = np.nanpercentile(data, iqr[1])
+        return low, high
+
+    def normalize_without_outliers(self, data):
+        low, high = self.remove_outliers(data)
+        return (data - low) / (high - low)
+
+    # MISC
     @staticmethod
     def _pad_image(image, labels):
         first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
@@ -718,107 +743,6 @@ class PolsarDatasetHandler(ABC):
         # set_trace()
         return masked_filtered_data, masked_filtered_labels
 
-    # BALANCE DATASET
-    @staticmethod
-    def _select_random(img, value: int, total: int):
-        """
-        Gets an image with different values and returns a boolean matrix with a total number of True equal to the total
-            parameter where all True are located in the same place where the img has the value passed as parameter
-        :param img: Image to be selected
-        :param value: Value to be matched
-        :param total:
-        :return:
-        """
-        assert len(img.shape) == 2
-        flatten_img = np.reshape(img, tf.math.reduce_prod(img.shape).numpy())
-        random_indx = np.random.permutation(len(flatten_img))
-        mixed_img = flatten_img[random_indx]
-        selection_mask = np.zeros(shape=img.shape)
-        selected = 0
-        indx = 0
-        saved_indexes = []
-        while selected < total:
-            val = mixed_img[indx]
-            if val == value:
-                selected += 1
-                saved_indexes.append(random_indx[indx])
-                assert img[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] == value
-                selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
-            indx += 1
-        return selection_mask.astype(bool)
-
-    @staticmethod
-    def _get_occurrences(labels):
-        classes = tf.argmax(labels, axis=-1)
-        mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
-        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
-        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
-                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
-        return max(totals) / totals
-
-    """
-        PUBLIC
-    """
-
-    def apply_sliding_on_self_data(self, *args, **kwargs):
-        return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
-
-    def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False, remove_unlabeled: bool = True):
-        """
-        Performs the sliding window operation to the image.
-        :param size:
-        :param stride:
-        :param pad:
-        :param classification:
-        :param remove_unlabeled:
-        :param use_saved_image:
-        :param save_generated_images:
-        :return: image and label patches of the main image and labels
-        """
-        # TODO: Removing save images as it colides with different methods.
-        # if not hasattr(self, "patches"):
-        # Parse input params
-        use_saved_image = False
-        save_generated_images = False
-        if isinstance(size, int):
-            size = (size, size)
-        else:
-            size = tuple(size)
-            assert len(size) == 2
-        pad = self._parse_pad(pad, size)
-        # Get folder and file name
-        temp_path = self.root_path / "dataset_preprocess_cache"
-        os.makedirs(str(temp_path), exist_ok=True)
-        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_{self.mode}" \
-                        f"_window{size}_stride{stride}_pad{pad}"
-        # Do I already performed the math operations?
-        if use_saved_image and os.path.isfile(temp_path / (config_string + "_patches.npy")):
-            print(f"Loading dataset {config_string}_patches.npy")
-            start = timeit.default_timer()
-            patches = np.load(str(temp_path / (config_string + "_patches.npy"))).astype(np.complex64)
-            label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
-            print(f"Load done in {timeit.default_timer() - start} seconds")
-        else:
-            print(f"Computing dataset {config_string}_patches.npy")
-            start = timeit.default_timer()
-            patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad)
-            if remove_unlabeled:
-                patches, label_patches = self._remove_empty_image(data=patches, labels=label_patches)
-            # print(f"patches shape after sliding window op{patches.shape}")
-            if save_generated_images and not \
-                    os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
-                np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches.astype(np.complex64))
-                np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
-            if classification:
-                patches, label_patches = self._to_classification(x=patches, y=label_patches, mask=remove_unlabeled)
-                if save_generated_images:
-                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), patches.astype(np.complex64))
-                    np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), label_patches)
-            print(f"Computation done in {timeit.default_timer() - start} seconds")
-        return patches, label_patches
-
-    # Utils
     @staticmethod
     def _sliding_window_operation(im, lab, size: Tuple[int, int], stride: int,
                                   pad: Tuple[Tuple[int, int], Tuple[int, int]],
@@ -975,7 +899,7 @@ class PolsarDatasetHandler(ABC):
         T_mat = tf.linalg.matmul(tf_k, tf_k,
                                  adjoint_b=True)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
         one_channel_T = tf.reshape(T_mat, shape=(
-        T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
+            T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
         removed_lower_part_T = _remove_lower_part(one_channel_T)  # hxwx9 to hxwx6 removing lower part of matrix
         filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
         return reorder(filtered_T).numpy()  # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
@@ -1000,29 +924,104 @@ class PolsarDatasetHandler(ABC):
         return uniform_filter(ordered_filtered_t, mode="constant",  # TODO: use constant mode?
                               size=(kernel_shape,) * (len(ordered_filtered_t.shape) - 1) + (1,))
 
+    # BALANCE DATASET
     @staticmethod
-    def remove_outliers(data, iqr=(1, 99)):
-        low = np.nanpercentile(data, iqr[0])
-        high = np.nanpercentile(data, iqr[1])
-        return low, high
+    def _select_random(img, value: int, total: int):
+        """
+        Gets an image with different values and returns a boolean matrix with a total number of True equal to the total
+            parameter where all True are located in the same place where the img has the value passed as parameter
+        :param img: Image to be selected
+        :param value: Value to be matched
+        :param total:
+        :return:
+        """
+        assert len(img.shape) == 2
+        flatten_img = np.reshape(img, tf.math.reduce_prod(img.shape).numpy())
+        random_indx = np.random.permutation(len(flatten_img))
+        mixed_img = flatten_img[random_indx]
+        selection_mask = np.zeros(shape=img.shape)
+        selected = 0
+        indx = 0
+        saved_indexes = []
+        while selected < total:
+            val = mixed_img[indx]
+            if val == value:
+                selected += 1
+                saved_indexes.append(random_indx[indx])
+                assert img[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] == value
+                selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
+            indx += 1
+        return selection_mask.astype(bool)
 
-    def normalize_without_outliers(self, data):
-        low, high = self.remove_outliers(data)
-        return (data - low) / (high - low)
+    @staticmethod
+    def _get_occurrences(labels):
+        classes = tf.argmax(labels, axis=-1)
+        mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
+        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
+        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
+                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
+        return max(totals) / totals
 
-    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: str = "PauliRGB.png"):
-        if not self.mode == 't':
-            raise f"Sorry, for the moment it is only possible to print image in mode 't', " \
-                  f"current instance has mode {self.mode}"
-        diagonal = self.image[:, :, :3].astype(np.float32)
-        diagonal[diagonal == 0] = float("nan")
-        diag_db = 10 * np.log10(diagonal)
-        noramlized_diag = np.zeros(shape=diag_db.shape)
-        noramlized_diag[:, :, 0] = self.normalize_without_outliers(diag_db[:, :, 0])
-        noramlized_diag[:, :, 2] = self.normalize_without_outliers(diag_db[:, :, 1])
-        noramlized_diag[:, :, 1] = self.normalize_without_outliers(diag_db[:, :, 2])
-        if showfig:
-            plt.imshow(noramlized_diag)
-            plt.show()
-        if savefile:
-            plt.imsave(self.root_path / img_name, np.clip(noramlized_diag, a_min=0., a_max=1.))
+    """
+        PUBLIC
+    """
+
+    def apply_sliding_on_self_data(self, *args, **kwargs):
+        return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
+
+    def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
+                      classification: bool = False, remove_unlabeled: bool = True):
+        """
+        Performs the sliding window operation to the image.
+        :param size:
+        :param stride:
+        :param pad:
+        :param classification:
+        :param remove_unlabeled:
+        :param use_saved_image:
+        :param save_generated_images:
+        :return: image and label patches of the main image and labels
+        """
+        # TODO: Removing save images as it colides with different methods.
+        # if not hasattr(self, "patches"):
+        # Parse input params
+        use_saved_image = False
+        save_generated_images = False
+        if isinstance(size, int):
+            size = (size, size)
+        else:
+            size = tuple(size)
+            assert len(size) == 2
+        pad = self._parse_pad(pad, size)
+        # Get folder and file name
+        temp_path = self.root_path / "dataset_preprocess_cache"
+        os.makedirs(str(temp_path), exist_ok=True)
+        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_{self.mode}" \
+                        f"_window{size}_stride{stride}_pad{pad}"
+        # Do I already performed the math operations?
+        if use_saved_image and os.path.isfile(temp_path / (config_string + "_patches.npy")):
+            print(f"Loading dataset {config_string}_patches.npy")
+            start = timeit.default_timer()
+            patches = np.load(str(temp_path / (config_string + "_patches.npy"))).astype(np.complex64)
+            label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
+            print(f"Load done in {timeit.default_timer() - start} seconds")
+        else:
+            print(f"Computing dataset {config_string}_patches.npy")
+            start = timeit.default_timer()
+            patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad)
+            if remove_unlabeled:
+                patches, label_patches = self._remove_empty_image(data=patches, labels=label_patches)
+            # print(f"patches shape after sliding window op{patches.shape}")
+            if save_generated_images and not \
+                    os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
+                np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches.astype(np.complex64))
+                np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
+            if classification:
+                patches, label_patches = self._to_classification(x=patches, y=label_patches,
+                                                                 remove_unlabeled=remove_unlabeled)
+                if save_generated_images:
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), patches.astype(np.complex64))
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), label_patches)
+            print(f"Computation done in {timeit.default_timer() - start} seconds")
+        return patches, label_patches
+
