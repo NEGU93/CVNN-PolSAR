@@ -10,12 +10,13 @@ from dataset_readers.bretigny_dataset import BretignyDataset
 from dataset_readers.flevoland_data_reader import FlevolandDataset
 from results_reader import ResultReader
 
-def bretigny_no_mask():
-    path = Path("/media/barrachina/data/results/Bretigny/ICASSP_2022_trials/03Sunday/run-10h18m20")
-    dataset_handler = BretignyDataset(mode="s", complex_mode=True, classification=False)
+
+def bretigny_mask():
+    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/04April/12Tuesday/run-13h49m26")
+    dataset_handler = BretignyDataset(mode="t", complex_mode=False, classification=False)
     get_final_model_results(path, dataset_handler=dataset_handler, model_name="cao",
-                            tensorflow=False, complex_mode=True,
-                            channels=3, dropout=DROPOUT_DEFAULT, use_mask=False)
+                            tensorflow=True, complex_mode=False,
+                            channels=6, dropout=DROPOUT_DEFAULT, use_mask=True)
 
 
 def plot_no_mask_flev():
@@ -66,4 +67,5 @@ def plot_no_mask_flev():
 
 
 if __name__ == "__main__":
-    plot_no_mask_flev()
+    # plot_no_mask_flev()
+    bretigny_mask()

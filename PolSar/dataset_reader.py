@@ -33,7 +33,7 @@ zhang_dataset_parameters = {
 }
 
 OBER_COLORS = np.array([
-    [1, 0.349, 0.392],      # Red; Built-up Area
+    [1, 0.349, 0.392],  # Red; Built-up Area
     [0.086, 0.858, 0.576],  # Green; Wood Land
     [0.937, 0.917, 0.352],  # Yellow; Open Area
     [0, 0.486, 0.745]
@@ -79,11 +79,11 @@ SF_COLORS = {
         [255, 0, 255]
     ],
     "SF-AIRSAR": [
-        [0, 1., 1.],      # Light blue (bare soil)
-        [1., 1., 0],      # Yellow (Mountain)
-        [0, 0, 1.],        # Blue (Water)
-        [1., 0, 0],        # Red (Buildings)
-        [0, 1., 0]         # Green (Vegetation)
+        [0, 1., 1.],  # Light blue (bare soil)
+        [1., 1., 0],  # Yellow (Mountain)
+        [0, 0, 1.],  # Blue (Water)
+        [1., 0, 0],  # Red (Buildings)
+        [0, 1., 0]  # Green (Vegetation)
     ]
 }
 
@@ -140,6 +140,7 @@ DEFAULT_PLOTLY_COLORS = [
 ]
 DEFAULT_PLOTLY_COLORS = np.divide(DEFAULT_PLOTLY_COLORS, 255.0).astype(np.float32)
 
+SUPPORTED_MODES = {"s", "t", "k"}
 
 def flip(data, labels):
     """
@@ -300,19 +301,30 @@ def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
-                 balance_dataset: bool = False, classification: bool = False, coh_kernel_size: int = 1):
+                 balance_dataset: bool = False, coh_kernel_size: int = 1):
+        """
+
+        :param root_path:
+        :param name:
+        :param mode:
+        :param complex_mode:
+        :param real_mode:
+        :param balance_dataset: If classification, it will have a balanced dataset classes on the training set
+            - For Bretigny it will load the balanced labels also so that even for segmentation it is balanced.
+        :param coh_kernel_size:
+        """
         self.root_path = Path(str(root_path))
         self.name = name
         self.coh_kernel_size = coh_kernel_size
         assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
         self.real_mode = real_mode.lower()
-        self.complex_mode = complex_mode    # TODO: Best practice to leave it outside
-        self.classification = classification
+        self.complex_mode = complex_mode  # TODO: Best practice to leave it outside
         self.balance_dataset = balance_dataset
         self._image = None
         self._sparse_labels = None
         self._labels = None
+        self._labels_occurrences = None
 
     @property
     def image(self):
@@ -332,33 +344,77 @@ class PolsarDatasetHandler(ABC):
             self._labels = self.get_labels()
         return self._labels
 
+    @property
+    def labels_occurrences(self):
+        if self._labels_occurrences is None:
+            self._labels_occurrences = self._get_occurrences(self.labels)
+        return self._labels_occurrences
+
+    """
+        METHODS TO BE IMPLEMENTED
+    """
+
     @abstractmethod
     def get_image(self) -> np.ndarray:
         pass
 
-    def get_labels(self) -> np.ndarray:
-        return self.sparse_to_categorical_2D(self.sparse_labels)
-
     @abstractmethod
     def get_sparse_labels(self) -> np.ndarray:
+        """
+        Must open the labels in sparse mode (last dimension is a number from 0 to num_classes-1).
+        :return: Numpy array with the sparse labels
+        """
         pass
+
+    """
+        PUBLIC API
+    """
 
     def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
                     savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
-                    remove_last: bool = False,
+                    remove_last: bool = False, classification: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
+        """
+        Get the dataset in the desired form
+        :param method: One of
+            - 'random': Sample patch images randomly using sliding window operation (swo).
+            - 'separate': Splits the image according to `percentage` parameter. Then gets patches using swo.
+            - 'single_separated_image': Splits the image according to `percentage` parameter. Returns full image.
+        :param percentage: Tuple giving the dataset split percentage.
+            If sum(percentage) != 1 it will add an extra value to force sum(percentage) = 1.
+            If sum(percentage) > 1 or it has at least one negative value it will raise an exception.
+            Example, for 60% train, 20% validation and 20% test set, use percentage = (.6, .2, .2) or (.6, .2).
+        :param size: Size of generated patches images. By default it will generate images of 128x128.
+        :param stride: Stride used for the swo. If stride < size, parches will have coincident pixels.
+        :param shuffle: Shuffle image patches (ignored if method == 'single_separated_image')
+        :param pad: Pad image before swo or just add padding to output for method == 'single_separated_image'
+        :param savefig: Used only if method='single_separated_image'.
+            - It shaves len(percentage) images with the cropped generated images.
+        :param orientation: Cut the image 'horizontally' or 'vertically' when split (using percentage param for sizes).
+            Ignored if method == 'random'
+        :param data_augment: Only used if use_tf_dataset = True. It performs data aumentation using flip.
+        :param remove_last:
+        :param classification: If true, it will have only one value per image path.
+            Example, for a train dataset of shape (None, 128, 128, 3):
+                classification = True: labels will be of shape (None, classes)
+                classification = False: labels will be of shape (None, 128, 128, classes)
+        :param batch_size:
+        :param use_tf_dataset: If True, return dtype will be a tf.Tensor dataset instead of numpy array.
+        :return: Returns a list of [train, (validation), (test), (k-folds)] according to percentage parameter.
+            - Each list[i] is a tuple of (data, labels) where both data and labels are numpy arrays.
+        """
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
                                                               shuffle=shuffle, remove_last=remove_last,
-                                                              classification=self.classification)
+                                                              classification=classification)
         elif method == "separate":
             x_patches, y_patches = self._get_separated_dataset(percentage=percentage, size=size, stride=stride, pad=pad,
                                                                savefig=savefig, orientation=orientation,
                                                                shuffle=shuffle,
-                                                               classification=self.classification)
+                                                               classification=classification)
         elif method == "single_separated_image":
-            assert self.classification, f"Can't apply classification to the full image."
+            assert classification, f"Can't apply classification to the full image."
             x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
                                                                             orientation=orientation, pad=True)
         else:
@@ -375,10 +431,104 @@ class PolsarDatasetHandler(ABC):
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return tuple(ds_list)
 
+    def print_ground_truth(self, label: Optional = None, path=None, t=None,
+                           mask: Optional[Union[bool, np.ndarray]] = None, ax=None):
+        """
+        Saves or shows the labels rgb map.
+        :param label: Labels to be printed as RGB map. If None it will use the dataset labels.
+        :param path: Path where to save the image
+        :param t:  TODO: Fix this
+        :param mask: (Optional) One of
+            - Boolean array with the same shape as label. False values will be printed as black.
+            - If True: It will use self label to remove non labeled pixels from images
+        :param ax: (Optional) axis where to plot the new image, used for overlapping figures.
+        :return: None
+        """
+        if label is None:
+            label = self.labels
+        if isinstance(mask, bool) and mask:
+            mask = self.get_sparse_labels()
+        return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
+                                  path=path, ax=ax)
+
+    """
+        GETTERS
+    """
+
+    def get_labels(self) -> np.ndarray:
+        """
+        :return: One hot encoded labels
+        """
+        return self.sparse_to_categorical_2D(self.sparse_labels)
+
+    def get_pauli_vector(self):
+        if self.mode == 'k':
+            return self.image
+        elif self.mode == 's':
+            return self._get_k_vector(HH=self.image[:, :, 0], VV=self.image[:, :, 1], HV=self.image[:, :, 2])
+        elif self.mode == 't':
+            raise Exception("It is not possible to obtain the pauli vector from the coherency matrix")
+        else:
+            raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
+
+    def get_coherency_matrix(self, kernel_shape=3):
+        if self.mode == 't':
+            return self.image
+        else:
+            if self.mode == 's':
+                k_vector = self._get_k_vector(HH=self.image[:, :, 0], VV=self.image[:, :, 1], HV=self.image[:, :, 2])
+            elif self.mode == 'k':
+                k_vector = self.image
+            else:
+                raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
+            return self._get_coherency_matrix(HH=k_vector[:, :, 0], VV=k_vector[:, :, 1], HV=k_vector[:, :, 2],
+                                              kernel_shape=kernel_shape)
+
     """
         PRIVATE
     """
 
+    # 3 get dataset main methods
+    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
+                              percentage: Union[Tuple[float], float] = (0.8, 0.2),
+                              shuffle: bool = True, pad="same", remove_last: bool = False,
+                              classification: bool = False) -> (tf.data.Dataset, tf.data.Dataset):
+        """
+        Applies the sliding window operations getting smaller images of a big image T.
+        Splits dataset into train and test.
+        :param size: Size of the window to be used on the sliding window operation.
+        :param stride:
+        :param percentage: float. Percentage of examples to be used for the test set [0, 1]
+        :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
+        """
+        patches, label_patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad,
+                                                                 classification=classification)
+        x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
+                                      percentage=percentage, shuffle=shuffle, remove_last=remove_last)
+        return x, y
+
+    def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                               savefig: Optional[str] = None, orientation: str = "vertical", classification=False):
+        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
+        # train_slice_label = _balance_image(train_slice_label)
+        for i in range(0, len(labels)):
+            images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride, pad=pad,
+                                                      classification=classification)
+            if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
+                images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
+        return images, labels
+
+    def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
+                                            orientation: str = "vertical", pad: bool = False):
+        x, y = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
+        for i in range(0, len(y)):
+            if pad:
+                x[i], y[i] = self._pad_image(x[i], y[i])
+            x[i] = np.expand_dims(x[i], axis=0)
+            y[i] = np.expand_dims(y[i], axis=0)
+        return x, y
+
+    # Parse input methods
     @staticmethod
     def _parse_percentage(percentage) -> List[float]:
         if isinstance(percentage, int):
@@ -393,11 +543,35 @@ class PolsarDatasetHandler(ABC):
                 raise ValueError(f"Percentage must be 0 < percentage < 1, received {percentage}")
         else:
             percentage = list(percentage)
-            assert 0 < sum(percentage) <= 1., f"percentage must add to 1 max, " \
-                                              f"but it adds to sum({percentage}) = {sum(percentage)}"
+            assert all(p >= 0. for p in percentage), "percentage elements can't be negative"
+            assert sum(percentage) <= 1., f"percentage must add to 1 max, " \
+                                          f"but it adds to sum({percentage}) = {sum(percentage)}"
             if sum(percentage) < 1:
                 percentage = percentage + [1 - sum(percentage)]
         return percentage
+
+    @staticmethod
+    def _parse_pad(pad, kernel_size):
+        if isinstance(pad, int):
+            pad = ((pad, pad), (pad, pad))
+        elif isinstance(pad, str):
+            if pad.lower() == "same":
+                pad = tuple([(w // 2, (w - 1) // 2) for w in kernel_size])
+            elif pad.lower() == "valid":
+                pad = ((0, 0), (0, 0))
+            else:
+                raise ValueError(f"padding: {pad} not recognized. Possible values are 'valid' or 'same'")
+        else:
+            pad = list(pad)
+            assert len(pad) == 2
+            for indx in range(2):
+                if isinstance(pad[indx], int):
+                    pad[indx] = (pad[indx], pad[indx])
+                else:
+                    pad[indx] = tuple(pad[indx])
+                    assert len(pad[indx]) == 2
+            pad = tuple(pad)
+        return pad
 
     @staticmethod
     def _pad_image(image, labels):
@@ -462,7 +636,7 @@ class PolsarDatasetHandler(ABC):
         for cls in range(y_all.shape[-1]):
             x_train, x_test, y_train, y_test = train_test_split(x_all[sparse_y == cls], y_all[sparse_y == cls],
                                                                 train_size=int(
-                                                                    (1-test_size) * y_all.shape[0] / y_all.shape[-1]),
+                                                                    (1 - test_size) * y_all.shape[0] / y_all.shape[-1]),
                                                                 shuffle=shuffle)
             x_train_per_class.append(x_train)
             x_test_per_class.append(x_test)
@@ -474,96 +648,50 @@ class PolsarDatasetHandler(ABC):
         y_test = np.concatenate(y_test_per_class)
         return x_train, x_test, y_train, y_test
 
-    def _separate_dataset(self, percentage: List[float], shuffle: bool = True,
+    def _separate_dataset(self, patches, label_patches, percentage: Union[Tuple[float], float], shuffle: bool = True,
+                          classification: bool = False,
                           remove_last: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
+        Separates dataset patches according to the percentage.
         :param percentage: list of percentages for each value,
             example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test.
         :param shuffle: Shuffle dataset before split.
         :return: tuple of two lists of size = len(percentage), one with data x and other with labels y.
         """
         percentage = self._parse_percentage(percentage)
-        x_test = self.patches
-        y_test = self.label_patches
+        x_test = patches
+        y_test = label_patches
         x = []
         y = []
         for i, per in enumerate(percentage[:-1]):
-            if self.classification and self.balance_dataset:
+            if classification and self.balance_dataset:
                 x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
                                                                             shuffle=shuffle)
             else:
-                x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1-per,
-                                                                    shuffle=True if self.classification else shuffle,
-                                                                    stratify=y_test if self.classification else None)
-            percentage[i+1:] = [value / (1-percentage[i]) for value in percentage[i+1:]]
+                x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1 - per,
+                                                                    shuffle=True if classification else shuffle,
+                                                                    stratify=y_test if classification else None)
+            percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
             x.append(x_train)
             y.append(y_train)
         if not remove_last:
             x.append(x_test)
             y.append(y_test)
         # print(f"memory before removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
-        x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
+        # x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
         # print(f"memory after removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
         # set_trace()
         return x, y
 
     @staticmethod
-    def _to_classification(x, y, mask=False):
+    def _to_classification(x, y, remove_unlabeled=False):
         y = np.reshape(y[:, y.shape[1] // 2, y.shape[2] // 2, :], newshape=(y.shape[0], y.shape[-1]))
         # assert [np.all(y_patches_class[i][:] == y_patches[i][0][0][:]) for i in range(len(y_patches_class))]
         # 2. Remove empty pixels
-        if mask:        # TODO: Remove this?
+        if remove_unlabeled:  # TODO: Remove this?
             mask = np.invert(np.all(y == 0, axis=-1))
-            x = tf.boolean_mask(x, mask).numpy()
-            y = tf.boolean_mask(y, mask).numpy()
-        return x, y
-
-    # Get dataset
-    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
-                              percentage: Union[Tuple[float], float] = (0.8, 0.2),
-                              shuffle: bool = True, pad="same", remove_last: bool = False,
-                              classification: bool = False) -> (tf.data.Dataset, tf.data.Dataset):
-        """
-        Applies the sliding window operations getting smaller images of a big image T.
-        Splits dataset into train and test.
-        :param size: Size of the window to be used on the sliding window operation.
-        :param stride:
-        :param percentage: float. Percentage of examples to be used for the test set [0, 1]
-        :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
-        """
-        self.apply_sliding(size=size, stride=stride, pad=pad, classification=classification)
-        # del T, labels  # Free up memory
-        x, y = self._separate_dataset(percentage=percentage, shuffle=shuffle, remove_last=remove_last)
-        return x, y
-
-    def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                               savefig: Optional[str] = None, orientation: str = "vertical", classification=False):
-        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
-        # train_slice_label = _balance_image(train_slice_label)
-        if isinstance(size, int):
-            size = (size, size)
-        else:
-            size = tuple(size)
-            assert len(size) == 2
-        for i in range(0, len(labels)):
-            images[i], labels[i] = self._sliding_window_operation(images[i], labels[i],
-                                                                  size=size, stride=stride,
-                                                                  pad=self._parse_pad(pad, size))   # TODO: Use apply
-            images[i], labels[i] = self._remove_empty_image(data=images[i], labels=labels[i])
-            if classification:      # TODO: TEST THIS
-                images[i], labels[i] = self._to_classification(x=images[i], y=labels[i])
-            if shuffle:  # No need to shuffle the rest
-                images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
-        return images, labels
-
-    def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
-                                            orientation: str = "vertical", pad: bool = False):
-        x, y = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
-        for i in range(0, len(y)):
-            if pad:
-                x[i], y[i] = self._pad_image(x[i], y[i])
-            x[i] = tf.expand_dims(x[i], axis=0)
-            y[i] = tf.expand_dims(y[i], axis=0)
+            x = x[mask]
+            y = y[mask]
         return x, y
 
     @staticmethod
@@ -619,11 +747,8 @@ class PolsarDatasetHandler(ABC):
             indx += 1
         return selection_mask.astype(bool)
 
-    def get_weights(self):
-        return self._get_weights(self.get_labels())
-
     @staticmethod
-    def _get_weights(labels):
+    def _get_occurrences(labels):
         classes = tf.argmax(labels, axis=-1)
         mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
         classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
@@ -635,33 +760,27 @@ class PolsarDatasetHandler(ABC):
         PUBLIC
     """
 
-    @staticmethod
-    def _parse_pad(pad, kernel_size):
-        if isinstance(pad, int):
-            pad = ((pad, pad), (pad, pad))
-        elif isinstance(pad, str):
-            if pad.lower() == "same":
-                pad = tuple([(w // 2, (w - 1) // 2) for w in kernel_size])
-            elif pad.lower() == "valid":
-                pad = ((0, 0), (0, 0))
-            else:
-                raise ValueError(f"padding: {pad} not recognized. Possible values are 'valid' or 'same'")
-        else:
-            pad = list(pad)
-            assert len(pad) == 2
-            for indx in range(2):
-                if isinstance(pad[indx], int):
-                    pad[indx] = (pad[indx], pad[indx])
-                else:
-                    pad[indx] = tuple(pad[indx])
-                    assert len(pad[indx]) == 2
-            pad = tuple(pad)
-        return pad
+    def apply_sliding_on_self_data(self, *args, **kwargs):
+        return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
 
-    def apply_sliding(self, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False, remove_unlabeled: bool = False):
+    def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
+                      classification: bool = False, remove_unlabeled: bool = True):
+        """
+        Performs the sliding window operation to the image.
+        :param size:
+        :param stride:
+        :param pad:
+        :param classification:
+        :param remove_unlabeled:
+        :param use_saved_image:
+        :param save_generated_images:
+        :return: image and label patches of the main image and labels
+        """
+        # TODO: Removing save images as it colides with different methods.
         # if not hasattr(self, "patches"):
         # Parse input params
+        use_saved_image = False
+        save_generated_images = False
         if isinstance(size, int):
             size = (size, size)
         else:
@@ -671,35 +790,33 @@ class PolsarDatasetHandler(ABC):
         # Get folder and file name
         temp_path = self.root_path / "dataset_preprocess_cache"
         os.makedirs(str(temp_path), exist_ok=True)
-        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_{self.mode}_window{size}_stride{stride}_pad{pad}"
+        config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_{self.mode}" \
+                        f"_window{size}_stride{stride}_pad{pad}"
         # Do I already performed the math operations?
-        if os.path.isfile(temp_path / (config_string + "_patches.npy")):
+        if use_saved_image and os.path.isfile(temp_path / (config_string + "_patches.npy")):
             print(f"Loading dataset {config_string}_patches.npy")
             start = timeit.default_timer()
-            self.patches = np.load(str(temp_path / (config_string + "_patches.npy"))).astype(np.complex64)
-            self.label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
+            patches = np.load(str(temp_path / (config_string + "_patches.npy"))).astype(np.complex64)
+            label_patches = np.load(str(temp_path / (config_string + "_labels.npy")))
             print(f"Load done in {timeit.default_timer() - start} seconds")
         else:
             print(f"Computing dataset {config_string}_patches.npy")
             start = timeit.default_timer()
-            self.patches, self.label_patches = self._sliding_window_operation(self.image, self.labels, size=size,
-                                                                              stride=stride, pad=pad)
+            patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad)
+            if remove_unlabeled:
+                patches, label_patches = self._remove_empty_image(data=patches, labels=label_patches)
             # print(f"patches shape after sliding window op{patches.shape}")
-            if not os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
-                np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")),
-                        self.patches.astype(np.complex64))
-                np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), self.label_patches)
+            if save_generated_images and not \
+                    os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):
+                np.save(str(temp_path / ("seg" + config_string[3:] + "_patches.npy")), patches.astype(np.complex64))
+                np.save(str(temp_path / ("seg" + config_string[3:] + "_labels.npy")), label_patches)
             if classification:
-                self.patches, self.label_patches = self._to_classification(x=self.patches, y=self.label_patches,
-                                                                           mask=remove_unlabeled)
-                np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")),
-                        self.patches.astype(np.complex64))
-                np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), self.label_patches)
+                patches, label_patches = self._to_classification(x=patches, y=label_patches, mask=remove_unlabeled)
+                if save_generated_images:
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_patches.npy")), patches.astype(np.complex64))
+                    np.save(str(temp_path / ("cls" + config_string[3:] + "_labels.npy")), label_patches)
             print(f"Computation done in {timeit.default_timer() - start} seconds")
-        # else:
-        #     print("Using previously computed values. Attention! if parameters have changed it will not take effect")
-        # print(f"patches shape before going out of apply slifing {patches.shape}")
-        return self.patches, self.label_patches
+        return patches, label_patches
 
     # Utils
     @staticmethod
@@ -765,11 +882,11 @@ class PolsarDatasetHandler(ABC):
 
         # Upper part
         T[:, :, 3] = envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0)
         T[:, :, 4] = envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0)
         T[:, :, 5] = envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0)
         return T.astype(np.complex64)
 
     @staticmethod
@@ -805,53 +922,45 @@ class PolsarDatasetHandler(ABC):
         T[:, :, 5] = envi.open(path / 'T66.bin.hdr', path / 'T66.bin').read_band(0)
 
         T[:, :, 6] = envi.open(path / 'T12_real.bin.hdr', path / 'T12_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T12_imag.bin.hdr', path / 'T12_imag.bin').read_band(0)
         T[:, :, 7] = envi.open(path / 'T13_real.bin.hdr', path / 'T13_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T13_imag.bin.hdr', path / 'T13_imag.bin').read_band(0)
         T[:, :, 8] = envi.open(path / 'T14_real.bin.hdr', path / 'T14_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T14_imag.bin.hdr', path / 'T14_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T14_imag.bin.hdr', path / 'T14_imag.bin').read_band(0)
         T[:, :, 9] = envi.open(path / 'T15_real.bin.hdr', path / 'T15_real.bin').read_band(0) + \
-                                1j * envi.open(path / 'T15_imag.bin.hdr', path / 'T15_imag.bin').read_band(0)
+                     1j * envi.open(path / 'T15_imag.bin.hdr', path / 'T15_imag.bin').read_band(0)
         T[:, :, 10] = envi.open(path / 'T16_real.bin.hdr', path / 'T16_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T16_imag.bin.hdr', path / 'T16_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T16_imag.bin.hdr', path / 'T16_imag.bin').read_band(0)
 
         T[:, :, 11] = envi.open(path / 'T23_real.bin.hdr', path / 'T23_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T23_imag.bin.hdr', path / 'T23_imag.bin').read_band(0)
         T[:, :, 12] = envi.open(path / 'T24_real.bin.hdr', path / 'T24_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T24_imag.bin.hdr', path / 'T24_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T24_imag.bin.hdr', path / 'T24_imag.bin').read_band(0)
         T[:, :, 13] = envi.open(path / 'T25_real.bin.hdr', path / 'T25_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T25_imag.bin.hdr', path / 'T25_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T25_imag.bin.hdr', path / 'T25_imag.bin').read_band(0)
         T[:, :, 14] = envi.open(path / 'T26_real.bin.hdr', path / 'T26_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T26_imag.bin.hdr', path / 'T26_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T26_imag.bin.hdr', path / 'T26_imag.bin').read_band(0)
 
         T[:, :, 15] = envi.open(path / 'T34_real.bin.hdr', path / 'T34_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T34_imag.bin.hdr', path / 'T34_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T34_imag.bin.hdr', path / 'T34_imag.bin').read_band(0)
         T[:, :, 16] = envi.open(path / 'T35_real.bin.hdr', path / 'T35_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T35_imag.bin.hdr', path / 'T35_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T35_imag.bin.hdr', path / 'T35_imag.bin').read_band(0)
         T[:, :, 17] = envi.open(path / 'T36_real.bin.hdr', path / 'T36_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T36_imag.bin.hdr', path / 'T36_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T36_imag.bin.hdr', path / 'T36_imag.bin').read_band(0)
 
         T[:, :, 18] = envi.open(path / 'T45_real.bin.hdr', path / 'T45_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T45_imag.bin.hdr', path / 'T45_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T45_imag.bin.hdr', path / 'T45_imag.bin').read_band(0)
         T[:, :, 19] = envi.open(path / 'T46_real.bin.hdr', path / 'T46_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T46_imag.bin.hdr', path / 'T46_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T46_imag.bin.hdr', path / 'T46_imag.bin').read_band(0)
 
         T[:, :, 20] = envi.open(path / 'T56_real.bin.hdr', path / 'T56_real.bin').read_band(0) + \
-                                 1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0)
+                      1j * envi.open(path / 'T56_imag.bin.hdr', path / 'T56_imag.bin').read_band(0)
         return T.astype(np.complex64)
-
-    # Debug
-    def print_ground_truth(self, label: Optional = None, path=None, t=None, mask: Optional = None, ax=None):
-        if label is None:
-            label = self.get_labels()
-        if mask is None:
-            mask = self.get_sparse_labels()
-        return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
-                                  path=path, ax=ax)
 
     """
         Input format conversion
     """
+
     @staticmethod
     def _get_k_vector(HH, VV, HV):
         k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
@@ -865,10 +974,11 @@ class PolsarDatasetHandler(ABC):
         tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
         T_mat = tf.linalg.matmul(tf_k, tf_k,
                                  adjoint_b=True)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
-        one_channel_T = tf.reshape(T_mat, shape=(T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
+        one_channel_T = tf.reshape(T_mat, shape=(
+        T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
         removed_lower_part_T = _remove_lower_part(one_channel_T)  # hxwx9 to hxwx6 removing lower part of matrix
         filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
-        return reorder(filtered_T).numpy()       # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
+        return reorder(filtered_T).numpy()  # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
 
     def numpy_coh_matrix(self, HH, VV, HV, kernel_shape=3):
         k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
@@ -887,8 +997,8 @@ class PolsarDatasetHandler(ABC):
                 filtered_T[:, :, 0], filtered_T[:, :, 3], filtered_T[:, :, 5],
                 filtered_T[:, :, 1], filtered_T[:, :, 2], filtered_T[:, :, 4]
             ]), axes=[1, 2, 0])
-        return uniform_filter(ordered_filtered_t, mode="constant",          # TODO: use constant mode?
-                              size=(kernel_shape,) * (len(ordered_filtered_t.shape) - 1) + (1, ))
+        return uniform_filter(ordered_filtered_t, mode="constant",  # TODO: use constant mode?
+                              size=(kernel_shape,) * (len(ordered_filtered_t.shape) - 1) + (1,))
 
     @staticmethod
     def remove_outliers(data, iqr=(1, 99)):
@@ -906,7 +1016,7 @@ class PolsarDatasetHandler(ABC):
                   f"current instance has mode {self.mode}"
         diagonal = self.image[:, :, :3].astype(np.float32)
         diagonal[diagonal == 0] = float("nan")
-        diag_db = 10*np.log10(diagonal)
+        diag_db = 10 * np.log10(diagonal)
         noramlized_diag = np.zeros(shape=diag_db.shape)
         noramlized_diag[:, :, 0] = self.normalize_without_outliers(diag_db[:, :, 0])
         noramlized_diag[:, :, 2] = self.normalize_without_outliers(diag_db[:, :, 1])

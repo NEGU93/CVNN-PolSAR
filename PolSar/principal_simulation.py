@@ -153,7 +153,7 @@ def early_stop_type(arg):
 
 
 def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool, coh_kernel_size: int,
-                         normalize: bool = False, classification: bool = False):
+                         classification: bool = False):
     coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
@@ -394,13 +394,12 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
                                            complex_mode=complex_mode, real_mode=real_mode,
-                                           balance=(balance == "dataset"),
-                                           classification=MODEL_META[model_name]['task'] == 'classification')
-    ds_list = dataset_handler.get_dataset(method=dataset_method,
-                                          percentage=percentage,
+                                           balance=(balance == "dataset"))
+    ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           size=MODEL_META[model_name]["size"],
                                           stride=MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
+                                          classification=MODEL_META[model_name]['task'] == 'classification',
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
                                           orientation=DATASET_META[dataset_name]['orientation'],
                                           data_augment=False, remove_last=len(percentage) == 4,
@@ -413,7 +412,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
-    weights = dataset_handler.get_weights()
+    weights = dataset_handler.labels_occurrences
     model = _get_model(model_name=model_name,
                        channels=6 if mode == "t" else 3,
                        weights=weights if balance == "loss" else None,
@@ -431,14 +430,26 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
-    train_x = tf.convert_to_tensor(train_ds[0])
-    eval_result = checkpoint_model.evaluate(train_x, train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
-    predict_result = checkpoint_model.predict(train_x, batch_size=MODEL_META[model_name]['batch_size'])
-    # eval_result = checkpoint_model.evaluate(train_x, train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
+    # train_x = tf.convert_to_tensor(train_ds[0])
+    eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    del checkpoint_model
+    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                  weights=weights if balance == "loss" else None,
+                                                  channels=3 if mode == "s" else 6, dropout=dropout,
+                                                  real_mode=real_mode, tensorflow=tensorflow,
+                                                  num_classes=DATASET_META[dataset_name]["classes"])
+    predict_result = checkpoint_model.predict(train_ds[0], batch_size=MODEL_META[model_name]['batch_size'])
     evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
     train_confusion_matrix = _get_confusion_matrix(predict_result, train_ds[1], DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
     if val_ds:
+        del checkpoint_model
+        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                      weights=weights if balance == "loss" else None,
+                                                      channels=3 if mode == "s" else 6, dropout=dropout,
+                                                      real_mode=real_mode, tensorflow=tensorflow,
+                                                      num_classes=DATASET_META[dataset_name]["classes"])
         val_x = tf.convert_to_tensor(val_ds[0])
         predict_result = checkpoint_model.predict(val_x, batch_size=MODEL_META[model_name]['batch_size'])
         evaluate['val'] = _eval_list_to_dict(
@@ -448,6 +459,12 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         val_confusion_matrix = _get_confusion_matrix(predict_result, val_ds[1], DATASET_META[dataset_name]["classes"])
         val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
     if len(ds_list) >= 3:
+        del checkpoint_model
+        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                      weights=weights if balance == "loss" else None,
+                                                      channels=3 if mode == "s" else 6, dropout=dropout,
+                                                      real_mode=real_mode, tensorflow=tensorflow,
+                                                      num_classes=DATASET_META[dataset_name]["classes"])
         test_ds = ds_list[2]
         test_x = tf.convert_to_tensor(test_ds[0])
         predict_result = checkpoint_model.predict(test_x, batch_size=MODEL_META[model_name]['batch_size'])
@@ -460,8 +477,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
 
 
 def clear_and_open_saved_model(*args, **kwargs):
+    print(f"Clearing {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB of GPU memory usage")
     tf.keras.backend.clear_session()
     gc.collect()
+    print(f"GPU memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB")
     return open_saved_model(*args, **kwargs)
 
 

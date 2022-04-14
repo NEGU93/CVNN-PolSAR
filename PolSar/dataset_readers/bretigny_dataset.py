@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from os import path
 import sys
-
+from pdb import set_trace
 from dataset_reader import PolsarDatasetHandler
 
 sys.path.insert(1, '../')
@@ -23,9 +23,10 @@ else:
 
 class BretignyDataset(PolsarDatasetHandler):
 
-    def __init__(self, mode: str, balanced: bool = False, *args, **kwargs):
-        self.balanced = balanced
-        super(BretignyDataset, self).__init__(root_path=path, name="BRET", mode=mode, *args, **kwargs)
+    def __init__(self, mode: str, balance_dataset: bool = False, *args, **kwargs):
+        super(BretignyDataset, self).__init__(root_path=path, name="BRET", mode=mode, balance_dataset=balance_dataset,
+                                              *args, **kwargs)
+        # self.balance_dataset = balance_dataset        # TODO: Add if balance is removed from base class
 
     def print_ground_truth(self, t=None, *args, **kwargs):
         if t is None:
@@ -45,7 +46,7 @@ class BretignyDataset(PolsarDatasetHandler):
     def get_sparse_labels(self):
         if path is None:
             raise FileNotFoundError("Bretigny dataset path not found")
-        if not self.balanced:
+        if not self.balance_dataset:
             seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI.mat')
         else:
             seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI_balanced.mat')
@@ -78,7 +79,7 @@ class BretignyDataset(PolsarDatasetHandler):
     def _get_bret_s_dataset(self):
         mat = self._open_data()
         s = np.array([mat['HH'], mat['VV'], mat['HV']])
-        s = tf.transpose(s, perm=[1, 2, 0])
+        s = tf.transpose(s, perm=[1, 2, 0])     # TODO: make it with numpy
         return s
 
 
