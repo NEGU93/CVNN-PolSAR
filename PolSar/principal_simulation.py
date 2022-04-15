@@ -60,7 +60,7 @@ DATASET_META = {
 }
 
 MODEL_META = {
-    "cao": {"size": 128, "stride": 25, "pad": 0, "batch_size": 30,
+    "cao": {"size": 128, "stride": 25, "pad": 127, "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},

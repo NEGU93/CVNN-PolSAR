@@ -341,7 +341,7 @@ class PolsarDatasetHandler(ABC):
     @abstractmethod
     def get_sparse_labels(self) -> np.ndarray:
         """
-        Must open the labels in sparse mode (last dimension is a number from 0 to num_classes-1).
+        Must open the labels in sparse mode (last dimension is a number from 0 to num_classes+1).
         :return: Numpy array with the sparse labels
         """
         pass
@@ -492,7 +492,8 @@ class PolsarDatasetHandler(ABC):
         totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
                   range(1, tf.math.reduce_max(classes).numpy() + 1)]
         if normalized:
-            totals = max(totals) / totals
+            # TODO: Did I fucked it here? I think I fixed it now but check loss
+            totals = np.divide(totals, min(totals))
         return totals
 
     """
@@ -546,13 +547,34 @@ class PolsarDatasetHandler(ABC):
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False):
         images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
-        # train_slice_label = _balance_image(train_slice_label)
         for i in range(0, len(labels)):
             images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride, pad=pad,
                                                       classification=classification)
             if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
                 images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
         return images, labels
+
+    @staticmethod
+    def get_sparse_with_nul_label(one_hot_labels):
+        sparse_labels = np.argmax(one_hot_labels, axis=-1) + 1
+        mask = np.all(one_hot_labels[:, :] == one_hot_labels.shape[-1] * [0.], axis=-1)
+        sparse_labels[mask] = 0.
+        return sparse_labels
+
+    def _balance_image(self, labels):
+        result_list = []
+        for label in labels:            # for each train, val, test
+            saved_values = np.full(label.shape[:-1], False)
+            occurrences = self.get_occurrences(label, normalized=False)  # get min class occurrence
+            sparse_labels = self.get_sparse_with_nul_label(label)
+            for cls in range(1, label.shape[-1] + 1):
+                saved_values = np.logical_or(saved_values,
+                                             self._select_random(sparse_labels, value=cls, total=min(occurrences)))
+            label[np.logical_not(saved_values)] = label.shape[-1] * [0.]
+            result_list.append(label)
+            occurrences = self.get_occurrences(label, normalized=False)
+            assert np.all(occurrences == occurrences[0])
+        return result_list
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
                                             azimuth: Optional[str] = None, pad: bool = False):
@@ -672,6 +694,8 @@ class PolsarDatasetHandler(ABC):
                 x_slice.append(self.image[slice_1])
                 y_slice.append(self.labels[slice_1])
                 mask_slice.append(self.sparse_labels[slice_1])
+        if self.balance_dataset:        # TODO: Optimize putting this inside the previous for loop
+            y_slice = self._balance_image(y_slice)
         if savefig:
             slices_names = [
                 'train_ground_truth', 'val_ground_truth', 'test_ground_truth'

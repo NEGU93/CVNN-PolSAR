@@ -80,10 +80,14 @@ def test_bretigny(show_gt=False, show_img=False):
 
 def test_bretigny_balanced():
     dataset_handler = BretignyDataset(mode='s', balance_dataset=True)
-    list_ds = dataset_handler.get_dataset(method="separate", percentage=(0.7, 0.15, 0.15), size=128, stride=25, pad=0,
+    list_ds = dataset_handler.get_dataset(method="separate", percentage=(0.7, 0.15, 0.15), size=128, stride=25, pad=127,
                                           shuffle=True, savefig=None, classification=False)
     occurrences = dataset_handler.get_occurrences(labels=list_ds[0][1], normalized=True)
-    assert np.all(occurrences < 1.5)
+    assert np.all(occurrences < 1.1)
+    occurrences = dataset_handler.get_occurrences(labels=list_ds[1][1], normalized=True)
+    assert np.all(occurrences < 1.1)
+    occurrences = dataset_handler.get_occurrences(labels=list_ds[2][1], normalized=True)
+    assert np.all(occurrences < 1.1)
 
 
 def balanced_test(dataset_handler, percentage):
