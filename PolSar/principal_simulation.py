@@ -49,14 +49,14 @@ DROPOUT_DEFAULT = {
 }
 
 DATASET_META = {
-    "SF-AIRSAR": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    # "SF-ALOS2": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    # "SF-GF3": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    # "SF-RISAT": {"classes": 6, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    # "SF-RS2": {"classes": 5, "orientation": "vertical", "percentage": (0.8, 0.2)},
-    "OBER": {"classes": 3, "orientation": "vertical", "percentage": (0.85, 0.15)},
-    "FLEVOLAND": {"classes": 15, "orientation": "horizontal", "percentage": (0.8, 0.1, 0.1)},
-    "BRET": {"classes": 4, "orientation": "horizontal", "percentage": (0.7, 0.15, 0.15)}
+    "SF-AIRSAR": {"classes": 5, "azimuth": "vertical", "percentage": (0.8, 0.2)},
+    # "SF-ALOS2": {"classes": 6, "azimuth": "vertical", "percentage": (0.8, 0.2)},
+    # "SF-GF3": {"classes": 6, "azimuth": "vertical", "percentage": (0.8, 0.2)},
+    # "SF-RISAT": {"classes": 6, "azimuth": "vertical", "percentage": (0.8, 0.2)},
+    # "SF-RS2": {"classes": 5, "azimuth": "vertical", "percentage": (0.8, 0.2)},
+    "OBER": {"classes": 3, "azimuth": "vertical", "percentage": (0.85, 0.15)},
+    "FLEVOLAND": {"classes": 15, "azimuth": "horizontal", "percentage": (0.8, 0.1, 0.1)},
+    "BRET": {"classes": 4, "azimuth": "horizontal", "percentage": (0.7, 0.15, 0.15)}
 }
 
 MODEL_META = {
@@ -152,27 +152,22 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, complex_mode, real_mode, balance: bool = False,
-                         coh_kernel_size: int = 1):
+def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_kernel_size: int = 1):
     coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
-                                              complex_mode=complex_mode, real_mode=real_mode,
                                               coh_kernel_size=coh_kernel_size)
     elif dataset_name == "BRET":
-        dataset_handler = BretignyDataset(mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                          balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = BretignyDataset(mode=mode, balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
-        dataset_handler = OberpfaffenhofenDataset(complex_mode=complex_mode, real_mode=real_mode,
-                                                  balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = OberpfaffenhofenDataset(balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "FLEVOLAND":
         if mode != "t":
             raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
-        dataset_handler = FlevolandDataset(complex_mode=complex_mode, real_mode=real_mode,
-                                           balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = FlevolandDataset(balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler
@@ -252,9 +247,9 @@ def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, ch
 
 
 def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
-    full_image = dataset_handler.get_image()
-    seg = dataset_handler.get_labels()
-    if not dataset_handler.complex_mode:
+    full_image = dataset_handler.image
+    seg = dataset_handler.labels
+    if not model.input.dtype.is_complex:
         full_image, seg = transform_to_real_map_function(full_image, seg)
     # I pad to make sure dimensions are Ok when downsampling and upsampling again.
     first_dim_pad = int(2 ** 5 * np.ceil(full_image.shape[0] / 2 ** 5)) - full_image.shape[0]
@@ -265,7 +260,7 @@ def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
         [0, 0]
     ]
     if use_mask:
-        mask = dataset_handler.get_sparse_labels()
+        mask = dataset_handler.sparse_labels
         mask = tf.pad(mask, paddings[:-1])
     else:
         mask = None
@@ -273,7 +268,6 @@ def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
     seg = tf.pad(seg, paddings)
     full_image = tf.expand_dims(full_image, axis=0)  # add batch axis
     seg = tf.expand_dims(seg, axis=0)
-
     prediction = model.predict(full_image)[0]
     if os.path.isfile(str(root_path / 'evaluate.csv')):
         evaluate = _eval_list_to_dict(model.evaluate(full_image, seg), model.metrics_names)
@@ -282,6 +276,8 @@ def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
+    # dataset_handler.print_ground_truth(label=prediction, transparent_image=False, mask=mask,
+    #                                    path=str(root_path / "prediction"))
     labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
 
 
@@ -390,15 +386,15 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     dataset_name = dataset_name.upper()
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
-                                           complex_mode=complex_mode, real_mode=real_mode,
                                            balance=(balance == "dataset"))
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
+                                          complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
                                           stride=MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           classification=MODEL_META[model_name]['task'] == 'classification',
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
-                                          orientation=DATASET_META[dataset_name]['orientation'],
+                                          azimuth=DATASET_META[dataset_name]['azimuth'],
                                           data_augment=False, remove_last=len(percentage) == 4,
                                           batch_size=MODEL_META[model_name]['batch_size'], use_tf_dataset=False
                                           )
@@ -430,6 +426,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
     # train_x = tf.convert_to_tensor(train_ds[0])
     eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
     del checkpoint_model
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
                                                   weights=weights if balance == "loss" else None,
@@ -437,7 +434,6 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
     predict_result = checkpoint_model.predict(train_ds[0], batch_size=MODEL_META[model_name]['batch_size'])
-    evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
     train_confusion_matrix = _get_confusion_matrix(predict_result, train_ds[1], DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
     if val_ds:

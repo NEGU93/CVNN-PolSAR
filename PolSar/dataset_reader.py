@@ -273,15 +273,12 @@ def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
 
 class PolsarDatasetHandler(ABC):
 
-    def __init__(self, root_path: str, name: str, mode: str, complex_mode: bool = True, real_mode: str = 'real_imag',
-                 balance_dataset: bool = False, coh_kernel_size: int = 1):
+    def __init__(self, root_path: str, name: str, mode: str, balance_dataset: bool = False, coh_kernel_size: int = 1):
         """
 
         :param root_path:
         :param name:
         :param mode:
-        :param complex_mode:
-        :param real_mode:
         :param balance_dataset: If classification, it will have a balanced dataset classes on the training set
             - For Bretigny it will load the balanced labels also so that even for segmentation it is balanced.
         :param coh_kernel_size:
@@ -291,14 +288,12 @@ class PolsarDatasetHandler(ABC):
         self.coh_kernel_size = coh_kernel_size
         assert mode.lower() in {"s", "t", "k"}
         self.mode = mode.lower()
-        self.real_mode = real_mode.lower()
-        self.complex_mode = complex_mode  # TODO: Best practice to leave it outside
-        self.balance_dataset = balance_dataset
+        self.balance_dataset = balance_dataset      # This needs to be here because of Bretigny who has diff labels
         self._image = None
         self._sparse_labels = None
         self._labels = None
         self._labels_occurrences = None
-        self.orientation = None     # TODO: Child can define it wil "horizontal" or "vertical"
+        self.azimuth = None     # TODO: Child can define it wil "horizontal" or "vertical"
 
     @property
     def image(self):
@@ -321,7 +316,7 @@ class PolsarDatasetHandler(ABC):
     @property
     def labels_occurrences(self):
         if self._labels_occurrences is None:
-            self._labels_occurrences = self._get_occurrences(self.labels)
+            self._labels_occurrences = self.get_occurrences(self.labels, normalized=True)
         return self._labels_occurrences
 
     """
@@ -357,8 +352,9 @@ class PolsarDatasetHandler(ABC):
 
     def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float] = 0.2,
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
-                    savefig: Optional[str] = None, orientation: Optional[str] = None, data_augment: bool = False,
+                    savefig: Optional[str] = None, azimuth: Optional[str] = None, data_augment: bool = False,
                     remove_last: bool = False, classification: bool = False,
+                    complex_mode: bool = True, real_mode: str = "real_imag",
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         """
         Get the dataset in the desired form
@@ -376,7 +372,7 @@ class PolsarDatasetHandler(ABC):
         :param pad: Pad image before swo or just add padding to output for method == 'single_separated_image'
         :param savefig: Used only if method='single_separated_image'.
             - It shaves len(percentage) images with the cropped generated images.
-        :param orientation: Cut the image 'horizontally' or 'vertically' when split (using percentage param for sizes).
+        :param azimuth: Cut the image 'horizontally' or 'vertically' when split (using percentage param for sizes).
             Ignored if method == 'random'
         :param data_augment: Only used if use_tf_dataset = True. It performs data aumentation using flip.
         :param remove_last:
@@ -384,44 +380,50 @@ class PolsarDatasetHandler(ABC):
             Example, for a train dataset of shape (None, 128, 128, 3):
                 classification = True: labels will be of shape (None, classes)
                 classification = False: labels will be of shape (None, 128, 128, classes)
+        :param complex_mode: (default = True). Whether to return the data in complex dtype or float.
+        :param real_mode: If complex_mode = False, this param is used to specify the float format. One of:
+            - real_imag: Stack real and imaginary part
+            - amplitude_phase: stack amplitude and phase
+            - amplitude_only: output only the amplitude
+            - real_only: output only the real part
         :param batch_size: Used only if use_tf_dataset = True. Fixes the batch size of the tf.Dataset
         :param use_tf_dataset: If True, return dtype will be a tf.Tensor dataset instead of numpy array.
         :return: Returns a list of [train, (validation), (test), (k-folds)] according to percentage parameter.
             - Each list[i] is a tuple of (data, labels) where both data and labels are numpy arrays.
         """
-        if orientation is None:
-            orientation = self.orientation
-            if orientation is None and method != "random":
-                raise ValueError(f"This instance does not have an orientation defined. "
-                                 f"Please select it using the orientation parameter")
+        if azimuth is None:
+            azimuth = self.azimuth
+            if azimuth is None and method != "random":
+                raise ValueError(f"This instance does not have an azimuth defined. "
+                                 f"Please select it using the azimuth parameter")
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
                                                               shuffle=shuffle, remove_last=remove_last,
                                                               classification=classification)
         elif method == "separate":
             x_patches, y_patches = self._get_separated_dataset(percentage=percentage, size=size, stride=stride, pad=pad,
-                                                               savefig=savefig, orientation=orientation,
+                                                               savefig=savefig, azimuth=azimuth,
                                                                shuffle=shuffle,
                                                                classification=classification)
         elif method == "single_separated_image":
             assert not classification, f"Can't apply classification to the full image."
             x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
-                                                                            orientation=orientation, pad=True)
+                                                                            azimuth=azimuth, pad=True)
         else:
             raise ValueError(f"Unknown dataset method {method}")
         if use_tf_dataset:
-            ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size,
+            ds_list = [self._transform_to_tensor(x, y, batch_size=batch_size, complex_mode=complex_mode,
                                                  data_augment=data_augment if i == 0 else False, shuffle=shuffle)
                        for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         else:
-            if self.complex_mode:
+            if complex_mode:
                 ds_list = [(x, y) for i, (x, y) in enumerate(zip(x_patches, y_patches))]
             else:
-                ds_list = [transform_to_real_with_numpy(x, y, self.real_mode)
+                ds_list = [transform_to_real_with_numpy(x, y, real_mode)
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return tuple(ds_list)
 
-    def print_ground_truth(self, label: Optional = None, path=None, transparent_image: Union[bool, float] = False,
+    def print_ground_truth(self, label: Optional = None, path: Optional[str] = None, transparent_image: Union[bool, float] = False,
                            mask: Optional[Union[bool, np.ndarray]] = None, ax=None, showfig: bool = False):
         """
         Saves or shows the labels rgb map.
@@ -442,7 +444,8 @@ class PolsarDatasetHandler(ABC):
             label = self.labels
             mask = True     # In this case, just mask the missing labels.
         if isinstance(mask, bool) and mask:
-            mask = self.get_sparse_labels()
+            mask = self.sparse_labels       # TODO: I can force padding here.
+        # TODO: I can force padding here.
         t = self.print_image_png(savefile=False, showfig=False) if transparent_image else None
         alpha = 0.8
         if isinstance(transparent_image, float):
@@ -472,6 +475,25 @@ class PolsarDatasetHandler(ABC):
                 path = Path(savefile)
             plt.imsave(path / img_name, np.clip(rgb_image, a_min=0., a_max=1.))
         return rgb_image
+
+    def get_occurrences(self, labels: Optional = None, normalized=True):  # TODO: Make this with numpy
+        """
+        Get the occurrences of each label
+        :param labels: (Optional) if None it will return the occurrences of self labels.
+        :param normalized: Normalized the output, for example, [20, 10] will be transformed to [2, 1]
+            - This is used to obtain the weights of a penalized loss.
+        :return: a list label-wise occurrences
+        """
+        if labels is None:
+            labels = self.labels
+        classes = tf.argmax(labels, axis=-1)
+        mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
+        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
+        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
+                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
+        if normalized:
+            totals = max(totals) / totals
+        return totals
 
     """
         GETTERS
@@ -522,8 +544,8 @@ class PolsarDatasetHandler(ABC):
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                               savefig: Optional[str] = None, orientation: str = "vertical", classification=False):
-        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
+                               savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False):
+        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         # train_slice_label = _balance_image(train_slice_label)
         for i in range(0, len(labels)):
             images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride, pad=pad,
@@ -533,12 +555,8 @@ class PolsarDatasetHandler(ABC):
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
-                                            orientation: Optional[str] = None, pad: bool = False):
-        if orientation is None:
-            orientation = self.orientation
-            if orientation is None:
-                raise ValueError("orientation was not defined.")
-        x, y = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
+                                            azimuth: Optional[str] = None, pad: bool = False):
+        x, y = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         for i in range(0, len(y)):
             if pad:
                 x[i], y[i] = self._pad_image(x[i], y[i])
@@ -613,40 +631,32 @@ class PolsarDatasetHandler(ABC):
         return (data - low) / (high - low)
 
     # Methods with Tensorflow
-    @staticmethod
-    def _pad_image(image, labels):
-        first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
-        second_dim_pad = int(2 ** 5 * np.ceil(image.shape[1] / 2 ** 5)) - image.shape[1]
-        paddings = [
-            [int(np.ceil(first_dim_pad / 2)), int(np.floor(first_dim_pad / 2))],
-            [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
-            [0, 0]
-        ]
-        image = np.pad(image, paddings)
-        labels = np.pad(labels, paddings)
-        return image, labels
-
-    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False, shuffle=True):
+    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False, shuffle=True,
+                             complex_mode: bool = True, real_mode: str = "real_imag"):
         ds = tf.data.Dataset.from_tensor_slices((x, y))
         if shuffle:
             ds = ds.shuffle(buffer_size=BUFFER_SIZE)
         ds = ds.batch(batch_size)
         if data_augment:
             ds = ds.map(flip)
-        if not self.complex_mode:
-            ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, self.real_mode))
+        if not complex_mode:
+            ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, real_mode))
         return ds
 
     # MISC
-    def _slice_dataset(self, percentage: tuple, orientation: str, savefig: Optional[str]):
-        orientation = orientation.lower()
+    def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str]):
+        if azimuth is None:
+            azimuth = self.azimuth
+        if azimuth is None:
+            raise ValueError("Azimuth direction was not defined.")
+        azimuth = azimuth.lower()
         percentage = self._parse_percentage(percentage)
-        if orientation == "horizontal":
+        if azimuth == "horizontal":
             total_length = self.image.shape[1]
-        elif orientation == "vertical":
+        elif azimuth == "vertical":
             total_length = self.image.shape[0]
         else:
-            raise ValueError(f"Orientation {orientation} unknown.")
+            raise ValueError(f"Azimuth {azimuth} unknown.")
         th = 0
         x_slice = []
         y_slice = []
@@ -654,7 +664,7 @@ class PolsarDatasetHandler(ABC):
         for per in percentage:
             slice_1 = slice(th, th + int(total_length * per))
             th += int(total_length * per)
-            if orientation == "horizontal":
+            if azimuth == "horizontal":
                 x_slice.append(self.image[:, slice_1])
                 y_slice.append(self.labels[:, slice_1])
                 mask_slice.append(self.sparse_labels[:, slice_1])
@@ -672,14 +682,32 @@ class PolsarDatasetHandler(ABC):
         return x_slice, y_slice
 
     @staticmethod
+    def _pad_image(image, labels):
+        first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
+        second_dim_pad = int(2 ** 5 * np.ceil(image.shape[1] / 2 ** 5)) - image.shape[1]
+        paddings = [
+            [int(np.ceil(first_dim_pad / 2)), int(np.floor(first_dim_pad / 2))],
+            [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
+            [0, 0]
+        ]
+        image = np.pad(image, paddings)
+        labels = np.pad(labels, paddings)
+        return image, labels
+
+    @staticmethod
     def balanced_test_split(x_all, y_all, test_size, shuffle):
         x_train_per_class, x_test_per_class, y_train_per_class, y_test_per_class = [], [], [], []
         sparse_y = np.argmax(y_all, axis=-1)
         for cls in range(y_all.shape[-1]):
+            expected_size = int((1 - test_size) * y_all.shape[0] / y_all.shape[-1])
+            min_size = x_all[sparse_y == cls].shape[0]-1
+            train_size = min(min_size, expected_size)
+            if train_size == min_size:
+                print(f"Warning: All samples ({train_size}) but one used for class {cls}. "
+                      f"It was expected to have at least {expected_size} samples."
+                      f"Try using a lower train percentage.")
             x_train, x_test, y_train, y_test = train_test_split(x_all[sparse_y == cls], y_all[sparse_y == cls],
-                                                                train_size=int(
-                                                                    (1 - test_size) * y_all.shape[0] / y_all.shape[-1]),
-                                                                shuffle=shuffle)
+                                                                train_size=train_size, shuffle=shuffle)
             x_train_per_class.append(x_train)
             x_test_per_class.append(x_test)
             y_train_per_class.append(y_train)
@@ -943,15 +971,6 @@ class PolsarDatasetHandler(ABC):
                 selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
             indx += 1
         return selection_mask.astype(bool)
-
-    @staticmethod
-    def _get_occurrences(labels):       # TODO: Make this with numpy
-        classes = tf.argmax(labels, axis=-1)
-        mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
-        classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
-        totals = [tf.math.reduce_sum((classes == cls).numpy().astype(int)).numpy() for cls in
-                  range(1, tf.math.reduce_max(classes).numpy() + 1)]
-        return max(totals) / totals
 
     """
         PUBLIC

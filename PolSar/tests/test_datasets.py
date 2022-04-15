@@ -57,26 +57,55 @@ def handler_to_test(dataset_handler, show_gt=False, show_img=False):
 def test_sf(show_gt=False, show_img=False):
     dataset_handler = SanFranciscoDataset(mode='s', dataset_name="SF-AIRSAR")
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
+    balanced_test(dataset_handler, percentage=(0.05, 0.02))
 
 
 def test_flev(show_gt=False, show_img=False):
     dataset_handler = FlevolandDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
+    balanced_test(dataset_handler, percentage=(0.02, 0.01))
 
 
 def test_ober(show_gt=False, show_img=False):
     dataset_handler = OberpfaffenhofenDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
+    balanced_test(dataset_handler, percentage=(0.08, 0.02))
 
 
 def test_bretigny(show_gt=False, show_img=False):
     dataset_handler = BretignyDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
+    balanced_test(dataset_handler, percentage=(0.08, 0.02))
+
+
+def test_bretigny_balanced():
+    dataset_handler = BretignyDataset(mode='s', balance_dataset=True)
+    list_ds = dataset_handler.get_dataset(method="separate", percentage=(0.7, 0.15, 0.15), size=128, stride=25, pad=0,
+                                          shuffle=True, savefig=None, classification=False)
+    occurrences = dataset_handler.get_occurrences(labels=list_ds[0][1], normalized=True)
+    assert np.all(occurrences < 1.5)
+
+
+def balanced_test(dataset_handler, percentage):
+    # This method fails if I have the warning that the min samples was not met.
+    dataset_handler.balance_dataset = True
+    list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, size=6, stride=1, pad=0,
+                                          shuffle=True, savefig=None, classification=True)
+    train_sparse = np.argmax(list_ds[0][1], axis=-1)
+    train_count = np.bincount(train_sparse)
+    assert np.all(train_count == train_count[0])
+    val_sparse = np.argmax(list_ds[1][1], axis=-1)
+    val_count = np.bincount(val_sparse)
+    assert np.all(val_count == val_count[0])
+    total = sum([list_ds[i][1].shape[0] for i in range(3)])
+    for i, p in enumerate(percentage):
+        assert np.isclose(p, list_ds[i][1].shape[0] / total, rtol=0.1)
 
 
 if __name__ == "__main__":
-    test_flev(False, False)
-    test_sf(show_gt=False, show_img=False)
-    test_bretigny()
-    test_ober()
-    test_coh_matrix_generator()
+    test_bretigny_balanced()
+    # test_sf(show_gt=False, show_img=False)
+    # test_flev(False, False)
+    # test_bretigny()
+    # test_ober()
+    # test_coh_matrix_generator()

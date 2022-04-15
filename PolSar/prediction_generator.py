@@ -12,8 +12,8 @@ from results_reader import ResultReader
 
 
 def bretigny_mask():
-    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/04April/12Tuesday/run-13h49m26")
-    dataset_handler = BretignyDataset(mode="t", complex_mode=False, classification=False)
+    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/04April/15Friday/run-13h58m10")
+    dataset_handler = BretignyDataset(mode="t", balance_dataset=True)
     get_final_model_results(path, dataset_handler=dataset_handler, model_name="cao",
                             tensorflow=True, complex_mode=False,
                             channels=6, dropout=DROPOUT_DEFAULT, use_mask=True)

@@ -36,7 +36,7 @@ class SanFranciscoDataset(PolsarDatasetHandler):
         assert dataset_name in AVAILABLE_IMAGES, f"Unknown data {dataset_name}."
         super(SanFranciscoDataset, self).__init__(root_path=str(Path(root_path) / dataset_name),
                                                   name=dataset_name, mode=mode, *args, **kwargs)
-        self.orientation = "vertical"
+        self.azimuth = "vertical"
 
     def get_sparse_labels(self):
         if root_path is None:

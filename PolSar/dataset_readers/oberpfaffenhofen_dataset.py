@@ -41,7 +41,7 @@ class OberpfaffenhofenDataset(PolsarDatasetHandler):
             print("WARNING: Flevoland dataset must be coherency matrix. mode parameter will be ignored")
         super(OberpfaffenhofenDataset, self).__init__(root_path=os.path.dirname(labels_path),
                                                       name="OBER", mode="t", *args, **kwargs)
-        self.orientation = "vertical"
+        self.azimuth = "vertical"
 
     def get_image(self):
         return self.open_t_dataset_t3(t_path)

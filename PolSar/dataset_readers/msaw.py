@@ -20,12 +20,6 @@ class MSAWDataset(PolsarDatasetHandler):
         super(MSAWDataset, self).__init__(root_path=os.path.dirname(labels_path),
                                           name="MSAW", mode="t", *args, **kwargs)
 
-    def print_ground_truth(self, t=None, *args, **kwargs):
-        if t is None:
-            t = self.get_image()
-        super(MSAWDataset, self).print_ground_truth(t=t, path=Path(os.path.dirname(labels_path)) / "ground_truth.png",
-                                                    *args, **kwargs)
-
     def open_tif(self, path):
         try:
             im = cv2.imread(str(path))
