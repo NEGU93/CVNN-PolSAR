@@ -26,12 +26,7 @@ class BretignyDataset(PolsarDatasetHandler):
     def __init__(self, mode: str, balance_dataset: bool = False, *args, **kwargs):
         super(BretignyDataset, self).__init__(root_path=path, name="BRET", mode=mode, balance_dataset=balance_dataset,
                                               *args, **kwargs)
-        # self.balance_dataset = balance_dataset        # TODO: Add if balance is removed from base class
-
-    def print_ground_truth(self, t=None, *args, **kwargs):
-        if t is None:
-            t = self.get_image() if self.mode == "t" else None
-        super(BretignyDataset, self).print_ground_truth(t=t, *args, **kwargs)
+        self.orientation = "horizontal"
 
     def get_image(self) -> np.ndarray:
         if self.mode == "s":
@@ -79,7 +74,7 @@ class BretignyDataset(PolsarDatasetHandler):
     def _get_bret_s_dataset(self):
         mat = self._open_data()
         s = np.array([mat['HH'], mat['VV'], mat['HV']])
-        s = tf.transpose(s, perm=[1, 2, 0])     # TODO: make it with numpy
+        s = np.transpose(s, axes=[1, 2, 0])
         return s
 
 

@@ -36,11 +36,12 @@ else:
 
 class OberpfaffenhofenDataset(PolsarDatasetHandler):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, mode='t', *args, **kwargs):
+        if mode != 't':
+            print("WARNING: Flevoland dataset must be coherency matrix. mode parameter will be ignored")
         super(OberpfaffenhofenDataset, self).__init__(root_path=os.path.dirname(labels_path),
                                                       name="OBER", mode="t", *args, **kwargs)
-        if self.coh_kernel_size > 1:
-            print(f"WARNING: Ignoring parameter coh_kernel_size = {self.coh_kernel_size}")
+        self.orientation = "vertical"
 
     def get_image(self):
         return self.open_t_dataset_t3(t_path)

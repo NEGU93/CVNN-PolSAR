@@ -54,6 +54,7 @@ class GaronDataset(PolsarDatasetHandler):
         assert image_number < len(available_images) + 1
         super(GaronDataset, self).__init__(root_path=dataset_path, name="GARON", mode=mode,
                                            *args, **kwargs)
+        self.orientation = "horizontal"
 
     def get_image(self, image_number: Optional[int] = None) -> np.ndarray:
         if image_number is None:

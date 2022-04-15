@@ -157,32 +157,6 @@ def flip(data, labels):
     return data, labels
 
 
-def mean_filter(input, filter_size=3):
-    """
-    Performs mean filter on an image with a filter of size (filter_size, filter_size)
-    :param input: Image of shape (Height, Width, Channels)
-    :param filter_size:
-    :return:
-    """
-    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start 9xhxw
-    filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype)
-    filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
-                                        filters=filter, padding="SAME")
-    filtered_T_imag = tf.nn.convolution(input=tf.expand_dims(tf.math.imag(input_transposed), axis=-1),
-                                        filters=filter, padding="SAME")
-    filtered_T = tf.complex(filtered_T_real, filtered_T_imag)
-    my_filter_result = tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
-    my_filter_result = my_filter_result / (filter_size * filter_size)
-    # This method would be better but it has problems with tf 2.4.1 (used on conda-develop)
-    # tf_mean_real = tfa.image.mean_filter2d(tf.math.real(input), filter_shape=filter_size, padding="CONSTANT")
-    # tf_mean_imag = tfa.image.mean_filter2d(tf.math.imag(input), filter_shape=filter_size, padding="CONSTANT")
-    # tf_mean = tf.complex(tf_mean_real, tf_mean_imag)
-    # assert np.allclose(tf_mean, my_filter_result)
-    if filter_size == 1:
-        assert np.all(my_filter_result == input), "mean filter of size 1 changed the input matrix"
-    return my_filter_result
-
-
 def _remove_lower_part(coh):
     mask = np.array(
         [True, True, True,
@@ -202,15 +176,17 @@ def sparse_to_categorical_1D(labels) -> np.ndarray:
     return ground_truth
 
 
-def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None, path=None, mask=None, ax=None):
-    labels_rgb = labels_to_rgb(labels, colors=COLORS[dataset_name], mask=mask)
+def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None, path=None, mask=None, ax=None,
+                       showfig: bool = False, alpha=.8):
+    colors = None
+    if dataset_name in COLORS.keys():
+        colors = COLORS[dataset_name]
+    labels_rgb = labels_to_rgb(labels, colors=colors, mask=mask)
     fig = None
     if ax is None:
         fig, ax = plt.subplots()
-    alpha = 1.
     # set_trace()
     if t is not None:
-        alpha = 0.8
         rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
         ax.imshow(rgb)
     ax.imshow(labels_rgb, alpha=alpha)
@@ -219,10 +195,11 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
         if len(path.split(".")) < 2:
             path = path + ".png"
         fig.savefig(path)
-    else:
+    if showfig:
         plt.show()
     if fig is not None:
         plt.close(fig)
+    return labels_rgb
 
 
 def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=None, mask=None, format: str = '.png') \
@@ -321,6 +298,7 @@ class PolsarDatasetHandler(ABC):
         self._sparse_labels = None
         self._labels = None
         self._labels_occurrences = None
+        self.orientation = None     # TODO: Child can define it wil "horizontal" or "vertical"
 
     @property
     def image(self):
@@ -377,9 +355,9 @@ class PolsarDatasetHandler(ABC):
         PUBLIC API
     """
 
-    def get_dataset(self, method: str, percentage: Union[Tuple[float], float] = 0.2,
+    def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float] = 0.2,
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
-                    savefig: Optional[str] = None, orientation: str = "vertical", data_augment: bool = False,
+                    savefig: Optional[str] = None, orientation: Optional[str] = None, data_augment: bool = False,
                     remove_last: bool = False, classification: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         """
@@ -406,11 +384,16 @@ class PolsarDatasetHandler(ABC):
             Example, for a train dataset of shape (None, 128, 128, 3):
                 classification = True: labels will be of shape (None, classes)
                 classification = False: labels will be of shape (None, 128, 128, classes)
-        :param batch_size:
+        :param batch_size: Used only if use_tf_dataset = True. Fixes the batch size of the tf.Dataset
         :param use_tf_dataset: If True, return dtype will be a tf.Tensor dataset instead of numpy array.
         :return: Returns a list of [train, (validation), (test), (k-folds)] according to percentage parameter.
             - Each list[i] is a tuple of (data, labels) where both data and labels are numpy arrays.
         """
+        if orientation is None:
+            orientation = self.orientation
+            if orientation is None and method != "random":
+                raise ValueError(f"This instance does not have an orientation defined. "
+                                 f"Please select it using the orientation parameter")
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
                                                               shuffle=shuffle, remove_last=remove_last,
@@ -438,34 +421,57 @@ class PolsarDatasetHandler(ABC):
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return tuple(ds_list)
 
-    def print_ground_truth(self, label: Optional = None, path=None, t=None,
-                           mask: Optional[Union[bool, np.ndarray]] = None, ax=None):
+    def print_ground_truth(self, label: Optional = None, path=None, transparent_image: Union[bool, float] = False,
+                           mask: Optional[Union[bool, np.ndarray]] = None, ax=None, showfig: bool = False):
         """
         Saves or shows the labels rgb map.
         :param label: Labels to be printed as RGB map. If None it will use the dataset labels.
         :param path: Path where to save the image
-        :param t:  TODO: Fix this
+        :param transparent_image: One of:
+            - If True it will also print the rgb image to superpose with the labels.
+            - float: alpha value for the plotted image (if True it will use default)
         :param mask: (Optional) One of
             - Boolean array with the same shape as label. False values will be printed as black.
             - If True: It will use self label to remove non labeled pixels from images
+            - Ignored if label is None
         :param ax: (Optional) axis where to plot the new image, used for overlapping figures.
-        :return: None
+        :param showfig: Show figure
+        :return: np array of the rgb ground truth image
         """
         if label is None:
             label = self.labels
+            mask = True     # In this case, just mask the missing labels.
         if isinstance(mask, bool) and mask:
             mask = self.get_sparse_labels()
-        return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t if self.mode == "t" else None,
-                                  path=path, ax=ax)
+        t = self.print_image_png(savefile=False, showfig=False) if transparent_image else None
+        alpha = 0.8
+        if isinstance(transparent_image, float):
+            alpha = transparent_image
+        return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t, path=path, ax=ax, showfig=showfig,
+                                  alpha=alpha)
 
-    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: str = "PauliRGB.png"):
+    def print_image_png(self, savefile: Union[bool, str] = False, showfig: bool = False,
+                        img_name: str = "PauliRGB.png"):
+        """
+        Generates the RGB image
+        :param savefile: Where to save the image or not.
+            - Bool: If True it will save the image at self.root_path
+            - str: path where to save the image
+        :param showfig: Show image
+        :param img_name: Name of the generated image
+        :return: Rge rgb image as numpy
+        """
         coh_matrix = self.get_coherency_matrix(kernel_shape=1)
         rgb_image = self._coh_to_rgb(coh_matrix=coh_matrix)
         if showfig:
             plt.imshow(rgb_image)
             plt.show()
         if savefile:
-            plt.imsave(self.root_path / img_name, np.clip(rgb_image, a_min=0., a_max=1.))
+            path = self.root_path
+            if isinstance(savefile, str):
+                path = Path(savefile)
+            plt.imsave(path / img_name, np.clip(rgb_image, a_min=0., a_max=1.))
+        return rgb_image
 
     """
         GETTERS
@@ -527,7 +533,11 @@ class PolsarDatasetHandler(ABC):
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
-                                            orientation: str = "vertical", pad: bool = False):
+                                            orientation: Optional[str] = None, pad: bool = False):
+        if orientation is None:
+            orientation = self.orientation
+            if orientation is None:
+                raise ValueError("orientation was not defined.")
         x, y = self._slice_dataset(percentage=percentage, savefig=savefig, orientation=orientation)
         for i in range(0, len(y)):
             if pad:
@@ -590,7 +600,7 @@ class PolsarDatasetHandler(ABC):
         noramlized_diag[:, :, 0] = self.normalize_without_outliers(diag_db[:, :, 0])
         noramlized_diag[:, :, 2] = self.normalize_without_outliers(diag_db[:, :, 1])
         noramlized_diag[:, :, 1] = self.normalize_without_outliers(diag_db[:, :, 2])
-        return noramlized_diag
+        return np.nan_to_num(noramlized_diag)
 
     @staticmethod
     def remove_outliers(data, iqr=(1, 99)):
@@ -612,8 +622,8 @@ class PolsarDatasetHandler(ABC):
             [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
             [0, 0]
         ]
-        image = tf.pad(image, paddings)  # TODO: Do it with other than tf?
-        labels = tf.pad(labels, paddings)
+        image = np.pad(image, paddings)
+        labels = np.pad(labels, paddings)
         return image, labels
 
     def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False, shuffle=True):
@@ -716,7 +726,7 @@ class PolsarDatasetHandler(ABC):
         y = np.reshape(y[:, y.shape[1] // 2, y.shape[2] // 2, :], newshape=(y.shape[0], y.shape[-1]))
         # assert [np.all(y_patches_class[i][:] == y_patches[i][0][0][:]) for i in range(len(y_patches_class))]
         # 2. Remove empty pixels
-        if remove_unlabeled:  # TODO: Remove this?
+        if remove_unlabeled:  # TODO: Remove this? Is obvious that I want to remove unlabeled.
             mask = np.invert(np.all(y == 0, axis=-1))
             x = x[mask]
             y = y[mask]
@@ -879,25 +889,7 @@ class PolsarDatasetHandler(ABC):
     @staticmethod
     def _get_k_vector(HH, VV, HV):
         k = np.array([HH + VV, HH - VV, 2 * HV]) / np.sqrt(2)
-        # tf.transpose(k, perm=[1, 2, 0], conjugate=False)
         return np.transpose(k, axes=[1, 2, 0])
-
-    def _get_coherency_matrix(self, HH, VV, HV, kernel_shape=3):
-        # Section 2: https://earth.esa.int/documents/653194/656796/LN_Advanced_Concepts.pdf
-        print("WARNING: _get_coherency_matrix is deprected. Use numpy_coh_matrix instead.")
-        k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
-        tf_k = tf.expand_dims(k, axis=-1)  # From shape hxwx3 to hxwx3x1
-        T_mat = tf.linalg.matmul(tf_k, tf_k,
-                                 adjoint_b=True)  # k * k^H: inner 2 dimensions specify valid matrix multiplication dim
-        one_channel_T = tf.reshape(T_mat, shape=(
-            T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
-        removed_lower_part_T = _remove_lower_part(one_channel_T)  # hxwx9 to hxwx6 removing lower part of matrix
-        filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
-        reorder = tf.transpose(np.array([
-            filtered_T[:, :, 0], filtered_T[:, :, 3], filtered_T[:, :, 5],
-            filtered_T[:, :, 1], filtered_T[:, :, 2], filtered_T[:, :, 4]
-        ]), perm=[1, 2, 0])
-        return reorder.numpy()
 
     def numpy_coh_matrix(self, HH, VV, HV, kernel_shape=3):
         k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
@@ -953,7 +945,7 @@ class PolsarDatasetHandler(ABC):
         return selection_mask.astype(bool)
 
     @staticmethod
-    def _get_occurrences(labels):
+    def _get_occurrences(labels):       # TODO: Make this with numpy
         classes = tf.argmax(labels, axis=-1)
         mask = np.all((labels == tf.zeros(shape=labels.shape[-1])), axis=-1)
         classes = tf.where(mask, classes, classes + 1)  # Increment classes, now 0 = no label
