@@ -142,6 +142,8 @@ DEFAULT_PLOTLY_COLORS = np.divide(DEFAULT_PLOTLY_COLORS, 255.0).astype(np.float3
 
 SUPPORTED_MODES = {"s", "t", "k"}
 
+
+# Tensorflow Methods
 def flip(data, labels):
     """
     Flip augmentation
@@ -150,9 +152,45 @@ def flip(data, labels):
     :return: Augmented image
     """
     data = tf.image.random_flip_left_right(data)
-    # data = tf.image.random_flip_up_down(data)
+    # data = tf.image.random_flip_up_down(data)     # TODO: Select the contrary axis
 
     return data, labels
+
+
+def mean_filter(input, filter_size=3):
+    """
+    Performs mean filter on an image with a filter of size (filter_size, filter_size)
+    :param input: Image of shape (Height, Width, Channels)
+    :param filter_size:
+    :return:
+    """
+    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start 9xhxw
+    filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype)
+    filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
+                                        filters=filter, padding="SAME")
+    filtered_T_imag = tf.nn.convolution(input=tf.expand_dims(tf.math.imag(input_transposed), axis=-1),
+                                        filters=filter, padding="SAME")
+    filtered_T = tf.complex(filtered_T_real, filtered_T_imag)
+    my_filter_result = tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
+    my_filter_result = my_filter_result / (filter_size * filter_size)
+    # This method would be better but it has problems with tf 2.4.1 (used on conda-develop)
+    # tf_mean_real = tfa.image.mean_filter2d(tf.math.real(input), filter_shape=filter_size, padding="CONSTANT")
+    # tf_mean_imag = tfa.image.mean_filter2d(tf.math.imag(input), filter_shape=filter_size, padding="CONSTANT")
+    # tf_mean = tf.complex(tf_mean_real, tf_mean_imag)
+    # assert np.allclose(tf_mean, my_filter_result)
+    if filter_size == 1:
+        assert np.all(my_filter_result == input), "mean filter of size 1 changed the input matrix"
+    return my_filter_result
+
+
+def _remove_lower_part(coh):
+    mask = np.array(
+        [True, True, True,
+         False, True, True,
+         False, False, True]
+    )
+    masked_coh = tf.boolean_mask(coh, mask, axis=2)
+    return masked_coh
 
 
 def sparse_to_categorical_1D(labels) -> np.ndarray:
@@ -238,48 +276,6 @@ def labels_to_rgb(labels, showfig=False, savefig: Optional[str] = None, colors=N
         else:
             plt.imsave(savefig + format, ground_truth)
     return ground_truth
-
-
-def mean_filter(input, filter_size=3):
-    """
-    Performs mean filter on an image with a filter of size (filter_size, filter_size)
-    :param input: Image of shape (Height, Width, Channels)
-    :param filter_size:
-    :return:
-    """
-    input_transposed = tf.transpose(input, perm=[2, 0, 1])  # Get channels to the start 9xhxw
-    filter = tf.ones(shape=(filter_size, filter_size, 1, 1), dtype=input.dtype.real_dtype)
-    filtered_T_real = tf.nn.convolution(input=tf.expand_dims(tf.math.real(input_transposed), axis=-1),
-                                        filters=filter, padding="SAME")
-    filtered_T_imag = tf.nn.convolution(input=tf.expand_dims(tf.math.imag(input_transposed), axis=-1),
-                                        filters=filter, padding="SAME")
-    filtered_T = tf.complex(filtered_T_real, filtered_T_imag)
-    my_filter_result = tf.transpose(tf.squeeze(filtered_T), perm=[1, 2, 0])  # Get channels to the end again
-    my_filter_result = my_filter_result / (filter_size * filter_size)
-    # This method would be better but it has problems with tf 2.4.1 (used on conda-develop)
-    # tf_mean_real = tfa.image.mean_filter2d(tf.math.real(input), filter_shape=filter_size, padding="CONSTANT")
-    # tf_mean_imag = tfa.image.mean_filter2d(tf.math.imag(input), filter_shape=filter_size, padding="CONSTANT")
-    # tf_mean = tf.complex(tf_mean_real, tf_mean_imag)
-    # assert np.allclose(tf_mean, my_filter_result)
-    if filter_size == 1:
-        assert np.all(my_filter_result == input), "mean filter of size 1 changed the input matrix"
-    return my_filter_result
-
-
-def _remove_lower_part(coh):
-    mask = np.array(
-        [True, True, True,
-         False, True, True,
-         False, False, True]
-    )
-    masked_coh = tf.boolean_mask(coh, mask, axis=2)
-    return masked_coh
-
-
-def reorder(matrix):
-    return tf.transpose(np.array([
-        matrix[:, :, 0], matrix[:, :, 3], matrix[:, :, 5], matrix[:, :, 1], matrix[:, :, 2], matrix[:, :, 4]
-    ]), perm=[1, 2, 0])
 
 
 def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
@@ -488,16 +484,13 @@ class PolsarDatasetHandler(ABC):
     def get_coherency_matrix(self, kernel_shape=3):
         if self.mode == 't':
             return self.image
-        else:
-            if self.mode == 's':
-                k_vector = self._get_k_vector(HH=self.image[:, :, 0], VV=self.image[:, :, 2], HV=self.image[:, :, 1])
-            elif self.mode == 'k':
-                raise NotImplementedError("Sorry, I still have not implemented the method to get the coh matrix from"
-                                          " the pauli vector")
-            else:
-                raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
-            return self.numpy_coh_matrix(HH=k_vector[:, :, 0], VV=k_vector[:, :, 1], HV=k_vector[:, :, 2],
+        elif self.mode == 'k':
+            return self._numpy_coh_from_k(self.image, kernel_shape=kernel_shape)
+        elif self.mode == 's':
+            return self.numpy_coh_matrix(HH=self.image[:, :, 0], VV=self.image[:, :, 2], HV=self.image[:, :, 1],
                                          kernel_shape=kernel_shape)
+        else:
+            raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
 
     """
         PRIVATE
@@ -507,14 +500,14 @@ class PolsarDatasetHandler(ABC):
     def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
                               percentage: Union[Tuple[float], float] = (0.8, 0.2),
                               shuffle: bool = True, pad="same", remove_last: bool = False,
-                              classification: bool = False) -> (tf.data.Dataset, tf.data.Dataset):
+                              classification: bool = False) -> (np.ndarray, np.ndarray):
         """
         Applies the sliding window operations getting smaller images of a big image T.
         Splits dataset into train and test.
         :param size: Size of the window to be used on the sliding window operation.
         :param stride:
         :param percentage: float. Percentage of examples to be used for the test set [0, 1]
-        :return: a Tuple of tf.Datasets (train_dataset, test_dataset)
+        :return: a Tuple of np.array (train_dataset, test_dataset)
         """
         patches, label_patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad,
                                                                  classification=classification)
@@ -609,7 +602,7 @@ class PolsarDatasetHandler(ABC):
         low, high = self.remove_outliers(data)
         return (data - low) / (high - low)
 
-    # MISC
+    # Methods with Tensorflow
     @staticmethod
     def _pad_image(image, labels):
         first_dim_pad = int(2 ** 5 * np.ceil(image.shape[0] / 2 ** 5)) - image.shape[0]
@@ -619,10 +612,22 @@ class PolsarDatasetHandler(ABC):
             [int(np.ceil(second_dim_pad / 2)), int(np.floor(second_dim_pad / 2))],
             [0, 0]
         ]
-        image = tf.pad(image, paddings)
+        image = tf.pad(image, paddings)  # TODO: Do it with other than tf?
         labels = tf.pad(labels, paddings)
         return image, labels
 
+    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False, shuffle=True):
+        ds = tf.data.Dataset.from_tensor_slices((x, y))
+        if shuffle:
+            ds = ds.shuffle(buffer_size=BUFFER_SIZE)
+        ds = ds.batch(batch_size)
+        if data_augment:
+            ds = ds.map(flip)
+        if not self.complex_mode:
+            ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, self.real_mode))
+        return ds
+
+    # MISC
     def _slice_dataset(self, percentage: tuple, orientation: str, savefig: Optional[str]):
         orientation = orientation.lower()
         percentage = self._parse_percentage(percentage)
@@ -652,19 +657,9 @@ class PolsarDatasetHandler(ABC):
                 'train_ground_truth', 'val_ground_truth', 'test_ground_truth'
             ]
             for i, y in enumerate(y_slice):
-                self.print_ground_truth(label=y, t=x_slice[i], mask=mask_slice[i], path=str(savefig) + slices_names[i])
+                self.print_ground_truth(label=y, t=x_slice[i], mask=mask_slice[i],
+                                        path=str(savefig) + slices_names[i])
         return x_slice, y_slice
-
-    def _transform_to_tensor(self, x, y, batch_size: int, data_augment: bool = False, shuffle=True):
-        ds = tf.data.Dataset.from_tensor_slices((x, y))
-        if shuffle:
-            ds = ds.shuffle(buffer_size=BUFFER_SIZE)
-        ds = ds.batch(batch_size)
-        if data_augment:
-            ds = ds.map(flip)
-        if not self.complex_mode:
-            ds = ds.map(lambda img, labels: transform_to_real_map_function(img, labels, self.real_mode))
-        return ds
 
     @staticmethod
     def balanced_test_split(x_all, y_all, test_size, shuffle):
@@ -714,10 +709,6 @@ class PolsarDatasetHandler(ABC):
         if not remove_last:
             x.append(x_test)
             y.append(y_test)
-        # print(f"memory before removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
-        # x[0], y[0] = self._remove_empty_image(data=x[0], labels=y[0])
-        # print(f"memory after removing empty images usage {tf.config.experimental.get_memory_usage('GPU:0')} Bytes")
-        # set_trace()
         return x, y
 
     @staticmethod
@@ -739,20 +730,8 @@ class PolsarDatasetHandler(ABC):
             mask = np.invert(np.all(labels == 0, axis=-1))
         else:
             raise ValueError(f"Ups, shape of labels of size {len(labels.shape)} not supported.")
-        # masked_filtered_data = tf.reshape(tf.boolean_mask(data, mask), shape=(-1,) + data.shape[1:])
         masked_filtered_data = np.reshape(data[mask], newshape=(-1,) + data.shape[1:])
         masked_filtered_labels = labels[mask]
-        # filtered_data = []
-        # filtered_labels = []
-        # for i in range(0, len(labels)):
-        #     if not np.all(labels[i] == 0):
-        #         filtered_data.append(data[i])
-        #         filtered_labels.append(labels[i])
-        # filtered_data = np.array(filtered_data)
-        # filtered_labels = np.array(filtered_labels)
-        # assert np.all(masked_filtered_data.numpy() == filtered_data)
-        # assert np.all(masked_filtered_labels.numpy() == filtered_labels)
-        # set_trace()
         return masked_filtered_data, masked_filtered_labels
 
     @staticmethod
@@ -914,10 +893,18 @@ class PolsarDatasetHandler(ABC):
             T_mat.shape[0], T_mat.shape[1], T_mat.shape[2] * T_mat.shape[3]))  # hxwx3x3 to hxwx9
         removed_lower_part_T = _remove_lower_part(one_channel_T)  # hxwx9 to hxwx6 removing lower part of matrix
         filtered_T = mean_filter(removed_lower_part_T, kernel_shape)
-        return reorder(filtered_T).numpy()  # tf.transpose(filtered_T, perm=[0, 3, 5, 1, 2, 4])
+        reorder = tf.transpose(np.array([
+            filtered_T[:, :, 0], filtered_T[:, :, 3], filtered_T[:, :, 5],
+            filtered_T[:, :, 1], filtered_T[:, :, 2], filtered_T[:, :, 4]
+        ]), perm=[1, 2, 0])
+        return reorder.numpy()
 
     def numpy_coh_matrix(self, HH, VV, HV, kernel_shape=3):
         k = self._get_k_vector(HH=HH, VV=VV, HV=HV)
+        return self._numpy_coh_from_k(k, kernel_shape=kernel_shape)
+
+    @staticmethod
+    def _numpy_coh_from_k(k, kernel_shape=3):
         np_k = np.expand_dims(k, axis=-1)
         t_mat = np.matmul(np_k, np.transpose(np.conjugate(np_k), axes=[0, 1, 3, 2]))
         one_channel_T = np.reshape(t_mat, newshape=(t_mat.shape[0], t_mat.shape[1], t_mat.shape[2] * t_mat.shape[3]))
@@ -948,7 +935,7 @@ class PolsarDatasetHandler(ABC):
         :return:
         """
         assert len(img.shape) == 2
-        flatten_img = np.reshape(img, tf.math.reduce_prod(img.shape).numpy())
+        flatten_img = np.reshape(img, np.prod(img.shape))
         random_indx = np.random.permutation(len(flatten_img))
         mixed_img = flatten_img[random_indx]
         selection_mask = np.zeros(shape=img.shape)
