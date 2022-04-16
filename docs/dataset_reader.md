@@ -7,17 +7,16 @@ To use this mudule you must inherit implement two methods:
 - `get_image`: Must open the image. It must be:
     - numpy array
     - Data type `np.complex`
-    - Shape (Width, Height, channels), with `channels = 3` if `self.mode = 'k'` or `'s'`
-        and `channels = 6` if `self.mode = 't'`.
+    - Shape (Width, Height, channels), with `channels = 3` if `self.mode = 'k'` or `'s'` and `channels = 6` if `self.mode = 't'`.
         S format: (s_11, s_12, s_22) or equivalently (HH, HV, VV)
         T format:
     :return: `np.ndarray` The opened numpy image.
 
-- get_sparse_labels: Must open the labels in sparse mode (last dimension is a number from 0 to `num_classes`).
+- `get_sparse_labels`: Must open the labels in sparse mode (last dimension is a number from 0 to `num_classes`).
     ATTENTION: Class 0 is considered as an unlabeled pixel.
     :return: Numpy array with the sparse labels
 
-**Attention**: An internal variable ``self.azimuth` is advised to be defined in the constructor to tell the class the azimuth direction.
+**ATTENTION**: An internal variable ``self.azimuth` is advised to be defined in the constructor to tell the class the azimuth direction.
 
 ### Example
 
@@ -53,10 +52,10 @@ class MyDatasetReader(PolsarDatasetHandler):
 
 ## Attributes
 
-- image: 3D complex data 
-- labels: One-hot-encoded labels
-- sparse_labels: Sparse labels
-- labels_occurrences: List of len equal to the number of classes of ratio frequency of each class.
+- `image`: 3D complex data 
+- `labels`: One-hot-encoded labels
+- `sparse_labels`: Sparse labels
+- `labels_occurrences`: List of len equal to the number of classes of ratio frequency of each class.
 
 ## Methods
 
