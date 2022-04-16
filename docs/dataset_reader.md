@@ -14,7 +14,7 @@ To use this mudule you must inherit implement two methods:
     :return: `np.ndarray` The opened numpy image.
 
 - get_sparse_labels: Must open the labels in sparse mode (last dimension is a number from 0 to `num_classes`).
-    ATTENTION: Class 0 is considered as an unlabeled pixel.
+    *ATTENTION*: Class 0 is considered as an unlabeled pixel.
     :return: Numpy array with the sparse labels
 
 Attention: An internal variable ``self.azimuth` is advised to be defined in the constructor to tell the class the azimuth direction.
