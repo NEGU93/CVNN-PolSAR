@@ -60,7 +60,8 @@ class MyDatasetReader(PolsarDatasetHandler):
 
 ## Methods
 
-- `get_dataset()`: Get the dataset and labels in the desired form
+```
+get_dataset(): Get the dataset and labels in the desired form
     :param method: One of
         - 'random': Sample patch images randomly using sliding window operation (swo).
         - 'separate': Splits the image according to `percentage` parameter. Then gets patches using swo.
@@ -93,8 +94,9 @@ class MyDatasetReader(PolsarDatasetHandler):
     :param use_tf_dataset: If `True`, return dtype will be a `tf.Tensor` dataset instead of numpy array.
     :return: Returns a list of `[train, (validation), (test), (k-folds)]` according to percentage parameter.
         - Each `list[i]` is a tuple of `(data, labels)` where both data and labels are numpy arrays.
-
-- `print_ground_truth`: Saves or shows the labels rgb map.
+```
+```
+print_ground_truth: Saves or shows the labels rgb map.
     :param label: Labels to be printed as RGB map. If None it will use the dataset labels.
     :param path: Path where to save the image
     :param transparent_image: One of:
@@ -107,14 +109,22 @@ class MyDatasetReader(PolsarDatasetHandler):
     :param ax: (Optional) axis where to plot the new image, used for overlapping figures.
     :param showfig: Show figure
     :return: np array of the rgb ground truth image
-
-- `print_image_png` Generates the RGB image
+```
+```
+print_image_png: Generates the RGB image
     :param savefile: Where to save the image or not.
         - Bool: If True it will save the image at self.root_path
         - str: path where to save the image
     :param showfig: Show image
     :param img_name: Name of the generated image
     :return: Rge rgb image as numpy
-
+```
+```
+get_occurrences: Get the occurrences of each label
+    :param labels: (Optional) if `None` it will return the occurrences of self labels.
+    :param normalized: Normalized the output, for example, [20, 10] will be transformed to [2, 1]
+        - This is used to obtain the weights of a penalized loss.
+    :return: a list label-wise occurrences
+```
 
 
