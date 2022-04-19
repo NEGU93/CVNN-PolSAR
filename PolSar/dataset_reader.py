@@ -279,8 +279,12 @@ class PolsarDatasetHandler(ABC):
         :param root_path:
         :param name:
         :param mode:
-        :param balance_dataset: If classification, it will have a balanced dataset classes on the training set
+        :param balance_dataset:
+            - If classification, it will have a balanced dataset classes on the training set
             - For Bretigny it will load the balanced labels also so that even for segmentation it is balanced.
+            - In get_dataset if method is not 'random' it will balance each slice labels
+                (Note that according to the stride and padding there still be a little difference between classes).
+            - Has no effect if method is 'random'
         :param coh_kernel_size:
         """
         self.root_path = Path(str(root_path))
@@ -361,7 +365,7 @@ class PolsarDatasetHandler(ABC):
         PUBLIC API
     """
 
-    def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float] = 0.2,
+    def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float],
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
                     savefig: Optional[str] = None, azimuth: Optional[str] = None, data_augment: bool = False,
                     remove_last: bool = False, classification: bool = False,
@@ -434,7 +438,8 @@ class PolsarDatasetHandler(ABC):
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         return tuple(ds_list)
 
-    def print_ground_truth(self, label: Optional = None, path: Optional[str] = None, transparent_image: Union[bool, float] = False,
+    def print_ground_truth(self, label: Optional = None, path: Optional[str] = None,
+                           transparent_image: Union[bool, float] = False,
                            mask: Optional[Union[bool, np.ndarray]] = None, ax=None, showfig: bool = False):
         """
         Saves or shows the labels rgb map.
@@ -510,6 +515,20 @@ class PolsarDatasetHandler(ABC):
     """
         GETTERS
     """
+
+    def get_scattering_vector(self):
+        if self.mode == 's':
+            return self.image
+        elif self.mode == 'k':
+            s = np.zeros(shape=self.image.shape, dtype=complex)
+            s[:, :, 0] = (self.image[:, :, 0] + self.image[:, :, 1]) / np.sqrt(2)
+            s[:, :, 1] = (self.image[:, :, 0] - self.image[:, :, 1]) / np.sqrt(2)
+            s[:, :, 2] = self.image[:, :, 2] / np.sqrt(2)
+            return s
+        elif self.mode == 't':
+            raise NotImplementedError("It is not possible to obtain the scattering vector from the coherency matrix")
+        else:
+            raise ValueError(f"Mode {self.mode} not supported. Supported modes: {SUPPORTED_MODES}")
 
     def get_pauli_vector(self):
         if self.mode == 'k':
@@ -615,7 +634,7 @@ class PolsarDatasetHandler(ABC):
             assert all(p >= 0. for p in percentage), "percentage elements can't be negative"
             assert sum(percentage) <= 1., f"percentage must add to 1 max, " \
                                           f"but it adds to sum({percentage}) = {sum(percentage)}"
-            if sum(percentage) < 1:
+            if sum(percentage) < 1 and not np.isclose(sum(percentage), 1):
                 percentage = percentage + [1 - sum(percentage)]
         return percentage
 

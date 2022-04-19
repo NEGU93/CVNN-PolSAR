@@ -88,6 +88,15 @@ def test_bretigny_balanced():
     assert np.all(occurrences < 1.1)
     occurrences = dataset_handler.get_occurrences(labels=list_ds[2][1], normalized=True)
     assert np.all(occurrences < 1.1)
+    list_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=(0.7, 0.15, 0.15),
+                                          size=128, stride=25, pad=127,
+                                          shuffle=True, savefig=None, classification=False)
+    occurrences = dataset_handler.get_occurrences(labels=list_ds[0][1], normalized=True)
+    assert np.all(occurrences < 1.1)
+    occurrences = dataset_handler.get_occurrences(labels=list_ds[1][1], normalized=True)
+    assert np.all(occurrences < 1.1)
+    occurrences = dataset_handler.get_occurrences(labels=list_ds[2][1], normalized=True)
+    assert np.all(occurrences < 1.1)
 
 
 def balanced_test(dataset_handler, percentage):
@@ -108,16 +117,29 @@ def balanced_test(dataset_handler, percentage):
 
 def test_bret_mode_change():
     dataset_handler = BretignyDataset(mode='t')
+    try:
+        dataset_handler.get_scattering_vector()
+        raise Exception("Exception not catched")
+    except NotImplementedError as e:
+        pass    # This exception should be caught.
     assert dataset_handler.image.shape[-1] == 6
     dataset_handler.mode = 's'
     assert dataset_handler.image.shape[-1] == 3
 
 
+def test_scattering_vector():
+    dataset_handler = BretignyDataset(mode='k')
+    k_image = dataset_handler.get_scattering_vector()
+    dataset_handler.mode = 's'
+    assert np.allclose(k_image, dataset_handler.image)
+
+
 if __name__ == "__main__":
+    test_scattering_vector()
     test_bretigny_balanced()
     test_bret_mode_change()
-    # test_sf(show_gt=False, show_img=False)
-    # test_flev(False, False)
-    # test_bretigny()
-    # test_ober()
-    # test_coh_matrix_generator()
+    test_sf(show_gt=False, show_img=False)
+    test_flev(False, False)
+    test_bretigny()
+    test_ober()
+    test_coh_matrix_generator()

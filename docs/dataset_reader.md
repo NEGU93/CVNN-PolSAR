@@ -16,7 +16,7 @@ To use this mudule you must inherit implement two methods:
     ATTENTION: Class 0 is considered as an unlabeled pixel.
     :return: Numpy array with the sparse labels
 
-**ATTENTION**: An internal variable ``self.azimuth` is advised to be defined in the constructor to tell the class the azimuth direction.
+**ATTENTION**: An internal variable `self.azimuth` is advised to be defined in the constructor to tell the class the azimuth direction.
 
 ### Example
 
