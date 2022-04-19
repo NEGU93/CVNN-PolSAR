@@ -516,6 +516,18 @@ class PolsarDatasetHandler(ABC):
         GETTERS
     """
 
+    def get_real_image(self, mode: str = "real_imag"):
+        """
+        Returns the real_valued image
+        :param mode: How to concat the real image output:
+            - 'real_image': real and imaginary part
+            - 'amplitude_phase': amplitude and phase
+            - 'amplitude_only': only the amplitude
+            - 'real_only': only the real part
+        :return:
+        """
+        return transform_to_real_with_numpy(self.image, None, mode=mode)[0]
+
     def get_scattering_vector(self):
         if self.mode == 's':
             return self.image
