@@ -106,8 +106,16 @@ def balanced_test(dataset_handler, percentage):
         assert np.isclose(p, list_ds[i][1].shape[0] / total, rtol=0.1)
 
 
+def test_bret_mode_change():
+    dataset_handler = BretignyDataset(mode='t')
+    assert dataset_handler.image.shape[-1] == 6
+    dataset_handler.mode = 's'
+    assert dataset_handler.image.shape[-1] == 3
+
+
 if __name__ == "__main__":
     test_bretigny_balanced()
+    test_bret_mode_change()
     # test_sf(show_gt=False, show_img=False)
     # test_flev(False, False)
     # test_bretigny()

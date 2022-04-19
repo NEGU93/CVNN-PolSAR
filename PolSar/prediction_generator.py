@@ -12,7 +12,7 @@ from results_reader import ResultReader
 
 
 def bretigny_mask():
-    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/04April/15Friday/run-13h58m10")
+    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/04April/15Friday/run-17h49m33")
     dataset_handler = BretignyDataset(mode="t", balance_dataset=True)
     get_final_model_results(path, dataset_handler=dataset_handler, model_name="cao",
                             tensorflow=True, complex_mode=False,

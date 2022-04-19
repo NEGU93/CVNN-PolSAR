@@ -287,7 +287,7 @@ class PolsarDatasetHandler(ABC):
         self.name = name
         self.coh_kernel_size = coh_kernel_size
         assert mode.lower() in {"s", "t", "k"}
-        self.mode = mode.lower()
+        self._mode = mode.lower()
         self.balance_dataset = balance_dataset      # This needs to be here because of Bretigny who has diff labels
         self._image = None
         self._sparse_labels = None
@@ -318,6 +318,17 @@ class PolsarDatasetHandler(ABC):
         if self._labels_occurrences is None:
             self._labels_occurrences = self.get_occurrences(self.labels, normalized=True)
         return self._labels_occurrences
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, mode):
+        if self._mode != mode:
+            self._mode = mode.lower()
+            if self._image is not None:
+                self._image = self.get_image()      # Reload image
 
     """
         METHODS TO BE IMPLEMENTED
