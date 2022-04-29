@@ -386,7 +386,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
             if dataset_name != "GARON":
                 percentage = MODEL_META[model_name]["percentage"]
             else:
-                percentage = (0.04, 0.01, 0.01)
+                percentage = (0.04, 0.01, 0.005)
         else:
             percentage = DATASET_META[dataset_name]["percentage"]
     # Dataset
@@ -412,7 +412,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
-    weights = dataset_handler.labels_occurrences if balance == "loss" else None
+    weights = None
+    if balance == "loss":
+        if dataset_name == "GARON":
+            weights = [0.8, 0.1, 0.05, 0.05]
+        else:
+            weights = dataset_handler.labels_occurrences
+    # weights = dataset_handler.labels_occurrences if balance == "loss" else None
     model = _get_model(model_name=model_name,
                        channels=6 if mode == "t" else 3,
                        weights=weights,

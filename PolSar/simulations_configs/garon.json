@@ -12,5 +12,21 @@
         "tensorflow": true,
         "real_mode": true,
         "coherency": false
+    },
+    {
+        "model": "cao",
+        "epochs": 100,
+        "dataset": "GARON",
+        "balance": "loss",
+        "coherency": false
+    },
+    {
+        "model": "cao",
+        "epochs": 100,
+        "dataset": "GARON",
+        "balance": "loss",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false
     }
 ]

@@ -519,7 +519,8 @@ class PolsarDatasetHandler(ABC):
                   range(1, tf.math.reduce_max(classes).numpy() + 1)]
         if normalized:
             # TODO: Did I fucked it here? I think I fixed it now but check loss
-            totals = np.divide(totals, min(totals))
+            # totals = np.divide(totals, min(totals))
+            totals = np.divide(totals, np.sum(totals))
         return totals
 
     """
