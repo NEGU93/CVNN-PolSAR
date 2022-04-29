@@ -51,9 +51,5 @@ class OberpfaffenhofenDataset(PolsarDatasetHandler):
 
 
 if __name__ == "__main__":
-    print("First Test")
-    OberpfaffenhofenDataset().get_dataset(method="random", size=128, stride=25, pad="same")
-    print("First one done")
-    OberpfaffenhofenDataset(classification=True).get_dataset(method="random", size=12, stride=1, pad="same")
-    print("Second one done")
-    OberpfaffenhofenDataset(classification=True).get_dataset(method="random", size=1, stride=1, pad="same")
+    OberpfaffenhofenDataset().print_ground_truth(transparent_image=False,
+                                                 path="/media/barrachina/data/datasets/PolSar/Oberpfaffenhofen/ground_truth_1")

@@ -7,6 +7,7 @@ from dataset_readers.sf_data_reader import SanFranciscoDataset
 from dataset_readers.flevoland_data_reader import FlevolandDataset
 from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from dataset_readers.bretigny_dataset import BretignyDataset
+from dataset_readers.garon_dataset import GaronDataset
 from pdb import set_trace
 from cvnn.utils import create_folder
 
@@ -57,25 +58,25 @@ def handler_to_test(dataset_handler, show_gt=False, show_img=False):
 def test_sf(show_gt=False, show_img=False):
     dataset_handler = SanFranciscoDataset(mode='s', dataset_name="SF-AIRSAR")
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.05, 0.02))
+    balanced_test(dataset_handler, percentage=(0.05, 0.02, 0.93))
 
 
 def test_flev(show_gt=False, show_img=False):
     dataset_handler = FlevolandDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.02, 0.01))
+    balanced_test(dataset_handler, percentage=(0.02, 0.01, 0.97))
 
 
 def test_ober(show_gt=False, show_img=False):
     dataset_handler = OberpfaffenhofenDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.08, 0.02))
+    balanced_test(dataset_handler, percentage=(0.08, 0.02, 0.9))
 
 
 def test_bretigny(show_gt=False, show_img=False):
     dataset_handler = BretignyDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.08, 0.02))
+    balanced_test(dataset_handler, percentage=(0.08, 0.02, 0.9))
 
 
 def test_bretigny_balanced():
@@ -110,9 +111,20 @@ def balanced_test(dataset_handler, percentage):
     val_sparse = np.argmax(list_ds[1][1], axis=-1)
     val_count = np.bincount(val_sparse)
     assert np.all(val_count == val_count[0])
-    total = sum([list_ds[i][1].shape[0] for i in range(3)])
+    total = sum([list_ds[i][1].shape[0] for i in range(len(percentage))])
     for i, p in enumerate(percentage):
         assert np.isclose(p, list_ds[i][1].shape[0] / total, rtol=0.1)
+
+
+def garon_balance_test(percentage):
+    dataset_handler = GaronDataset(mode='s', image_number=1)
+    dataset_handler.balance_dataset = True
+    list_ds = dataset_handler.get_dataset(method="random", percentage=percentage,
+                                          shuffle=True, classification=False)
+    train_sparse = dataset_handler.get_sparse_with_nul_label(list_ds[0][1])
+    train_count = np.bincount(train_sparse.flatten())
+    # Without balance: [146797528, 146035849,  17430912,  11363788,  10410067]
+    set_trace()
 
 
 def test_bret_mode_change():
@@ -135,6 +147,7 @@ def test_scattering_vector():
 
 
 if __name__ == "__main__":
+    # garon_balance_test(percentage=(0.08, 0.02))
     test_scattering_vector()
     test_bretigny_balanced()
     test_bret_mode_change()

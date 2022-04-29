@@ -46,6 +46,13 @@ BRET_COLORS = np.array([
     [0.937, 0.917, 0.352],  # Yellow; Open Area
 ])
 
+GARON_COLORS = np.array([
+    [0.937, 0.917, 0.352],  # Yellow; Open Area
+    [0.086, 0.858, 0.576],  # Green; Forest
+    [1, 0.349, 0.392],  # Red; Built-up Area
+    [0, 0.486, 0.745],  # Blue; Piste
+])
+
 SF_COLORS = {
     "SF-ALOS2": [
         [132, 112, 255],
@@ -127,6 +134,7 @@ FLEVOLAND_14 = np.divide(FLEVOLAND_14, 255.0).astype(np.float32)
 
 COLORS = {"BRET": BRET_COLORS, "OBER": OBER_COLORS,
           "FLEVOLAND": FLEVOLAND_15, "FLEVOLAND_14": FLEVOLAND_14,
+          "GARON": GARON_COLORS,
           **SF_COLORS}
 
 DEFAULT_PLOTLY_COLORS = [
@@ -184,7 +192,7 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
     labels_rgb = labels_to_rgb(labels, colors=colors, mask=mask)
     fig = None
     if ax is None:
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=labels_rgb.shape[:2])
     # set_trace()
     if t is not None:
         rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
@@ -194,9 +202,11 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
         path = str(path)
         if len(path.split(".")) < 2:
             path = path + ".png"
-        fig.savefig(path)
+        # ax.imsave(path)
+        ax.axis('off')
+        fig.savefig(path, bbox_inches='tight', pad_inches=0, dpi=1)
     if showfig:
-        plt.show()
+        plt.show(dpi=1)
     if fig is not None:
         plt.close(fig)
     return labels_rgb
@@ -381,7 +391,7 @@ class PolsarDatasetHandler(ABC):
             If sum(percentage) != 1 it will add an extra value to force sum(percentage) = 1.
             If sum(percentage) > 1 or it has at least one negative value it will raise an exception.
             Example, for 60% train, 20% validation and 20% test set, use percentage = (.6, .2, .2) or (.6, .2).
-        :param size: Size of generated patches images. By default it will generate images of 128x128.
+        :param size: Size of generated patches images. By default, it will generate images of 128x128.
         :param stride: Stride used for the swo. If stride < size, parches will have coincident pixels.
         :param shuffle: Shuffle image patches (ignored if method == 'single_separated_image')
         :param pad: Pad image before swo or just add padding to output for method == 'single_separated_image'
@@ -389,7 +399,7 @@ class PolsarDatasetHandler(ABC):
             - It shaves len(percentage) images with the cropped generated images.
         :param azimuth: Cut the image 'horizontally' or 'vertically' when split (using percentage param for sizes).
             Ignored if method == 'random'
-        :param data_augment: Only used if use_tf_dataset = True. It performs data aumentation using flip.
+        :param data_augment: Only used if use_tf_dataset = True. It performs data augmentation using flip.
         :param remove_last:
         :param classification: If true, it will have only one value per image path.
             Example, for a train dataset of shape (None, 128, 128, 3):
@@ -446,7 +456,7 @@ class PolsarDatasetHandler(ABC):
         :param label: Labels to be printed as RGB map. If None it will use the dataset labels.
         :param path: Path where to save the image
         :param transparent_image: One of:
-            - If True it will also print the rgb image to superpose with the labels.
+            - If True it will also print the rgb image to superposed with the labels.
             - float: alpha value for the plotted image (if True it will use default)
         :param mask: (Optional) One of
             - Boolean array with the same shape as label. False values will be printed as black.
@@ -567,42 +577,6 @@ class PolsarDatasetHandler(ABC):
         PRIVATE
     """
 
-    # 3 get dataset main methods
-    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
-                              percentage: Union[Tuple[float], float] = (0.8, 0.2),
-                              shuffle: bool = True, pad="same", remove_last: bool = False,
-                              classification: bool = False) -> (np.ndarray, np.ndarray):
-        """
-        Applies the sliding window operations getting smaller images of a big image T.
-        Splits dataset into train and test.
-        :param size: Size of the window to be used on the sliding window operation.
-        :param stride:
-        :param percentage: float. Percentage of examples to be used for the test set [0, 1]
-        :return: a Tuple of np.array (train_dataset, test_dataset)
-        """
-        patches, label_patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad,
-                                                                 classification=classification)
-        x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
-                                      percentage=percentage, shuffle=shuffle, remove_last=remove_last)
-        return x, y
-
-    def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
-                               savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False):
-        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
-        for i in range(0, len(labels)):
-            images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride, pad=pad,
-                                                      classification=classification)
-            if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
-                images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
-        return images, labels
-
-    @staticmethod
-    def get_sparse_with_nul_label(one_hot_labels):
-        sparse_labels = np.argmax(one_hot_labels, axis=-1) + 1
-        mask = np.all(one_hot_labels[:, :] == one_hot_labels.shape[-1] * [0.], axis=-1)
-        sparse_labels[mask] = 0.
-        return sparse_labels
-
     def _balance_image(self, labels):
         result_list = []
         for label in labels:            # for each train, val, test
@@ -618,6 +592,35 @@ class PolsarDatasetHandler(ABC):
             assert np.all(occurrences == occurrences[0])
         return result_list
 
+    # 3 get dataset main methods
+    def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
+                              percentage: Union[Tuple[float], float] = (0.8, 0.2),
+                              shuffle: bool = True, pad="same", remove_last: bool = False,
+                              classification: bool = False) -> (np.ndarray, np.ndarray):
+        """
+        Applies the sliding window operations getting smaller images of a big image T.
+        Splits dataset into train and test.
+        :param size: Size of the window to be used on the sliding window operation.
+        :param stride:
+        :param percentage: float. Percentage of examples to be used for the test set [0, 1]
+        :return: a Tuple of np.array (train_dataset, test_dataset)
+        """
+        patches, label_patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad,
+                                                                 classification=classification, remove_unlabeled=False)
+        x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
+                                      percentage=percentage, shuffle=shuffle)
+        return x, y
+
+    def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True, pad=0,
+                               savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False):
+        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
+        for i in range(0, len(labels)):
+            images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride, pad=pad,
+                                                      classification=classification, cast_to_numpy=True)
+            if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
+                images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
+        return images, labels
+
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
                                             azimuth: Optional[str] = None, pad: bool = False):
         x, y = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
@@ -628,6 +631,24 @@ class PolsarDatasetHandler(ABC):
             y[i] = np.expand_dims(y[i], axis=0)
         return x, y
 
+    # sparse <-> categorical (one-hot-encoded)
+    @staticmethod
+    def get_sparse_with_nul_label(one_hot_labels):
+        sparse_labels = np.argmax(one_hot_labels, axis=-1) + 1
+        mask = np.all(one_hot_labels[:, :] == one_hot_labels.shape[-1] * [0.], axis=-1)
+        sparse_labels[mask] = 0.
+        return sparse_labels
+
+    @staticmethod
+    def sparse_to_categorical_2D(labels) -> np.ndarray:
+        classes = np.max(labels)
+        ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
+        for i in range(labels.shape[0]):
+            for j in range(labels.shape[1]):
+                if labels[i, j] != 0:
+                    ground_truth[i, j, labels[i, j] - 1] = 1.
+        return ground_truth
+
     # Parser/check input
     @staticmethod
     def _parse_percentage(percentage) -> List[float]:
@@ -635,19 +656,15 @@ class PolsarDatasetHandler(ABC):
             assert percentage == 1
             percentage = (1.,)
         if isinstance(percentage, float):
-            if percentage == 1.:
+            if 0 < percentage <= 1:
                 percentage = (percentage,)
-            if 0 < percentage < 1:
-                percentage = (percentage, 1 - percentage)
             else:
-                raise ValueError(f"Percentage must be 0 < percentage < 1, received {percentage}")
+                raise ValueError(f"Percentage must be 0 < percentage <= 1, received {percentage}")
         else:
             percentage = list(percentage)
-            assert all(p >= 0. for p in percentage), "percentage elements can't be negative"
+            assert all(p >= 0. for p in percentage), f"percentage elements can't be negative. Received {percentage}."
             assert sum(percentage) <= 1., f"percentage must add to 1 max, " \
                                           f"but it adds to sum({percentage}) = {sum(percentage)}"
-            if sum(percentage) < 1 and not np.isclose(sum(percentage), 1):
-                percentage = percentage + [1 - sum(percentage)]
         return percentage
 
     @staticmethod
@@ -785,8 +802,7 @@ class PolsarDatasetHandler(ABC):
         return x_train, x_test, y_train, y_test
 
     def _separate_dataset(self, patches, label_patches, percentage: Union[Tuple[float], float], shuffle: bool = True,
-                          classification: bool = False,
-                          remove_last: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+                          classification: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Separates dataset patches according to the percentage.
         :param percentage: list of percentages for each value,
@@ -799,24 +815,31 @@ class PolsarDatasetHandler(ABC):
         y_test = label_patches
         x = []
         y = []
-        for i, per in enumerate(percentage[:-1]):
+        full_percentage = np.isclose(sum(percentage), 1)        # Not the same to have (0.1, 0.2, 0.7) or (0.1, 0.2)
+        if full_percentage:
+            percentage = percentage[:-1]
+        for i, per in enumerate(percentage):    # But this loop is the same
             if classification and self.balance_dataset:
                 x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
                                                                             shuffle=shuffle)
             else:
-                x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=1 - per,
+                x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=max(1 - per, 0.),
                                                                     shuffle=True if classification else shuffle,
                                                                     stratify=y_test if classification else None)
-            percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
-            x.append(x_train)
-            y.append(y_train)
-        if not remove_last:
-            x.append(x_test)
-            y.append(y_test)
+            if i < len(percentage) - 1:
+                percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
+            x.append(np.array(x_train))
+            y.append(np.array(y_train))
+        if full_percentage:
+            x.append(np.array(x_test))
+            y.append(np.array(y_test))
         return x, y
 
     @staticmethod
     def _to_classification(x, y, remove_unlabeled=False):
+        if not isinstance(y, np.ndarray):
+            y = np.array(y)
+            x = np.array(x)
         y = np.reshape(y[:, y.shape[1] // 2, y.shape[2] // 2, :], newshape=(y.shape[0], y.shape[-1]))
         # assert [np.all(y_patches_class[i][:] == y_patches[i][0][0][:]) for i in range(len(y_patches_class))]
         # 2. Remove empty pixels
@@ -864,28 +887,23 @@ class PolsarDatasetHandler(ABC):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
                 slice_x = slice(x, x + size[0])
                 slice_y = slice(y, y + size[1])
-                tiles.append(im[slice_x, slice_y])
-                if segmentation:
-                    label_tiles.append(lab[slice_x, slice_y])
-                else:
+                label_to_add = lab[slice_x, slice_y]
+                # Only add if there is at least one label:
+                if segmentation and not np.all(np.all(label_to_add == 0, axis=-1)):
+                    label_tiles.append(label_to_add)
+                    tiles.append(im[slice_x, slice_y])
+                elif not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0, axis=-1):
                     label_tiles.append(lab[x + int(size[0] / 2), y + int(size[1] / 2)])
-        assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])
+                    tiles.append(im[slice_x, slice_y])
+        # assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])    # Commented, expensive assertion
         # assert np.all([p.shape == (size, size, lab.shape[2]) for p in label_tiles])
         # if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
         #     assert int(np.shape(tiles)[0]) == int(
         #         (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
         # print(f"tiles shape before going out of sliding window op {np.array(tiles).shape}")
-        return np.array(tiles), np.array(label_tiles)
-
-    @staticmethod
-    def sparse_to_categorical_2D(labels) -> np.ndarray:
-        classes = np.max(labels)
-        ground_truth = np.zeros(labels.shape + (classes,), dtype=float)
-        for i in range(labels.shape[0]):
-            for j in range(labels.shape[1]):
-                if labels[i, j] != 0:
-                    ground_truth[i, j, labels[i, j] - 1] = 1.
-        return ground_truth
+        # tiles = np.array(tiles)
+        # label_tiles = np.array(label_tiles)
+        return tiles, label_tiles
 
     # Open with path
     @staticmethod
@@ -1046,16 +1064,15 @@ class PolsarDatasetHandler(ABC):
         return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
 
     def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False, remove_unlabeled: bool = True):
+                      classification: bool = False, remove_unlabeled: bool = True, cast_to_numpy=False):
         """
         Performs the sliding window operation to the image.
         :param size:
         :param stride:
         :param pad:
         :param classification:
-        :param remove_unlabeled:
-        :param use_saved_image:
-        :param save_generated_images:
+        :param remove_unlabeled: Deprecated
+        :param cast_to_numpy:
         :return: image and label patches of the main image and labels
         """
         # TODO: Removing save images as it colides with different methods.
@@ -1085,8 +1102,9 @@ class PolsarDatasetHandler(ABC):
             print(f"Computing dataset {config_string}_patches.npy")
             start = timeit.default_timer()
             patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad)
-            if remove_unlabeled:
-                patches, label_patches = self._remove_empty_image(data=patches, labels=label_patches)
+            if cast_to_numpy:
+                patches = np.array(patches)
+                label_patches = np.array(label_patches)
             # print(f"patches shape after sliding window op{patches.shape}")
             if save_generated_images and not \
                     os.path.exists(str(temp_path / ("seg" + config_string[3:] + "_patches.npy"))):

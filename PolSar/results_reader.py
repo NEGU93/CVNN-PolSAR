@@ -893,6 +893,40 @@ class SeveralMonteCarloPlotter:
         self._save_show_figure(fig, showfig=showfig, savefile=savefile, extension=extension)
         return fig, ax
 
+    """
+        CONFUSION MATRIX (HEATMAP)
+    """
+    def confusion_matrix(self, labels: List[str], data: List, dataset: str,
+                         library="plotly", print_values=True,
+                         showfig=False, savefile=None, colors=None, extension: str = ".svg", min_lim=0.0):
+        if 'plotly' not in AVAILABLE_LIBRARIES:
+            raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
+                                      f"was called but will be omitted")
+        savefig = False
+        if savefile is not None:
+            savefig = True
+        if savefig:
+            os.makedirs(os.path.split(savefile)[0], exist_ok=True)
+        for lab, dat in zip(labels, data):
+            conf_mat = dat[['val', 'train', 'test'].index(dataset)]
+            z = conf_mat.values.tolist()
+            annotations = [[f"{100*col:.2f}%" for col in row] for row in z]
+            fig = ff.create_annotated_heatmap(z, x=conf_mat.columns.tolist(), y=conf_mat.index.tolist(),
+                                              annotation_text=annotations, colorscale='Matter')
+            # fig = go.Figure(data=go.Heatmap(
+            #     z=z, x=conf_mat.columns.tolist(), y=conf_mat.index.tolist(),
+            #     colorscale='Matter'
+            # ))
+            fig.update_layout(
+                yaxis=dict(visible=True, autorange='reversed')
+            )
+            if savefig:
+                tmp_savefile = str(savefile) + lab.replace(' ', '_') + ".html"
+                plotly.offline.plot(fig, filename=str(tmp_savefile), config=PLOTLY_CONFIG, auto_open=showfig)
+                # set_trace()
+            elif showfig:
+                fig.show(config=PLOTLY_CONFIG)
+
 
 def plot_all(simulations, models_params, library, root_path, labels, colors=None, showfig=False,
              y_min_bar_plot=0.0, print_values_bar_plot=True):
@@ -907,6 +941,16 @@ def plot_all(simulations, models_params, library, root_path, labels, colors=None
             if dset != "test":
                 SeveralMonteCarloPlotter().plot(data=data, labels=labels, keys=key, library=library,
                                                 showfig=showfig, savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/lines-plot")
+            if metric == "accuracy":
+                SeveralMonteCarloPlotter().confusion_matrix(labels=labels, showfig=False, library=library, dataset=dset,
+                                                            data=conf_stats, print_values=print_values_bar_plot,
+                                                            savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/confusion_matrix/conf_matrix_")
+                SeveralMonteCarloPlotter().per_class_bar_plot(labels=labels, showfig=showfig,
+                                                              data=conf_stats, colors=colors, library=library,
+                                                              dataset=dset,
+                                                              min_lim=y_min_bar_plot,
+                                                              print_values=print_values_bar_plot,
+                                                              savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/per-class-bar")
             SeveralMonteCarloPlotter().histogram_plot(labels=labels, data=final_results, showfig=showfig,
                                                       savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/histogram",
                                                       library=library, key=key)
@@ -916,13 +960,6 @@ def plot_all(simulations, models_params, library, root_path, labels, colors=None
             SeveralMonteCarloPlotter().violin_plot(labels=labels, data=final_results, showfig=showfig,
                                                    savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/violin-plot",
                                                    library=library, key=key)
-            if metric == "accuracy":
-                SeveralMonteCarloPlotter().per_class_bar_plot(labels=labels, showfig=showfig,
-                                                              data=conf_stats, colors=colors, library=library,
-                                                              dataset=dset,
-                                                              min_lim=y_min_bar_plot,
-                                                              print_values=print_values_bar_plot,
-                                                              savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/per-class-bar")
 
 
 if __name__ == "__main__":
@@ -948,7 +985,7 @@ if __name__ == "__main__":
         ]
         labels = ["CV Pauli", "CV Coh", "RV Pauli", "RV Coh"]
         plot_all(simulations=simulation_results, models_params=sf_keys, library="plotly",
-                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/SF-AIRSAR/",
+                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/SF-AIRSAR/",
                  labels=labels, colors=COLORS['SF-AIRSAR'])
     if PLOT_OBER:
         keys = [
@@ -973,7 +1010,7 @@ if __name__ == "__main__":
         ]
         labels = ["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN", "CV-MLP", "RV-MLP"]
         plot_all(simulations=simulation_results, models_params=keys, library="plotly",
-                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/Oberpfaffenhofen/",
+                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Oberpfaffenhofen/",
                  labels=labels, colors=COLORS['OBER'])
     if PLOT_FLEV:
         keys = [
@@ -988,7 +1025,7 @@ if __name__ == "__main__":
         library = "plotly"
         library_paths = {
             "seaborn": "/home/barrachina/gretsi_images/",
-            "plotly": "/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/src/assets/Flevoland/"
+            "plotly": "/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Flevoland/"
         }
         plot_all(simulations=simulation_results, models_params=keys, library=library,
                  y_min_bar_plot=0.8, print_values_bar_plot=False,

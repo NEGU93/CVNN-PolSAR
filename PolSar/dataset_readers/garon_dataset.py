@@ -1,5 +1,7 @@
 import sys
 import os
+import h5py
+import pandas as pd
 import scipy.io
 import numpy as np
 import datetime as dt
@@ -10,17 +12,17 @@ sys.path.insert(1, '../')
 if os.path.exists("/home/barrachina/Documents/onera/PolSar"):
     sys.path.insert(1, "/home/barrachina/Documents/onera/PolSar")
     dataset_path = "/media/barrachina/data/datasets/PolSar/garon/polsar_mat"
-    labels_path = "/media/barrachina/data/datasets/PolSar/garon/polsar_mat"
+    labels_path = "/media/barrachina/data/datasets/PolSar/garon/labels"
     NOTIFY = False
 elif os.path.exists("/usr/users/gpu-prof/gpu_barrachina/onera/PolSar"):
     sys.path.insert(1, "/usr/users/gpu-prof/gpu_barrachina/onera/PolSar")
     dataset_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/garon/polsar_mat"
-    labels_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/garon/polsar_mat"
+    labels_path = "/usr/users/gpu-prof/gpu_barrachina/datasets/PolSar/garon/labels"
     NOTIFY = True
 elif os.path.exists("/scratchm/jbarrach/Garon"):
     sys.path.insert(1, "/scratchm/jbarrach/onera/PolSar")
     labels_path = "/scratchm/jbarrach/garon/polsar_mat"
-    dataset_path = "/scratchm/jbarrach/garon/polsar_mat"
+    dataset_path = "/scratchm/jbarrach/garon/labels"
     NOTIFY = True
 else:
     raise FileNotFoundError("path of the flevoland dataset not found")
@@ -54,35 +56,37 @@ class GaronDataset(PolsarDatasetHandler):
         assert image_number < len(available_images) + 1
         super(GaronDataset, self).__init__(root_path=dataset_path, name="GARON", mode=mode,
                                            *args, **kwargs)
-        self.azimuth = "horizontal"
+        self.azimuth = "vertical"
 
     def get_image(self, image_number: Optional[int] = None) -> np.ndarray:
         if image_number is None:
             image_number = self.image_number
         s_raw = np.load(self.root_path / available_images[image_number])
         if self.mode == 's':
-            return s_raw
+            return s_raw[:, :, :-1]     # Don't send VH
         elif self.mode == 't':
             return self.numpy_coh_matrix(HH=s_raw[:, :, 0], VV=s_raw[:, :, 3], HV=s_raw[:, :, 1], kernel_shape=1)
         else:
             raise ValueError(f"Sorry, dataset mode {self.mode} not supported")
 
     def get_dataset_date(self, image_number: Optional[int] = None):
-        # TODO: parse the date?
         if image_number is None:
             image_number = self.image_number
-        return dt.datetime.strptime(available_images[image_number][:8], "%m%d%Y").date()
+        return dt.datetime.strptime(available_images[image_number][:8], "%Y%m%d").date()
 
-    def get_sparse_labels(self) -> np.ndarray:
-        return self.get_image().astype(int)
-
-    def print_image_png(self, savefile: bool = False, showfig: bool = False, img_name: Optional[str] = None):
-        if img_name is None:
-            img_name = str((Path(dataset_path) / available_images[self.image_number]).with_suffix(".png"))
-        super(GaronDataset, self).print_image_png(savefile=savefile, showfig=showfig, img_name=img_name)
+    def get_sparse_labels(self, image_number: Optional[int] = None) -> np.ndarray:
+        if image_number is None:
+            image_number = self.image_number
+        f = h5py.File(Path(labels_path) / (available_images[image_number][:-4] + "-labels.mat"), 'r')
+        seg = np.array(f['labels'], dtype=int)
+        seg[seg == 5] = 0       # Remove canal labels.
+        return seg
 
 
 if __name__ == "__main__":
-    for key in [4]:
-        data_handler = GaronDataset(mode='t', image_number=key)
-        data_handler.print_image_png(savefile=True)
+    data_handler = GaronDataset(mode='s', image_number=1)
+    data_handler.print_ground_truth(transparent_image=0.7, showfig=False,
+                                    path=str(Path(labels_path) / (available_images[1][:-4] + "-labels.png")))
+    # for key in [4]:
+    #     data_handler = GaronDataset(mode='s', image_number=key)
+    #     set_trace()

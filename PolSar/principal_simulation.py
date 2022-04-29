@@ -27,6 +27,7 @@ from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from dataset_readers.sf_data_reader import SanFranciscoDataset
 from dataset_readers.bretigny_dataset import BretignyDataset
 from dataset_readers.flevoland_data_reader import FlevolandDataset
+from dataset_readers.garon_dataset import GaronDataset
 from models.cao_fcnn import get_cao_fcnn_model
 from models.zhang_cnn import get_zhang_cnn_model
 from models.own_unet import get_my_unet_model
@@ -56,7 +57,8 @@ DATASET_META = {
     # "SF-RS2": {"classes": 5, "azimuth": "vertical", "percentage": (0.8, 0.2)},
     "OBER": {"classes": 3, "azimuth": "vertical", "percentage": (0.85, 0.15)},
     "FLEVOLAND": {"classes": 15, "azimuth": "horizontal", "percentage": (0.8, 0.1, 0.1)},
-    "BRET": {"classes": 4, "azimuth": "horizontal", "percentage": (0.7, 0.15, 0.15)}
+    "BRET": {"classes": 4, "azimuth": "horizontal", "percentage": (0.7, 0.15, 0.15)},
+    "GARON": {"classes": 4, "azimuth": "vertical", "percentage": (0.7, 0.15, 0.15)}
 }
 
 MODEL_META = {
@@ -168,6 +170,8 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
         if mode != "t":
             raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
         dataset_handler = FlevolandDataset(balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+    elif dataset_name == "GARON":
+        dataset_handler = GaronDataset(mode=mode, balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler
@@ -379,7 +383,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               debug: bool = False):
     if percentage is None:
         if dataset_method == "random":
-            percentage = MODEL_META[model_name]["percentage"]
+            if dataset_name != "GARON":
+                percentage = MODEL_META[model_name]["percentage"]
+            else:
+                percentage = (0.04, 0.01, 0.01)
         else:
             percentage = DATASET_META[dataset_name]["percentage"]
     # Dataset
@@ -405,10 +412,10 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
-    weights = dataset_handler.labels_occurrences
+    weights = dataset_handler.labels_occurrences if balance == "loss" else None
     model = _get_model(model_name=model_name,
                        channels=6 if mode == "t" else 3,
-                       weights=weights if balance == "loss" else None,
+                       weights=weights,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
                        complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
     callbacks = get_callbacks_list(early_stop, temp_path)
@@ -419,7 +426,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     del model
     # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights if balance == "loss" else None,
+                                                  weights=weights,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
@@ -429,7 +436,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
     del checkpoint_model
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights if balance == "loss" else None,
+                                                  weights=weights,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
@@ -439,7 +446,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if val_ds:
         del checkpoint_model
         checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights if balance == "loss" else None,
+                                                      weights=weights,
                                                       channels=3 if mode == "s" else 6, dropout=dropout,
                                                       real_mode=real_mode, tensorflow=tensorflow,
                                                       num_classes=DATASET_META[dataset_name]["classes"])
@@ -454,7 +461,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if len(ds_list) >= 3:
         del checkpoint_model
         checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights if balance == "loss" else None,
+                                                      weights=weights,
                                                       channels=3 if mode == "s" else 6, dropout=dropout,
                                                       real_mode=real_mode, tensorflow=tensorflow,
                                                       num_classes=DATASET_META[dataset_name]["classes"])
