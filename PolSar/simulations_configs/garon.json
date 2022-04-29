@@ -1,0 +1,16 @@
+[
+    {
+        "model": "cao",
+        "epochs": 100,
+        "dataset": "GARON",
+        "coherency": false
+    },
+    {
+        "model": "cao",
+        "epochs": 100,
+        "dataset": "GARON",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false
+    }
+]
