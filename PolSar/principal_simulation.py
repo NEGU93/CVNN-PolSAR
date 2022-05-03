@@ -154,24 +154,23 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_kernel_size: int = 1):
+def _get_dataset_handler(dataset_name: str, mode, coh_kernel_size: int = 1):
     coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
-        dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, balance_dataset=balance,
-                                              coh_kernel_size=coh_kernel_size)
+        dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "BRET":
-        dataset_handler = BretignyDataset(mode=mode, balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = BretignyDataset(mode=mode, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
-        dataset_handler = OberpfaffenhofenDataset(balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = OberpfaffenhofenDataset(coh_kernel_size=coh_kernel_size)
     elif dataset_name == "FLEVOLAND":
         if mode != "t":
             raise ValueError(f"Flevoland 15 only supports data as coherency matrix (t). Asked for {mode}")
-        dataset_handler = FlevolandDataset(balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = FlevolandDataset(coh_kernel_size=coh_kernel_size)
     elif dataset_name == "GARON":
-        dataset_handler = GaronDataset(mode=mode, balance_dataset=balance, coh_kernel_size=coh_kernel_size)
+        dataset_handler = GaronDataset(mode=mode, coh_kernel_size=coh_kernel_size)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     return dataset_handler
@@ -392,8 +391,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Dataset
     dataset_name = dataset_name.upper()
     mode = mode.lower()
-    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
-                                           balance=(balance == "dataset"))
+    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
