@@ -719,52 +719,21 @@ class PolsarDatasetHandler(ABC):
         return ds
 
     # Balance dataset
-    def _balance_image(self, labels):
-        # Deprecated, not used.
-        result_list = []
-        for label in labels:            # for each train, val, test
-            saved_values = np.full(label.shape[:-1], False)
-            occurrences = self.get_occurrences(label, normalized=False)  # get min class occurrence
-            sparse_labels = self.get_sparse_with_nul_label(label)
-            for cls in range(1, label.shape[-1] + 1):
-                saved_values = np.logical_or(saved_values,
-                                             self._select_random(sparse_labels, value=cls, total=min(occurrences)))
-            label[np.logical_not(saved_values)] = label.shape[-1] * [0.]
-            result_list.append(label)
-            occurrences = self.get_occurrences(label, normalized=False)
-            assert np.all(occurrences == occurrences[0])
-        return result_list
-
     @staticmethod
-    def _select_random(img, value: int, total: int):
+    def _balance_patches(patches, label_patches):
         """
-        Deprecated.
-        Gets an image with different values and returns a boolean matrix with a total number of True equal to the total
-            parameter where all True are located in the same place where the img has the value passed as parameter
-        :param img: Image to be selected
-        :param value: Value to be matched
-        :param total:
-        :return:
+        This code receives labels and 2 cases are possible
+            - Either the image has only one class present (together with unlabeled pixels)
+            - Multiple-Labels
+            - No labels will rase an error. TODO: actually raise it with an error message
+        Cases with multiple labels will not be treated, but will verify they are balanced.
+        The program will balance the total images that has each class.
+            For example, for 2 classes, there will be a same number of images with each class
+                (regardless of the pixels of said class inside an image).
+        :param patches: Images of shape (P, H, W, C)
+        :param label_patches: one-hot-encoded labels of shape (P, H, W, cls)
+        :return: tuple of balanced (patches, label_patches).
         """
-        assert len(img.shape) == 2
-        flatten_img = np.reshape(img, np.prod(img.shape))
-        random_indx = np.random.permutation(len(flatten_img))
-        mixed_img = flatten_img[random_indx]
-        selection_mask = np.zeros(shape=img.shape)
-        selected = 0
-        indx = 0
-        saved_indexes = []
-        while selected < total:
-            val = mixed_img[indx]
-            if val == value:
-                selected += 1
-                saved_indexes.append(random_indx[indx])
-                assert img[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] == value
-                selection_mask[int(random_indx[indx] / img.shape[1])][random_indx[indx] % img.shape[1]] = 1
-            indx += 1
-        return selection_mask.astype(bool)
-
-    def balance_patches(self, patches, label_patches):
         counter = np.zeros(len(patches))                # No empty image are supposed to be here.
         for i, la in enumerate(label_patches):          # For each patch image.
             present_classes = np.where(la == 1)[-1]     # Find all classes (again, there will be at least one).
@@ -772,7 +741,7 @@ class PolsarDatasetHandler(ABC):
             if all_equal:                               # If only one class present, then add it to the counter
                 counter[i] = present_classes[0] + 1     # +1 because counter[i] = 0 is reserved for mix classes cases
             else:   # If mixed case, then it should have been balanced in the sliding window operation
-                occurrences = [sum(present_classes == cls) for cls in set(present_classes)]
+                occurrences = [np.sum(present_classes == cls) for cls in set(present_classes)]
                 assert np.all(occurrences == occurrences[0])        # TODO: This was supposedly done before.
         # Here I have counter with all patches with only one class. I want to remove to balance.
         # Example: [186, 20000, 900, 10000] -> [186, 900, 900, 900] (Remember first case are mixed classes)
@@ -812,7 +781,7 @@ class PolsarDatasetHandler(ABC):
         # There should not be empty images already so `all_equal` will not be empty
         all_equal = np.all(present_classes == present_classes[0])
         if not all_equal:
-            occurrences = [sum(present_classes == cls) for cls in set(present_classes)]
+            occurrences = [np.sum(present_classes == cls) for cls in set(present_classes)]
             min_occ = np.min(occurrences)
             sparse_present_classes = self.get_sparse_with_nul_label(labels_image)
             indexes = set()
@@ -930,7 +899,7 @@ class PolsarDatasetHandler(ABC):
                                                                     shuffle=True if classification else shuffle,
                                                                     stratify=y_test if classification else None)
                 if i == 0 and balance_dataset:
-                    x_train, y_train = self.balance_patches(x_train, y_train)
+                    x_train, y_train = self._balance_patches(x_train, y_train)
             if i < len(percentage) - 1:
                 percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
             x.append(np.array(x_train))
