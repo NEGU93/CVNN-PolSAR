@@ -154,13 +154,13 @@ def early_stop_type(arg):
         return int(arg)
 
 
-def _get_dataset_handler(dataset_name: str, mode, coh_kernel_size: int = 1):
+def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_kernel_size: int = 1):
     coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "BRET":
-        dataset_handler = BretignyDataset(mode=mode, coh_kernel_size=coh_kernel_size)
+        dataset_handler = BretignyDataset(mode=mode, balance_dataset=balance, coh_kernel_size=coh_kernel_size)
     elif dataset_name == "OBER":
         if mode != "t":
             raise ValueError(f"Oberfaffenhofen only supports data as coherency matrix (t). Asked for {mode}")
@@ -391,7 +391,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Dataset
     dataset_name = dataset_name.upper()
     mode = mode.lower()
-    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
+    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
+                                           balance=(balance == "dataset"))
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
