@@ -62,7 +62,7 @@ DATASET_META = {
 }
 
 MODEL_META = {
-    "cao": {"size": 128, "stride": 25, "pad": 127, "batch_size": 30,
+    "cao": {"size": 128, "stride": 128, "pad": 127, "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
@@ -396,7 +396,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
-                                          stride=129 if dataset_name == "GARON" else MODEL_META[model_name]["stride"],
+                                          stride=128 if dataset_name == "GARON" else MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           classification=MODEL_META[model_name]['task'] == 'classification',
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,

@@ -8,6 +8,7 @@ from dataset_reader import labels_to_rgb, COLORS
 from principal_simulation import get_final_model_results, DROPOUT_DEFAULT, open_saved_model, DATASET_META
 from dataset_readers.bretigny_dataset import BretignyDataset
 from dataset_readers.flevoland_data_reader import FlevolandDataset
+from dataset_readers.garon_dataset import GaronDataset
 from results_reader import ResultReader
 
 
@@ -66,6 +67,15 @@ def plot_no_mask_flev():
                       mask=mask, colors=[[255, 255, 255], [255, 0, 0]])
 
 
+def garon():
+    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/05May/03Tuesday/run-14h39m55")
+    dataset_handler = GaronDataset(mode="s")
+    get_final_model_results(path, dataset_handler=dataset_handler, model_name="cao",
+                            tensorflow=True, complex_mode=False,
+                            channels=3, dropout=DROPOUT_DEFAULT, use_mask=True)
+
+
 if __name__ == "__main__":
+    garon()
     # plot_no_mask_flev()
-    bretigny_mask()
+    # bretigny_mask()

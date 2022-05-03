@@ -377,9 +377,9 @@ class PolsarDatasetHandler(ABC):
     """
 
     def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float],
-                    size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
-                    savefig: Optional[str] = None, azimuth: Optional[str] = None, data_augment: bool = False, classification: bool = False,
-                    complex_mode: bool = True, real_mode: str = "real_imag", balance_dataset: bool = False,
+                    size: int = 128, stride: int = 25, shuffle: bool = True, pad="same", savefig: Optional[str] = None,
+                    azimuth: Optional[str] = None, data_augment: bool = False, classification: bool = False,
+                    complex_mode: bool = True, real_mode: str = "real_imag",  balance_dataset: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         """
         Get the dataset in the desired form
@@ -396,7 +396,7 @@ class PolsarDatasetHandler(ABC):
         :param shuffle: Shuffle image patches (ignored if method == 'single_separated_image')
         :param pad: Pad image before swo or just add padding to output for method == 'single_separated_image'
         :param savefig: Used only if method='single_separated_image'.
-            - It shaves len(percentage) images with the cropped generated images.
+            - It saves len(percentage) images with the cropped generated images.
         :param azimuth: Cut the image 'horizontally' or 'vertically' when split (using percentage param for sizes).
             Ignored if method == 'random'
         :param data_augment: Only used if use_tf_dataset = True. It performs data augmentation using flip.
@@ -454,7 +454,7 @@ class PolsarDatasetHandler(ABC):
         return tuple(ds_list)
 
     def print_ground_truth(self, label: Optional = None, path: Optional[str] = None,
-                           transparent_image: Union[bool, float] = False,
+                           transparent_image: Union[bool, float, np.ndarray] = False,
                            mask: Optional[Union[bool, np.ndarray]] = None, ax=None, showfig: bool = False):
         """
         Saves or shows the labels rgb map.
@@ -477,10 +477,13 @@ class PolsarDatasetHandler(ABC):
         if isinstance(mask, bool) and mask:
             mask = self.sparse_labels       # TODO: I can force padding here.
         # TODO: I can force padding here.
-        t = self.print_image_png(savefile=False, showfig=False) if transparent_image else None
-        alpha = 0.8
-        if isinstance(transparent_image, float):
-            alpha = transparent_image
+        alpha = 0.7
+        if isinstance(transparent_image, np.ndarray):
+            t = transparent_image
+        else:
+            t = self.print_image_png(savefile=False, showfig=False) if transparent_image else None
+            if isinstance(transparent_image, float):
+                alpha = transparent_image
         return pauli_rgb_map_plot(label, mask=mask, dataset_name=self.name, t=t, path=path, ax=ax, showfig=showfig,
                                   alpha=alpha)
 
@@ -495,16 +498,30 @@ class PolsarDatasetHandler(ABC):
         :param img_name: Name of the generated image
         :return: Rge rgb image as numpy
         """
-        coh_matrix = self.get_coherency_matrix(kernel_shape=1)
-        rgb_image = self._coh_to_rgb(coh_matrix=coh_matrix)
+        if self.mode == "t":
+            coh_matrix = self.get_coherency_matrix(kernel_shape=1)
+            rgb_image = self._diag_to_rgb(diagonal=coh_matrix[:, :, :3])
+        else:
+            k_vector = self.get_pauli_vector()
+            k_module = k_vector * np.conj(k_vector)
+            rgb_image = self._diag_to_rgb(diagonal=k_module)
+        fig = plt.figure(figsize=rgb_image.shape[:2])
+        ax = plt.Axes(fig, [0., 0., 1., 1.])
+        ax.set_axis_off()
+        fig.add_axes(ax)
+        ax.imshow(rgb_image)
         if showfig:
-            plt.imshow(rgb_image)
-            plt.show()
+            plt.show(dpi=1)
         if savefile:
             path = self.root_path
             if isinstance(savefile, str):
                 path = Path(savefile)
-            plt.imsave(path / img_name, np.clip(rgb_image, a_min=0., a_max=1.))
+            # plt.imsave(path / img_name, np.clip(rgb_image, a_min=0., a_max=1.))
+            if len(img_name.split(".")) < 2:
+                img_name = img_name + ".png"
+            # ax.imsave(path)
+            fig.savefig(path / img_name, bbox_inches='tight', pad_inches=0, dpi=1)
+        plt.close(fig)
         return rgb_image
 
     def get_occurrences(self, labels: Optional = None, normalized=True):  # TODO: Make this with numpy
@@ -687,8 +704,13 @@ class PolsarDatasetHandler(ABC):
         return pad
 
     # Methods to print rgb image
-    def _coh_to_rgb(self, coh_matrix):
-        diagonal = coh_matrix[:, :, :3].astype(np.float32)
+
+    def _diag_to_rgb(self, diagonal):
+        # diagonal = coh_matrix[:, :, :3].astype(float)
+        assert np.all(np.imag(diagonal) == 0), "ERROR: Imaginary part was not zero"
+        assert diagonal.shape[-1] == 3, f"Unknown shape for diagonal ({diagonal.shape}). " \
+                                        f"Expected last dimension to be 3"
+        diagonal = diagonal.astype(float)
         diagonal[diagonal == 0] = float("nan")
         diag_db = 10 * np.log10(diagonal)
         noramlized_diag = np.zeros(shape=diag_db.shape)
@@ -856,8 +878,8 @@ class PolsarDatasetHandler(ABC):
                 'train_ground_truth', 'val_ground_truth', 'test_ground_truth'
             ]
             for i, y in enumerate(y_slice):
-                self.print_ground_truth(label=y, t=x_slice[i], mask=mask_slice[i],
-                                        path=str(savefig) + slices_names[i])
+                self.print_ground_truth(label=y, transparent_image=x_slice[i],
+                                        mask=mask_slice[i], path=str(savefig) + slices_names[i])
         return x_slice, y_slice
 
     @staticmethod

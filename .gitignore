@@ -5,6 +5,9 @@ log/
 out/
 data/
 results/
+Polsar/tests/generated_images/
+Polsar/tests/generated_images/*
+**/generated_images/
 **/job.sh
 **/job.sbatch
 slurm*
