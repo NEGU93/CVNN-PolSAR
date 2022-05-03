@@ -611,8 +611,10 @@ class PolsarDatasetHandler(ABC):
             images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride,
                                                       balance_dataset=balance_dataset if i == 0 else False,
                                                       classification=classification, cast_to_numpy=True)
-            if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
-                images[i], labels[i] = sklearn.utils.shuffle(images[i], labels[i])
+        if balance_dataset and not classification:
+            images[0], labels[0] = self._balance_patches(images[0], labels[0])  # Only balance train set
+        if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
+            images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
