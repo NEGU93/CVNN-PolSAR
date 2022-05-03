@@ -380,13 +380,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
               early_stop: Union[bool, int], epochs: int, temp_path, dropout,
               dataset_name: str, dataset_method: str, percentage: Optional[Union[Tuple[float], float]] = None,
-              debug: bool = False):
+              debug: bool = False, use_tf_dataset=False):
     if percentage is None:
         if dataset_method == "random":
             if dataset_name != "GARON":
                 percentage = MODEL_META[model_name]["percentage"]
             else:
-                percentage = (0.04, 0.01, 0.005)
+                percentage = (0.4, 0.1, 0.05)
         else:
             percentage = DATASET_META[dataset_name]["percentage"]
     # Dataset
@@ -397,13 +397,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
-                                          stride=MODEL_META[model_name]["stride"],
+                                          stride=129 if dataset_name == "GARON" else MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           classification=MODEL_META[model_name]['task'] == 'classification',
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
                                           azimuth=DATASET_META[dataset_name]['azimuth'],
-                                          data_augment=False, remove_last=len(percentage) == 4,
-                                          batch_size=MODEL_META[model_name]['batch_size'], use_tf_dataset=False
+                                          data_augment=False, batch_size=MODEL_META[model_name]['batch_size'],
+                                          use_tf_dataset=use_tf_dataset
                                           )
     train_ds = ds_list[0]
     val_ds = ds_list[1]
@@ -426,7 +426,9 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                        complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
     callbacks = get_callbacks_list(early_stop, temp_path)
     # Training
-    history = model.fit(x=train_ds[0], y=train_ds[1], epochs=epochs, batch_size=MODEL_META[model_name]['batch_size'],
+    history = model.fit(x=train_ds[0] if not use_tf_dataset else train_ds,
+                        y=train_ds[1] if not use_tf_dataset else None, epochs=epochs,
+                        batch_size=MODEL_META[model_name]['batch_size'],
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
     df = DataFrame.from_dict(history.history)
     del model
@@ -438,7 +440,9 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
     # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
     # train_x = tf.convert_to_tensor(train_ds[0])
-    eval_result = checkpoint_model.evaluate(train_ds[0], train_ds[1], batch_size=MODEL_META[model_name]['batch_size'])
+    eval_result = checkpoint_model.evaluate(x=train_ds[0] if not use_tf_dataset else train_ds,
+                                            y=train_ds[1] if not use_tf_dataset else None,
+                                            batch_size=MODEL_META[model_name]['batch_size'])
     evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
     del checkpoint_model
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
@@ -446,7 +450,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
-    predict_result = checkpoint_model.predict(train_ds[0], batch_size=MODEL_META[model_name]['batch_size'])
+    predict_result = checkpoint_model.predict(train_ds[0] if not use_tf_dataset else train_ds,
+                                              batch_size=MODEL_META[model_name]['batch_size'])
     train_confusion_matrix = _get_confusion_matrix(predict_result, train_ds[1], DATASET_META[dataset_name]["classes"])
     train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
     if val_ds:

@@ -31,14 +31,16 @@ BASE_PATHS = {
         root_drive / "datasets/PolSar/Oberpfaffenhofen/ESAR_Oberpfaffenhofen_T6/Master_Track_Slave_Track/T6/PauliRGB_T1.bmp"),
     "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-Pauli.bmp"),
     "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-Pauli.bmp"),
-    "FLEVOLAND": str(root_drive / "datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3/PauliRGB.bmp")
+    "FLEVOLAND": str(root_drive / "datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3/PauliRGB.bmp"),
+    "GARON": str(root_drive / "/datasets/PolSar/garon/20141125-1_djit_rad.png")
 }
 GROUND_TRUTH_PATHS = {
     "BRET": str(root_drive / "datasets/PolSar/Bretigny-ONERA/labels_4roi.png"),
     "OBER": str(root_drive / "datasets/PolSar/Oberpfaffenhofen/ground_truth.png"),
     "SF-AIRSAR": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-AIRSAR/SF-AIRSAR-label3d.png"),
     "SF-RS2": str(root_drive / "datasets/PolSar/San Francisco/PolSF/SF-RS2/SF-RS2-label3d.png"),
-    "FLEVOLAND": str(root_drive / "datasets/PolSar/Flevoland/AIRSAR_Flevoland/ground_truth.png")
+    "FLEVOLAND": str(root_drive / "datasets/PolSar/Flevoland/AIRSAR_Flevoland/ground_truth.png"),
+    "GARON": str(root_drive / "/datasets/PolSar/garon/20141125-1_djit_rad-labels.png")
 }
 START_VALUES = {
     "dataset": 'SF-AIRSAR',

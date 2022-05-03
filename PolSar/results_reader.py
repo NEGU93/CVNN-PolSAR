@@ -149,8 +149,6 @@ class ResultReader:
                                     dataset_name = "BRET"
                                 mode = "t" if 'coherency' in simu_params else "s"
                                 dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
-                                                                       complex_mode='real_mode' not in simu_params,
-                                                                       normalize=False, real_mode="real_imag",
                                                                        balance=(params['balance'] == "dataset"))
                                 get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
                                                         model_name=params["model"],

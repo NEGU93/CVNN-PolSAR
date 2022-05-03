@@ -57,26 +57,27 @@ def handler_to_test(dataset_handler, show_gt=False, show_img=False):
 
 def test_sf(show_gt=False, show_img=False):
     dataset_handler = SanFranciscoDataset(mode='s', dataset_name="SF-AIRSAR")
+    # balance_test(dataset_handler, percentage=(0.8, 0.1, 0.1))
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.05, 0.02, 0.93))
+    balanced_classification_test(dataset_handler, percentage=(0.05, 0.02, 0.93))
 
 
 def test_flev(show_gt=False, show_img=False):
     dataset_handler = FlevolandDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.02, 0.01, 0.97))
+    balanced_classification_test(dataset_handler, percentage=(0.02, 0.01, 0.97))
 
 
 def test_ober(show_gt=False, show_img=False):
     dataset_handler = OberpfaffenhofenDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.08, 0.02, 0.9))
+    balanced_classification_test(dataset_handler, percentage=(0.08, 0.02, 0.9))
 
 
 def test_bretigny(show_gt=False, show_img=False):
     dataset_handler = BretignyDataset(mode='s')
     handler_to_test(dataset_handler, show_gt=show_gt, show_img=show_img)
-    balanced_test(dataset_handler, percentage=(0.08, 0.02, 0.9))
+    balanced_classification_test(dataset_handler, percentage=(0.08, 0.02, 0.9))
 
 
 def test_bretigny_balanced():
@@ -100,11 +101,10 @@ def test_bretigny_balanced():
     assert np.all(occurrences < 1.1)
 
 
-def balanced_test(dataset_handler, percentage):
+def balanced_classification_test(dataset_handler, percentage):
     # This method fails if I have the warning that the min samples was not met.
-    dataset_handler.balance_dataset = True
     list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, size=6, stride=1, pad=0,
-                                          shuffle=True, savefig=None, classification=True)
+                                          shuffle=True, savefig=None, classification=True, balance_dataset=True)
     train_sparse = np.argmax(list_ds[0][1], axis=-1)
     train_count = np.bincount(train_sparse)
     assert np.all(train_count == train_count[0])
@@ -118,12 +118,18 @@ def balanced_test(dataset_handler, percentage):
 
 def garon_balance_test(percentage):
     dataset_handler = GaronDataset(mode='s', image_number=1)
-    dataset_handler.balance_dataset = True
-    list_ds = dataset_handler.get_dataset(method="random", percentage=percentage,
+    balance_test(dataset_handler, percentage)
+
+
+def balance_test(dataset_handler, percentage):
+    list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, balance_dataset=True, stride=128,
                                           shuffle=True, classification=False)
     train_sparse = dataset_handler.get_sparse_with_nul_label(list_ds[0][1])
     train_count = np.bincount(train_sparse.flatten())
-    # Without balance: [146797528, 146035849,  17430912,  11363788,  10410067]
+    # Without balance: array([56.406.291, 55.446.092,  6.566.527,  4.191.502,  4.267.284])
+    # With balance: array([29.559.189,  9.276.769,  6.468.738,  2.298.075,  3.318.701])
+    # After balancing separation: array([29.227.732,  9.330.900,  6.566.527,  2.358.048,  3.258.041])
+        # array([12.39488424,  3.95704413,  2.78473   ,  1.        ,  1.38166865])
     set_trace()
 
 
@@ -147,11 +153,11 @@ def test_scattering_vector():
 
 
 if __name__ == "__main__":
-    # garon_balance_test(percentage=(0.08, 0.02))
+    # garon_balance_test(percentage=(0.8, 0.2))
+    test_sf(show_gt=False, show_img=False)
     test_scattering_vector()
     test_bretigny_balanced()
     test_bret_mode_change()
-    test_sf(show_gt=False, show_img=False)
     test_flev(False, False)
     test_bretigny()
     test_ober()

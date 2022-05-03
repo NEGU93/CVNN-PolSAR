@@ -24,8 +24,8 @@ else:
 class BretignyDataset(PolsarDatasetHandler):
 
     def __init__(self, mode: str, balance_dataset: bool = False, *args, **kwargs):
-        super(BretignyDataset, self).__init__(root_path=path, name="BRET", mode=mode, balance_dataset=balance_dataset,
-                                              *args, **kwargs)
+        super(BretignyDataset, self).__init__(root_path=path, name="BRET", mode=mode, *args, **kwargs)
+        self.balance_dataset = balance_dataset
         self.azimuth = "horizontal"
 
     def get_image(self) -> np.ndarray:
