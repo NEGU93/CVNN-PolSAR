@@ -11,9 +11,10 @@ import numpy as np
 import pandas as pd
 import time
 from datetime import timedelta
-
 try:
     from notify_run import Notify
+    if socket.gethostname() == 'barrachina-SONDRA':     # My machine, I usually know what is happening here
+        Notify = None
 except ImportError:
     Notify = None
 from pandas import DataFrame
@@ -62,7 +63,7 @@ DATASET_META = {
 }
 
 MODEL_META = {
-    "cao": {"size": 128, "stride": 128, "pad": 127, "batch_size": 30,
+    "cao": {"size": 128, "stride": 25, "pad": 127, "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
@@ -391,9 +392,9 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # Dataset
     dataset_name = dataset_name.upper()
     mode = mode.lower()
-    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size,
-                                           balance=(balance == "dataset"))
+    dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
+                                          balance_dataset=(balance == "dataset"),
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
                                           stride=128 if dataset_name == "GARON" else MODEL_META[model_name]["stride"],
