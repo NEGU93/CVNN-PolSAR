@@ -902,7 +902,7 @@ class PolsarDatasetHandler(ABC):
         Removes pixel classes randomly from images so that the total pixels (sum) of all images are gives to_be_achieved
         :param label_patches: patches of images labels
         :param cls_counter: list of tuples ("index", "occurrences") where index is the indexes from label_patches of
-            the images to be filtered and occurrences the number of pixels that the image has.
+            the images to be filtered and occurrences the number of pixels that the image has
         :param to_be_achieved: Total sum of pixel classes to be met
         :return: balanced label_patches
         """
