@@ -76,11 +76,11 @@ def test_bretigny(show_gt=False, show_img=False):
 
 
 def full_verify_dataset(dataset_handler):
+    balanced_classification_test(dataset_handler, percentage=(0.08, 0.02, 0.9), possible_to_balance=True)
     balance_test_segmentation(dataset_handler)
-    # handler_to_test(dataset_handler)
-    # balanced_classification_test(dataset_handler, percentage=(0.08, 0.02, 0.9), possible_to_balance=True)
-    # mode_change(dataset_handler)
-    # scattering_vector(dataset_handler)
+    handler_to_test(dataset_handler)
+    mode_change(dataset_handler)
+    scattering_vector(dataset_handler)
 
 
 def balanced_classification_test(dataset_handler, percentage, possible_to_balance):
@@ -90,12 +90,12 @@ def balanced_classification_test(dataset_handler, percentage, possible_to_balanc
     train_sparse = np.argmax(list_ds[0][1], axis=-1)
     train_count = np.bincount(train_sparse)
     assert np.all(train_count == train_count[0])
-    # val_sparse = np.argmax(list_ds[1][1], axis=-1)
-    # val_count = np.bincount(val_sparse)
-    # assert np.all(val_count == val_count[0])
+    val_sparse = np.argmax(list_ds[1][1], axis=-1)
+    val_count = np.bincount(val_sparse)
+    assert np.all(val_count == val_count[0])
     total = sum([list_ds[i][1].shape[0] for i in range(len(percentage))])
     for i, p in enumerate(percentage):
-        if i != 0:
+        if i != 0 or i != 1:
             assert np.isclose(p, list_ds[i][1].shape[0] / total, rtol=0.1)
     try:
         list_ds = dataset_handler.get_dataset(method="separate",
@@ -123,7 +123,7 @@ def verify_labels_balanced(label_patches):
         - Same amount of 'one label only' images
         - 'Mixed-class' images are balanced
         - Total pixels per class balanced too
-    Raises assertion error if image is not balanced.
+    Raises assertion error if image is not balanced
     :param label_patches:
     :return:
     """
@@ -164,7 +164,7 @@ def mode_change(dataset_handler):
     try:
         dataset_handler.get_scattering_vector()
         raise Exception("Exception not catched")
-    except NotImplementedError as e:
+    except NotImplementedError:
         pass    # This exception should be caught.
     assert dataset_handler.image.shape[-1] == 6
     dataset_handler.mode = 's'
@@ -181,7 +181,7 @@ def scattering_vector(dataset_handler):
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     test_bretigny()
-    # test_sf(show_gt=False, show_img=False)
-    # test_flev(False, False)
-    # test_ober()
-    # test_coh_matrix_generator()
+    test_sf(show_gt=False, show_img=False)
+    test_flev(False, False)
+    test_ober()
+    test_coh_matrix_generator()

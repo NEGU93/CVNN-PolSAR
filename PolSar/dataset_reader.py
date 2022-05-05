@@ -808,6 +808,38 @@ class PolsarDatasetHandler(ABC):
         return np.array(labels_image)
 
     def balance_patches(self, patches, label_patches):
+        label_patches = np.array(label_patches)
+        if len(label_patches.shape) == 4:
+            # First make 'one-class' images to be the same amount
+            patches, label_patches = self._remove_exceeding_one_class_images(patches, label_patches)
+            # Then make all classes pixels to be the same amount
+            # This was added into previous function for optimization
+            # label_patches = self._balance_total_pixels_of_patch(label_patches)
+            # assert len(patches) == len(label_patches)
+        elif len(label_patches.shape) == 2:
+            patches, label_patches = self._balance_classification_patches(patches, label_patches)
+        else:
+            ValueError(f"Unknown shape for label_patches {label_patches.shape}")
+        return patches, label_patches
+
+    @staticmethod
+    def _balance_classification_patches(patches, label_patches):
+        find_classes = np.where(label_patches == 1)
+        assert len(label_patches) == len(find_classes[0])       # There was no empty label
+        total_per_class = np.bincount(find_classes[-1])
+        total_to_keep = np.min(total_per_class)
+        mask_indexes = set()
+        for cls in set(find_classes[-1]):
+            indexes = find_classes[0][find_classes[-1] == cls]
+            mask_indexes = mask_indexes.union(set(np.random.choice(indexes, size=total_to_keep, replace=False)))
+        assert total_to_keep * len(set(find_classes[-1])) == len(mask_indexes)
+        mask = [i in mask_indexes for i in range(len(patches))]
+        patches = np.array(list(compress(patches, mask)))  # Apply mask
+        label_patches = np.array(list(compress(label_patches, mask)))
+        assert np.all(np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0])
+        return patches, label_patches
+
+    def _remove_exceeding_one_class_images(self, patches, label_patches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         This code receives labels and 2 cases are possible
             - Either the image has only one class present (together with unlabeled pixels)
@@ -820,29 +852,6 @@ class PolsarDatasetHandler(ABC):
         :param label_patches: one-hot-encoded labels of shape (P, H, W, cls)
         :return: tuple of balanced (patches, label_patches).
         """
-        # First make 'one-class' images to be the same amount
-        patches, label_patches = self._remove_exceeding_one_class_images(patches, label_patches)
-        # Then make all classes pixels to be the same amount
-        # This was added into previous function for optimization
-        # label_patches = self._balance_total_pixels_of_patch(label_patches)
-        # assert len(patches) == len(label_patches)
-        return patches, label_patches
-
-    def _remove_exceeding_one_class_images(self, patches, label_patches) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        This code receives labels and 2 cases are possible
-            - Either the image has only one class present (together with unlabeled pixels)
-            - Multiple-Labels
-            - No labels will raise an error.
-        Cases with multiple labels will not be treated, but will verify they are balanced.
-        The program will balance the total images that has each class.
-            For example, for 2 classes, there will be a same number of images with each class
-                (regardless of the pixels of said class inside an image).
-        :param patches:
-        :param label_patches:
-        :return:
-        """
-        label_patches = np.array(label_patches)
         counter, pixel_occ_mixed, indexes_to_keep = self._get_patch_image_counter_information(label_patches)
         full_img_occurrences = []
         for i in range(1, len(counter)):                    # This can be added into previous for loop, but...
@@ -871,7 +880,7 @@ class PolsarDatasetHandler(ABC):
         # counter is a Dictionary of the following format:
         # {"class_number": List[(
         #           "index": index of patch that contains the class
-        #           "occurrences": number of pixels of said class for said image in the patch
+        #           "occurrences": number of pixels of the class for current image in the patch
         # )]}
         indexes_to_keep = set()  # Indexes of all patches images to keep
         counter = defaultdict(list)
