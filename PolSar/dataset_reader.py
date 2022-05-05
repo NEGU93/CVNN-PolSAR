@@ -847,23 +847,16 @@ class PolsarDatasetHandler(ABC):
         for cls in range(1, len(counter)):
             total_images_to_be_used = len(counter[cls])     # This should be the same for all
             to_be_achieved = total_to_be_achieved - pixel_occ_mixed[cls-1]
-            # print(f"Need to get a pixel sum of {to_be_achieved}")
             avg = int(to_be_achieved / total_images_to_be_used)
-            # sum(case["occurrences"] for case in counter[cls])
             for i in range(len(counter[cls])):
                 case = counter[cls][i]
                 if case["occurrences"] <= avg:
-                    # print(f"Got occurrences = {case['occurrences']}. "
-                    #       f"To be achieved {to_be_achieved}->{to_be_achieved - case['occurrences']}."
-                    #       f"Increasing {avg}->{int(to_be_achieved / total_images_to_be_used)}")
                     to_be_achieved -= case["occurrences"]
 
                 else:
                     label_patches[case["index"]] = self._randomly_remove(label_patches[case["index"]],
                                                                          case["occurrences"] - avg)
                     to_be_achieved -= avg
-                    # print(f"Removing {case['occurrences'] - avg} pixels from a total of {case['occurrences']}. "
-                    #       f"avg = {avg}")
                 total_images_to_be_used -= 1
                 if total_images_to_be_used:
                     avg = int(to_be_achieved / total_images_to_be_used)
@@ -871,6 +864,7 @@ class PolsarDatasetHandler(ABC):
                     assert to_be_achieved == 0
         pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
         assert np.all(pixel_occ_total == pixel_occ_total[0])
+        assert len(patches) == len(label_patches)
         return patches, label_patches
 
     def _balance_single_image(self, labels_image: np.ndarray) -> np.ndarray:
