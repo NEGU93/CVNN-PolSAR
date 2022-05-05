@@ -77,10 +77,10 @@ def test_bretigny(show_gt=False, show_img=False):
 
 def full_verify_dataset(dataset_handler):
     balance_test_segmentation(dataset_handler)
-    handler_to_test(dataset_handler)
-    balanced_classification_test(dataset_handler, percentage=(0.08, 0.02, 0.9), possible_to_balance=True)
-    mode_change(dataset_handler)
-    scattering_vector(dataset_handler)
+    # handler_to_test(dataset_handler)
+    # balanced_classification_test(dataset_handler, percentage=(0.08, 0.02, 0.9), possible_to_balance=True)
+    # mode_change(dataset_handler)
+    # scattering_vector(dataset_handler)
 
 
 def balanced_classification_test(dataset_handler, percentage, possible_to_balance):
@@ -181,7 +181,7 @@ def scattering_vector(dataset_handler):
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     test_bretigny()
-    test_sf(show_gt=False, show_img=False)
-    test_flev(False, False)
-    test_ober()
-    test_coh_matrix_generator()
+    # test_sf(show_gt=False, show_img=False)
+    # test_flev(False, False)
+    # test_ober()
+    # test_coh_matrix_generator()
