@@ -626,11 +626,13 @@ class PolsarDatasetHandler(ABC):
                                balance_dataset: bool = False):
         images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         for i in range(0, len(labels)):
+            # Balance validation because is used for choosing best model
+            balance = balance_dataset if i == 0 or i == 1 else False
             images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride,
-                                                      balance_dataset=balance_dataset if i == 0 else False,
+                                                      balance_dataset=balance,
                                                       classification=classification, cast_to_numpy=True)
-        if balance_dataset:
-            images[0], labels[0] = self._balance_patches(images[0], labels[0])  # Only balance train set
+            if balance:
+                images[i], labels[i] = self._balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
         return images, labels
@@ -977,7 +979,7 @@ class PolsarDatasetHandler(ABC):
             x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=max(1 - per, 0.),
                                                                 shuffle=True if classification else shuffle,
                                                                 stratify=y_test if classification else None)
-            if i == 0 and balance_dataset:
+            if balance_dataset:     # Balance all but last. This will balance train and val but not test
                 x_train, y_train = self._balance_patches(x_train, y_train)
             if i < len(percentage) - 1:
                 percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]

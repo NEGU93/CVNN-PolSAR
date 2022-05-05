@@ -150,10 +150,12 @@ def balance_test_segmentation(dataset_handler):
                                           balance_dataset=True, stride=25,
                                           shuffle=True, classification=False)
     verify_labels_balanced(list_ds[0][1])
+    verify_labels_balanced(list_ds[1][1])
     list_ds = dataset_handler.get_dataset(method="random", percentage=DATASET_META[dataset_handler.name]["percentage"],
                                           balance_dataset=True, stride=25,
                                           shuffle=True, classification=False)
     verify_labels_balanced(list_ds[0][1])
+    verify_labels_balanced(list_ds[1][1])
     # Single image is not balanced! (TODO: sth can be done with it)
 
 
