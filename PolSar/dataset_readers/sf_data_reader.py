@@ -55,6 +55,7 @@ class SanFranciscoDataset(PolsarDatasetHandler):
         elif self.mode == "k":
             mat = self.open_s_dataset(str(Path(root_path) / self.name / folder / "S2"))    # s11, s12, s22
             data = self._get_k_vector(HH=mat[:, :, 0], VV=mat[:, :, 2], HV=mat[:, :, 1])
+            assert np.allclose(self.get_scattering_vector_from_k(data), mat)
         else:
             raise ValueError(f"Mode {self.mode} not supported.")
         data = data[
@@ -63,7 +64,7 @@ class SanFranciscoDataset(PolsarDatasetHandler):
                ]
         if AVAILABLE_IMAGES[self.name]["y_inverse"]:
             data = np.flip(data, axis=0)
-        return data
+        return np.array(data)
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ class GaronDataset(PolsarDatasetHandler):
             image_number = self.image_number
         s_raw = np.load(self.root_path / available_images[image_number])
         if self.mode == 's':
-            return s_raw[:, :, :-1]     # Don't send VH
+            return s_raw[:, :, :-1]     # Don't send VH TODO: IS ORDER OK?
         elif self.mode == 't':
             return self.numpy_coh_matrix(HH=s_raw[:, :, 0], VV=s_raw[:, :, 3], HV=s_raw[:, :, 1], kernel_shape=1)
         else:

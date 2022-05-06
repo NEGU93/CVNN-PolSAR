@@ -43,6 +43,12 @@ class OberpfaffenhofenDataset(PolsarDatasetHandler):
                                                       name="OBER", mode="t", *args, **kwargs)
         self.azimuth = "vertical"
 
+    @PolsarDatasetHandler.mode.setter
+    def mode(self, mode):
+        if mode.lower() != 't':
+            raise ValueError(f"Cannot set mode on Oberpfaffenhofen data as it only "
+                             f"supports coherency matrix (mode = 't')")
+
     def get_image(self):
         return self.open_t_dataset_t3(t_path)
 

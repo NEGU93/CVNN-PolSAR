@@ -1,6 +1,7 @@
 import os.path
 import timeit
 import sys
+import logging
 from collections.abc import Sequence
 from packaging import version
 from collections import defaultdict
@@ -310,7 +311,7 @@ def ordered_insertion_by_key(sequence, value, key):
 
 class PolsarDatasetHandler(ABC):
 
-    def __init__(self, root_path: str, name: str, mode: str, balance_dataset: bool = False, coh_kernel_size: int = 1):
+    def __init__(self, root_path: str, name: str, mode: str, coh_kernel_size: int = 1):
         """
 
         :param root_path:
@@ -586,15 +587,21 @@ class PolsarDatasetHandler(ABC):
         """
         return transform_to_real_with_numpy(self.image, None, mode=mode)[0]
 
+    @staticmethod
+    def get_scattering_vector_from_k(pauli):
+        scat = np.zeros(shape=pauli.shape, dtype=complex)  # k = HH + VV, HH - VV, HV
+        scat[:, :, 0] = (pauli[:, :, 0] + pauli[:, :, 1]) / np.sqrt(2)  # s11, s12, s22 = HH, HV, VV
+        scat[:, :, 2] = (pauli[:, :, 0] - pauli[:, :, 1]) / np.sqrt(2)
+        scat[:, :, 1] = pauli[:, :, 2] / np.sqrt(2)
+        return scat
+
     def get_scattering_vector(self):
         if self.mode == 's':
             return self.image
         elif self.mode == 'k':
-            s = np.zeros(shape=self.image.shape, dtype=complex)
-            s[:, :, 0] = (self.image[:, :, 0] + self.image[:, :, 1]) / np.sqrt(2)
-            s[:, :, 1] = (self.image[:, :, 0] - self.image[:, :, 1]) / np.sqrt(2)
-            s[:, :, 2] = self.image[:, :, 2] / np.sqrt(2)
-            return s
+            scat = self.get_scattering_vector_from_k(self.image)
+            assert np.allclose(self._get_k_vector(HH=scat[:, :, 0], VV=scat[:, :, 2], HV=scat[:, :, 1]), self.image)
+            return scat
         elif self.mode == 't':
             raise NotImplementedError("It is not possible to obtain the scattering vector from the coherency matrix")
         else:
@@ -770,6 +777,33 @@ class PolsarDatasetHandler(ABC):
         return ds
 
     # Balance dataset
+    @staticmethod
+    def balanced_test_split(x_all, y_all, test_size, shuffle):
+        x_train_per_class, x_test_per_class, y_train_per_class, y_test_per_class = [], [], [], []
+        sparse_y = np.argmax(y_all, axis=-1)
+        for cls in range(y_all.shape[-1]):
+            expected_size = int((1 - test_size) * y_all.shape[0] / y_all.shape[-1])
+            min_size = x_all[sparse_y == cls].shape[0] - 1
+            train_size = min(min_size, expected_size)
+            if train_size == min_size:
+                if train_size == 0:
+                    raise ValueError(f"Train_size was 0. You run out of labels for class {cls}.")
+                    # raise ValueError(f"Train_size was 0. You run out of labels for class {cls}")
+                logging.warning(f"All samples ({train_size}) but one used for class {cls}. "
+                                f"It was expected to have at least {expected_size} samples."
+                                f"Try using a lower train percentage.")
+            x_train, x_test, y_train, y_test = train_test_split(x_all[sparse_y == cls], y_all[sparse_y == cls],
+                                                                train_size=train_size, shuffle=shuffle)
+            x_train_per_class.append(x_train)
+            x_test_per_class.append(x_test)
+            y_train_per_class.append(y_train)
+            y_test_per_class.append(y_test)
+        x_train = np.concatenate(x_train_per_class)
+        x_test = np.concatenate(x_test_per_class)
+        y_train = np.concatenate(y_train_per_class)
+        y_test = np.concatenate(y_test_per_class)
+        return x_train, x_test, y_train, y_test
+
     def balance_single_image(self, labels_image: np.ndarray) -> np.ndarray:
         """
         Given a 3D one-hot-encoded image with empty labels as [0, ..., 0] and present class as [1, 0, ..., 0], etc.
@@ -828,6 +862,11 @@ class PolsarDatasetHandler(ABC):
         assert len(label_patches) == len(find_classes[0])       # There was no empty label
         total_per_class = np.bincount(find_classes[-1])
         total_to_keep = np.min(total_per_class)
+        if not total_to_keep:
+            logging.warning(f"Class/es {np.where(total_per_class == 0)[0]} had no occurrences, "
+                            f"balance will mean to remove everything. Pretending they don't exist and balance "
+                            f"with the next non-zero class occurrences.")
+            total_to_keep = np.min(total_per_class[np.nonzero(total_per_class)])
         mask_indexes = set()
         for cls in set(find_classes[-1]):
             indexes = find_classes[0][find_classes[-1] == cls]
@@ -836,7 +875,9 @@ class PolsarDatasetHandler(ABC):
         mask = [i in mask_indexes for i in range(len(patches))]
         patches = np.array(list(compress(patches, mask)))  # Apply mask
         label_patches = np.array(list(compress(label_patches, mask)))
-        assert np.all(np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0])
+        if __debug__:
+            counts = np.bincount(np.where(label_patches == 1)[-1])
+            assert np.all(counts[np.nonzero(counts)] == counts[np.nonzero(counts)][0])
         return patches, label_patches
 
     def _remove_exceeding_one_class_images(self, patches, label_patches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -865,13 +906,25 @@ class PolsarDatasetHandler(ABC):
             # As it is ordered, I keep the images that have the more occurences.
             to_keep = location_of_patches_for_given_class[-min_class_occ:] if min_class_occ else []
             counter[cls] = to_keep
+            if total_to_be_achieved - pixel_occ_mixed[cls-1] <= 0:
+                set_trace()
+                raise ValueError(f"Even if removing every 'one-label' image, "
+                                 f"it will still have more pixels than the minimum occurred label.\n"
+                                 f"Class with less pixels occurrences is {total_to_be_achieved}. "
+                                 f"However, class {cls-1} has already {pixel_occ_mixed[cls-1]} "
+                                 f"pixels on the mixed images")
+            logging.debug(f"Balancing class {cls} with a total of "
+                          f"{total_to_be_achieved - pixel_occ_mixed[cls-1]} to be achieved")
             label_patches = self._get_total_pixels_to_meet(label_patches, counter[cls],
                                                            to_be_achieved=total_to_be_achieved - pixel_occ_mixed[cls-1])
             indexes_to_keep = indexes_to_keep.union(set([keep["index"] for keep in to_keep]))  # Saved the indexes saved
         mask = [i in indexes_to_keep for i in range(len(patches))]  # Keep saved indexes
         patches = np.array(list(compress(patches, mask)))  # Apply mask
         label_patches = np.array(list(compress(label_patches, mask)))
-        assert np.all(np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0])
+        try:
+            assert np.all(np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0])
+        except:
+            set_trace()
         # assert np.all([len(counter[i]) for i in range(1, len(counter))] == len(counter[1]))
         return patches, label_patches
 
@@ -920,8 +973,10 @@ class PolsarDatasetHandler(ABC):
         for i in range(len(cls_counter)):
             case = cls_counter[i]
             if case["occurrences"] <= avg:
+                logging.debug(f"Image had {case['occurrences']} whereas needed avg was {avg}")
                 to_be_achieved -= case["occurrences"]
             else:
+                logging.debug(f"Removing {case['occurrences'] - avg} of a total of {case['occurrences']}")
                 label_patches[case["index"]] = self._randomly_remove(label_patches[case["index"]],
                                                                      case["occurrences"] - avg)
                 to_be_achieved -= avg
@@ -1009,8 +1064,8 @@ class PolsarDatasetHandler(ABC):
         labels = np.pad(labels, paddings)
         return image, labels
 
-    def _separate_dataset(self, patches, label_patches, percentage: Union[Tuple[float], float], shuffle: bool = True,
-                          classification: bool = False,
+    def _separate_dataset(self, patches: np.ndarray, label_patches: np.ndarray,
+                          percentage: Union[Tuple[float], float], shuffle: bool = True, classification: bool = False,
                           balance_dataset: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Separates dataset patches according to the percentage.
@@ -1020,19 +1075,23 @@ class PolsarDatasetHandler(ABC):
         :return: tuple of two lists of size = len(percentage), one with data x and other with labels y.
         """
         percentage = self._parse_percentage(percentage)
-        x_test = patches
-        y_test = label_patches
+        x_test = np.array(patches)
+        y_test = np.array(label_patches)
         x = []
         y = []
         full_percentage = np.isclose(sum(percentage), 1)        # Not the same to have (0.1, 0.2, 0.7) or (0.1, 0.2)
         if full_percentage:
             percentage = percentage[:-1]
         for i, per in enumerate(percentage):    # But this loop is the same
-            x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=max(1 - per, 0.),
-                                                                shuffle=True if classification else shuffle,
-                                                                stratify=y_test if classification else None)
-            if balance_dataset:     # Balance all but last. This will balance train and val but not test
-                x_train, y_train = self.balance_patches(x_train, y_train)
+            if classification and balance_dataset:
+                x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
+                                                                            shuffle=shuffle)
+            else:
+                x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=max(1 - per, 0.),
+                                                                    shuffle=True if classification else shuffle,
+                                                                    stratify=y_test if classification else None)
+                if balance_dataset:     # Balance all but last. This will balance train and val but not test
+                    x_train, y_train = self.balance_patches(x_train, y_train)
             if i < len(percentage) - 1:
                 percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
             x.append(np.array(x_train))
@@ -1081,7 +1140,7 @@ class PolsarDatasetHandler(ABC):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
                 slice_x = slice(x, x + size[0])
                 slice_y = slice(y, y + size[1])
-                label_to_add = lab[slice_x, slice_y]
+                label_to_add = np.array(lab[slice_x, slice_y])
                 # Only add if there is at least one label:
                 if segmentation:
                     if not np.all(np.all(label_to_add == 0, axis=-1)):  # If image has at least one label
@@ -1098,9 +1157,9 @@ class PolsarDatasetHandler(ABC):
         #     assert int(np.shape(tiles)[0]) == int(
         #         (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
         # print(f"tiles shape before going out of sliding window op {np.array(tiles).shape}")
-        # tiles = np.array(tiles)
-        # label_tiles = np.array(label_tiles)
-        # assert np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
+        tiles = np.array(tiles)
+        label_tiles = np.array(label_tiles)
+        assert np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
         return tiles, label_tiles
 
     # Open with path
@@ -1257,15 +1316,12 @@ class PolsarDatasetHandler(ABC):
         config_string = f"{'cls' if classification else 'seg'}_{self.name.lower()}_{self.mode}" \
                         f"_window{size}_stride{stride}_pad{pad}".replace(' ', '')
         # Do I already performed the math operations?
-        print(f"Computing dataset {config_string}_patches.npy")
+        logging.info(f"Computing dataset {config_string}_patches.npy")
         start = timeit.default_timer()
         patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
                                                                 segmentation=not classification,
                                                                 balance_dataset=balance_dataset)
-        if cast_to_numpy:
-            patches = np.array(patches)
-            label_patches = np.array(label_patches)
-        print(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
-              f"{int(timeit.default_timer() - start)} seconds")
+        logging.info(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
+                     f"{int(timeit.default_timer() - start)} seconds")
         return patches, label_patches
 

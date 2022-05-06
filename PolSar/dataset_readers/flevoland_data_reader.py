@@ -1,3 +1,5 @@
+import logging
+
 import scipy.io
 import sys
 import os
@@ -32,6 +34,11 @@ class FlevolandDataset(PolsarDatasetHandler):
         super(FlevolandDataset, self).__init__(root_path=os.path.dirname(labels_path),
                                                name="FLEVOLAND", mode='t', *args, **kwargs)
         self.azimuth = "horizontal"
+
+    @PolsarDatasetHandler.mode.setter
+    def mode(self, mode):
+        if mode.lower() != 't':
+            raise ValueError(f"Cannot set mode on Flevoland data as it only supports coherency matrix (mode = 't')")
 
     def get_image(self):
         return self.open_t_dataset_t3(dataset_path)

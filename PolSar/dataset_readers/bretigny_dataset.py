@@ -73,7 +73,7 @@ class BretignyDataset(PolsarDatasetHandler):
 
     def _get_bret_s_dataset(self):
         mat = self._open_data()
-        s = np.array([mat['HH'], mat['VV'], mat['HV']])
+        s = np.array([mat['HH'], mat['HV'], mat['VV']])
         s = np.transpose(s, axes=[1, 2, 0])
         return s
 
