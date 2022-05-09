@@ -1,6 +1,7 @@
 import logging
 import sys
 import os
+from collections import defaultdict
 from os import makedirs
 from pathlib import Path
 import numpy as np
@@ -58,12 +59,12 @@ def handler_to_test(dataset_handler, show_gt=False, show_img=False):
 
 def test_sf(show_gt=False, show_img=False):
     dataset_handler = SanFranciscoDataset(mode='s', dataset_name="SF-AIRSAR")
-    full_verify_dataset(dataset_handler, should_rise_error=True)
+    full_verify_dataset(dataset_handler)
 
 
 def test_flev(show_gt=False, show_img=False):
     dataset_handler = FlevolandDataset(mode='s')
-    full_verify_dataset(dataset_handler, should_rise_error=True)
+    full_verify_dataset(dataset_handler)
 
 
 def test_ober(show_gt=False, show_img=False):
@@ -76,20 +77,20 @@ def test_bretigny(show_gt=False, show_img=False):
     full_verify_dataset(dataset_handler)
 
 
-def full_verify_dataset(dataset_handler, should_rise_error=False):
-    balance_test_segmentation(dataset_handler, should_rise_error)
+def full_verify_dataset(dataset_handler):
+    balance_test_segmentation(dataset_handler)
     # balanced_classification_test(dataset_handler, percentage=(0.04, 0.96), possible_to_balance_random=True,
     #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
     # balanced_classification_test(dataset_handler, percentage=(0.6, ), possible_to_balance_random=False,
     #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
-    # handler_to_test(dataset_handler)
-    # try:
-    #     scattering_vector(dataset_handler)
-    #     mode_change(dataset_handler)
-    #     coh_matrix_generator(dataset_handler)
-    # except ValueError as e:
-    #     if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
-    #         raise e                                                 # Should catch the error
+    handler_to_test(dataset_handler)
+    try:
+        scattering_vector(dataset_handler)
+        mode_change(dataset_handler)
+        coh_matrix_generator(dataset_handler)
+    except ValueError as e:
+        if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
+            raise e                                                 # Should catch the error
 
 
 def balanced_classification_test(dataset_handler, percentage, possible_to_balance_random, possible_to_balance_sep):
@@ -122,53 +123,41 @@ def garon_balance_test(percentage):
 def verify_labels_balanced(label_patches):
     """
     Verifies:
-        - Same amount of 'one label only' images
-        - 'Mixed-class' images are balanced
         - Total pixels per class balanced too
     Raises assertion error if image is not balanced
     :param label_patches:
     :return:
     """
-    counter = np.zeros(len(label_patches))
+    counter = defaultdict(lambda: {"total": 0, "mixed": 0})
     for i, la in enumerate(label_patches):
         present_classes = np.where(la == 1)[-1]     # Find all classes (again, there will be at least one).
         assert len(present_classes)                 # No empty image are supposed to be here.
         all_equal = np.all(present_classes == present_classes[0])  # Are all classes the same one?
         if all_equal:                               # If only one class present, then add it to the counter
-            counter[i] = present_classes[0] + 1     # +1 because counter[i] = 0 is reserved for mix classes cases
+            counter[present_classes[0]]["total"] += len(present_classes)
         else:               # If mixed case, then it must be balanced itself
-            occurrences = [np.sum(present_classes == cls) for cls in set(present_classes)]
-            assert np.all(occurrences == occurrences[0])
-    full_img_occurrences = np.bincount(counter.astype(int))
-    assert np.all(full_img_occurrences[1:] == full_img_occurrences[1])      # Same amount of labeled images
+            for cls in set(present_classes):
+                counter[cls]["total"] += np.sum(present_classes == cls)
+                counter[cls]["mixed"] += np.sum(present_classes == cls)
+    min_case = np.min([counter[i]["total"] for i in range(len(counter))])
+    for cls in range(label_patches.shape[-1]):
+        assert counter[cls]["total"] == min_case or counter[cls]["total"] == counter[cls]["mixed"]
     count = np.bincount(np.where(label_patches == 1)[-1])                   # Count of total pixels
     assert np.all(count == count[0])
 
 
-def balance_test_segmentation(dataset_handler, should_raise_error=False):
-    # dataset_handler.balance_dataset = True
-    try:
-        list_ds = dataset_handler.get_dataset(method="random", percentage=DATASET_META[dataset_handler.name]["percentage"],
-                                              balance_dataset=True, stride=25,
-                                              shuffle=True, classification=False)
-    except ValueError as e:
-        if not should_raise_error:
-            raise e
-    else:
-        verify_labels_balanced(list_ds[0][1])
-        verify_labels_balanced(list_ds[1][1])
-    try:
-        list_ds = dataset_handler.get_dataset(method="separate",
-                                              percentage=DATASET_META[dataset_handler.name]["percentage"],
-                                              balance_dataset=True, stride=25,
-                                              shuffle=True, classification=False)
-    except ValueError as e:
-        if not should_raise_error:
-            raise e
-    else:
-        verify_labels_balanced(list_ds[0][1])
-        verify_labels_balanced(list_ds[1][1])
-    # Single image is not balanced! (TODO: sth can be done with it)
+def balance_test_segmentation(dataset_handler):
+    list_ds = dataset_handler.get_dataset(method="random", balance_dataset=(True, True), stride=25,
+                                          percentage=DATASET_META[dataset_handler.name]["percentage"],
+                                          shuffle=True, classification=False)
+    verify_labels_balanced(list_ds[0][1])
+    verify_labels_balanced(list_ds[1][1])
+    list_ds = dataset_handler.get_dataset(method="separate",
+                                          percentage=DATASET_META[dataset_handler.name]["percentage"],
+                                          balance_dataset=(True, True), stride=25,
+                                          shuffle=True, classification=False)
+    verify_labels_balanced(list_ds[0][1])
+    verify_labels_balanced(list_ds[1][1])
 
 
 def mode_change(dataset_handler):
@@ -194,8 +183,8 @@ def scattering_vector(dataset_handler):
 
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     test_bretigny()
-    # test_flev()
-    # test_sf()
-    # test_ober()
+    test_flev()
+    test_sf()
+    test_ober()
