@@ -148,8 +148,7 @@ def verify_labels_balanced(label_patches):
 def balance_test_segmentation(dataset_handler, should_raise_error=False):
     # dataset_handler.balance_dataset = True
     try:
-        list_ds = dataset_handler.get_dataset(method="separate",
-                                              percentage=DATASET_META[dataset_handler.name]["percentage"],
+        list_ds = dataset_handler.get_dataset(method="random", percentage=DATASET_META[dataset_handler.name]["percentage"],
                                               balance_dataset=True, stride=25,
                                               shuffle=True, classification=False)
     except ValueError as e:
@@ -159,7 +158,8 @@ def balance_test_segmentation(dataset_handler, should_raise_error=False):
         verify_labels_balanced(list_ds[0][1])
         verify_labels_balanced(list_ds[1][1])
     try:
-        list_ds = dataset_handler.get_dataset(method="random", percentage=DATASET_META[dataset_handler.name]["percentage"],
+        list_ds = dataset_handler.get_dataset(method="separate",
+                                              percentage=DATASET_META[dataset_handler.name]["percentage"],
                                               balance_dataset=True, stride=25,
                                               shuffle=True, classification=False)
     except ValueError as e:

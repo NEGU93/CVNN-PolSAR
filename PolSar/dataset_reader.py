@@ -334,7 +334,7 @@ class PolsarDatasetHandler(ABC):
         self._sparse_labels = None
         self._labels = None
         self._labels_occurrences = None
-        self.azimuth = None     # TODO: Child can define it wil "horizontal" or "vertical"
+        self.azimuth = None  # TODO: Child can define it wil "horizontal" or "vertical"
 
     @property
     def image(self):
@@ -369,7 +369,7 @@ class PolsarDatasetHandler(ABC):
         if self._mode != mode:
             self._mode = mode.lower()
             if self._image is not None:
-                self._image = self.get_image()      # Reload image
+                self._image = self.get_image()  # Reload image
 
     """
         METHODS TO BE IMPLEMENTED
@@ -405,7 +405,7 @@ class PolsarDatasetHandler(ABC):
     def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float],
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same", savefig: Optional[str] = None,
                     azimuth: Optional[str] = None, data_augment: bool = False, classification: bool = False,
-                    complex_mode: bool = True, real_mode: str = "real_imag",  balance_dataset: bool = False,
+                    complex_mode: bool = True, real_mode: str = "real_imag", balance_dataset: bool = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         """
         Get the dataset in the desired form
@@ -499,9 +499,9 @@ class PolsarDatasetHandler(ABC):
         """
         if label is None:
             label = self.labels
-            mask = True     # In this case, just mask the missing labels.
+            mask = True  # In this case, just mask the missing labels.
         if isinstance(mask, bool) and mask:
-            mask = self.sparse_labels       # TODO: I can force padding here.
+            mask = self.sparse_labels  # TODO: I can force padding here.
         # TODO: I can force padding here.
         alpha = 0.7
         if isinstance(transparent_image, np.ndarray):
@@ -654,15 +654,15 @@ class PolsarDatasetHandler(ABC):
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
-                               balance_dataset: bool = False):
+                               balance_dataset: Union[bool, Tuple[bool]] = False):
         images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         for i in range(0, len(labels)):
             # Balance validation because is used for choosing best model
-            balance = balance_dataset if i == 0 or i == 1 else False
+            balance = self._parse_balance(balance_dataset, len(images))
             images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride,
-                                                      balance_dataset=balance,
+                                                      balance_dataset=balance[i],
                                                       classification=classification, cast_to_numpy=True)
-            if balance:
+            if balance[i]:
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
@@ -736,6 +736,19 @@ class PolsarDatasetHandler(ABC):
                     assert len(pad[indx]) == 2
             pad = tuple(pad)
         return pad
+
+    @staticmethod
+    def _parse_balance(balance_dataset: Union[bool, Tuple[bool]], length: int) -> Tuple[bool]:
+        if isinstance(balance_dataset, bool):
+            balance = np.full(shape=length, fill_value=balance_dataset)
+        elif len(balance_dataset) == length:
+            balance = balance_dataset
+        elif len(balance_dataset) < length:
+            balance = balance_dataset + (False,) * (length - len(balance_dataset))
+        else:
+            ValueError(f"Balance dataset ({balance_dataset}) was longer than expected (length = {length}).")
+        assert np.all(isinstance(bal, bool) for bal in balance)
+        return balance
 
     # Methods to print rgb image
 
@@ -839,6 +852,10 @@ class PolsarDatasetHandler(ABC):
                 for y in range(len(labels_image[x])):
                     if (x, y) not in indexes:
                         labels_image[x][y] = np.array([0.] * labels_image.shape[-1])  # Remove not "saved" values
+            if __debug__:
+                present_classes_check = np.where(labels_image == 1)[-1]
+                occurrences_check = [np.sum(present_classes_check == cls) for cls in set(present_classes_check)]
+                assert np.all(occurrences_check == occurrences_check[0])
         return np.array(labels_image)
 
     def balance_patches(self, patches, label_patches):
@@ -859,7 +876,7 @@ class PolsarDatasetHandler(ABC):
     @staticmethod
     def _balance_classification_patches(patches, label_patches):
         find_classes = np.where(label_patches == 1)
-        assert len(label_patches) == len(find_classes[0])       # There was no empty label
+        assert len(label_patches) == len(find_classes[0])  # There was no empty label
         total_per_class = np.bincount(find_classes[-1])
         total_to_keep = np.min(total_per_class)
         if not total_to_keep:
@@ -895,35 +912,42 @@ class PolsarDatasetHandler(ABC):
         """
         counter, pixel_occ_mixed, indexes_to_keep = self._get_patch_image_counter_information(label_patches)
         full_img_occurrences = []
-        for i in range(1, len(counter)):                    # This can be added into previous for loop, but...
-            full_img_occurrences.append(len(counter[i]))    # It should not be costly I won't normally have many classes
-        min_class_occ = np.min(full_img_occurrences)        # Minimum amount of images per class.
+        for i in range(1, len(counter)):  # This can be added into previous for loop, but...
+            full_img_occurrences.append(len(counter[i]))  # It should not be costly I won't normally have many classes
+        min_class_occ = np.min(full_img_occurrences)  # Minimum amount of images per class.
         pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
-        total_to_be_achieved = np.min(pixel_occ_total)
+        total_to_be_achieved = np.min(pixel_occ_total)      # TODO: If the less cases has more of one-class this breaks
+        one_class_label_occ = []
+        for i in range(1, len(counter)):
+            one_class_label_occ.append(sum([co["occurrences"] for co in counter[i]]))
         for cls in range(1, len(counter)):
-            location_of_patches_for_given_class = counter[cls]      # This was ordered
+            location_of_patches_for_given_class = counter[cls]  # This was ordered
             # If min_class_occ == 0 I should just remove everything. So to_keep should be an empty list
             # As it is ordered, I keep the images that have the more occurences.
             to_keep = location_of_patches_for_given_class[-min_class_occ:] if min_class_occ else []
             counter[cls] = to_keep
-            if total_to_be_achieved - pixel_occ_mixed[cls-1] <= 0:
-                set_trace()
-                raise ValueError(f"Even if removing every 'one-label' image, "
-                                 f"it will still have more pixels than the minimum occurred label.\n"
-                                 f"Class with less pixels occurrences is {total_to_be_achieved}. "
-                                 f"However, class {cls-1} has already {pixel_occ_mixed[cls-1]} "
-                                 f"pixels on the mixed images")
+            to_be_achieved = total_to_be_achieved - pixel_occ_mixed[cls - 1]
+            if to_be_achieved < len(counter[cls]):
+                logging.warning(f"Desired size {to_be_achieved} for total pixels of one-class images for label {cls-1} "
+                                f"is less than the total amount of images. Resulting that some images will be empty.\n"
+                                f"setting a minimum value of {len(counter[cls])} "
+                                f"to avoid this (one pixel label per image)")
+                to_be_achieved = len(counter[cls])
             logging.debug(f"Balancing class {cls} with a total of "
-                          f"{total_to_be_achieved - pixel_occ_mixed[cls-1]} to be achieved")
-            label_patches = self._get_total_pixels_to_meet(label_patches, counter[cls],
-                                                           to_be_achieved=total_to_be_achieved - pixel_occ_mixed[cls-1])
+                          f"{total_to_be_achieved - pixel_occ_mixed[cls - 1]} to be achieved")
+            if not to_be_achieved <= sum([co["occurrences"] for co in counter[cls]]):
+                set_trace()
+            label_patches = self._get_total_pixels_to_meet(label_patches, counter[cls], to_be_achieved=to_be_achieved)
             indexes_to_keep = indexes_to_keep.union(set([keep["index"] for keep in to_keep]))  # Saved the indexes saved
+        assert np.all([len(counter[i]) == len(counter[1]) for i in range(1, len(counter))])
         mask = [i in indexes_to_keep for i in range(len(patches))]  # Keep saved indexes
         patches = np.array(list(compress(patches, mask)))  # Apply mask
         label_patches = np.array(list(compress(label_patches, mask)))
-        try:
-            assert np.all(np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0])
-        except:
+        if __debug__ and not np.all(
+                np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0]):
+            one_class_label_occ_check = []
+            for i in range(len(counter)):
+                one_class_label_occ_check.append(sum([co["occurrences"] for co in counter[i]]))
             set_trace()
         # assert np.all([len(counter[i]) for i in range(1, len(counter))] == len(counter[1]))
         return patches, label_patches
@@ -955,8 +979,8 @@ class PolsarDatasetHandler(ABC):
                     pixel_occ_mixed[p] += sum(present_classes == present_classes[0])
                 indexes_to_keep.add(i)  # Keep all mixed figures
                 # If mixed case, then it should have been balanced in the sliding window operation so assert it?
-                # assert np.all([np.sum(present_classes == cls) for cls in set(present_classes)] ==
-                #               np.sum(present_classes == present_classes[0]))  # This was supposedly done before.
+                assert np.all([np.sum(present_classes == cls) for cls in set(present_classes)] ==
+                              np.sum(present_classes == present_classes[0]))  # This was supposedly done before.
         return counter, pixel_occ_mixed, indexes_to_keep
 
     def _get_total_pixels_to_meet(self, label_patches, cls_counter, to_be_achieved):
@@ -983,6 +1007,8 @@ class PolsarDatasetHandler(ABC):
             total_images_to_be_used -= 1
             if total_images_to_be_used:
                 avg = int(to_be_achieved / total_images_to_be_used)
+        if not np.sum([len(np.where(label_patches[cls_counter[i]["index"]] == 1)[-1]) for i in range(len(cls_counter))]) == to_be_achieved:
+            set_trace()
         return label_patches
 
     @staticmethod
@@ -1008,7 +1034,8 @@ class PolsarDatasetHandler(ABC):
         total_to_be_achieved = np.min(pixel_occ_total)
         for cls in range(1, len(counter)):
             label_patches = self._get_total_pixels_to_meet(label_patches, counter[cls],
-                                                           to_be_achieved=total_to_be_achieved - pixel_occ_mixed[cls-1])
+                                                           to_be_achieved=total_to_be_achieved - pixel_occ_mixed[
+                                                               cls - 1])
         pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
         assert np.all(pixel_occ_total == pixel_occ_total[0])
         return label_patches
@@ -1079,10 +1106,10 @@ class PolsarDatasetHandler(ABC):
         y_test = np.array(label_patches)
         x = []
         y = []
-        full_percentage = np.isclose(sum(percentage), 1)        # Not the same to have (0.1, 0.2, 0.7) or (0.1, 0.2)
+        full_percentage = np.isclose(sum(percentage), 1)  # Not the same to have (0.1, 0.2, 0.7) or (0.1, 0.2)
         if full_percentage:
             percentage = percentage[:-1]
-        for i, per in enumerate(percentage):    # But this loop is the same
+        for i, per in enumerate(percentage):  # But this loop is the same
             if classification and balance_dataset:
                 x_train, x_test, y_train, y_test = self.balanced_test_split(x_test, y_test, test_size=1 - per,
                                                                             shuffle=shuffle)
@@ -1090,7 +1117,7 @@ class PolsarDatasetHandler(ABC):
                 x_train, x_test, y_train, y_test = train_test_split(x_test, y_test, test_size=max(1 - per, 0.),
                                                                     shuffle=True if classification else shuffle,
                                                                     stratify=y_test if classification else None)
-                if balance_dataset:     # Balance all but last. This will balance train and val but not test
+                if balance_dataset:  # Balance all but last. This will balance train and val but not test
                     x_train, y_train = self.balance_patches(x_train, y_train)
             if i < len(percentage) - 1:
                 percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
@@ -1144,11 +1171,11 @@ class PolsarDatasetHandler(ABC):
                 # Only add if there is at least one label:
                 if segmentation:
                     if not np.all(np.all(label_to_add == 0, axis=-1)):  # If image has at least one label
-                        if balance_dataset:     # Here, if image has more than 1 label, it will balance them all.
+                        if balance_dataset:  # Here, if image has more than 1 label, it will balance them all.
                             label_to_add = self.balance_single_image(label_to_add)
                         label_tiles.append(label_to_add)
                         tiles.append(im[slice_x, slice_y])
-                elif not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0):      # If the pixel has a label
+                elif not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0):  # If the pixel has a label
                     label_tiles.append(lab[x + int(size[0] / 2), y + int(size[1] / 2)])
                     tiles.append(im[slice_x, slice_y])
         # assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])    # Commented, expensive assertion
@@ -1324,4 +1351,3 @@ class PolsarDatasetHandler(ABC):
         logging.info(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
                      f"{int(timeit.default_timer() - start)} seconds")
         return patches, label_patches
-
