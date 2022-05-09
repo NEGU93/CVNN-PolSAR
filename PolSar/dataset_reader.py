@@ -920,12 +920,16 @@ class PolsarDatasetHandler(ABC):
         full_img_occurrences = []
         mixed_img_occurrences = []
         total_img_occurrences = []
-        for i in range(len(counter)):  # This can be added into previous for loop, but...
+        # I use shape to make sure I go through every class
+        for i in range(label_patches.shape[-1]):  # TODO: This could be added into previous for loop, but...
             full_img_occurrences.append(len(counter[i]["full"]))  # It should not be costly I won't normally have many classes
             mixed_img_occurrences.append(len(counter[i]["mixed"]))
             total_img_occurrences.append(len(counter[i]["full"]) + len(counter[i]["mixed"]))
-        min_images_occ = np.min(total_img_occurrences)  # Minimum amount of images per class.
-        for cls in range(len(counter)):         # O(cls)
+        min_images_occ = np.min(np.array(total_img_occurrences)[np.nonzero(total_img_occurrences)[0]])
+        for cls in range(label_patches.shape[-1]):         # O(cls).
+            if not total_img_occurrences[cls]:
+                logging.warning(f"Class {cls} has no labels present. Will be ignored.")
+                continue
             location_of_patches_for_given_class = counter[cls]["full"]  # This was ordered
             one_class_occ = max(min_images_occ - mixed_img_occurrences[cls], 0)
             # If min_class_occ == 0 I should just remove everything. So to_keep should be an empty list
@@ -953,6 +957,8 @@ class PolsarDatasetHandler(ABC):
         for cls in range(len(counter)):
             total_img_occurrences.append(len(counter[cls]))
         for cls in range(len(counter)):
+            if not total_img_occurrences[cls]:
+                continue
             if total_to_be_achieved < len(counter[cls]):
                 logging.warning(
                     f"Desired size {total_to_be_achieved} for total pixels of one-class images for label {cls} "

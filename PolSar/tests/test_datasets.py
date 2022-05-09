@@ -147,14 +147,14 @@ def verify_labels_balanced(label_patches):
 
 
 def balance_test_segmentation(dataset_handler):
-    list_ds = dataset_handler.get_dataset(method="random", balance_dataset=(True, True), stride=25,
-                                          percentage=DATASET_META[dataset_handler.name]["percentage"],
-                                          shuffle=True, classification=False)
-    verify_labels_balanced(list_ds[0][1])
-    verify_labels_balanced(list_ds[1][1])
     list_ds = dataset_handler.get_dataset(method="separate",
                                           percentage=DATASET_META[dataset_handler.name]["percentage"],
                                           balance_dataset=(True, True), stride=25,
+                                          shuffle=True, classification=False)
+    verify_labels_balanced(list_ds[0][1])
+    verify_labels_balanced(list_ds[1][1])
+    list_ds = dataset_handler.get_dataset(method="random", balance_dataset=(True, True), stride=25,
+                                          percentage=DATASET_META[dataset_handler.name]["percentage"],
                                           shuffle=True, classification=False)
     verify_labels_balanced(list_ds[0][1])
     verify_labels_balanced(list_ds[1][1])
@@ -184,7 +184,7 @@ def scattering_vector(dataset_handler):
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     logging.basicConfig(level=logging.INFO)
-    test_bretigny()
     test_flev()
+    test_bretigny()
     test_sf()
     test_ober()
