@@ -139,11 +139,12 @@ def verify_labels_balanced(label_patches):
             for cls in set(present_classes):
                 counter[cls]["total"] += np.sum(present_classes == cls)
                 counter[cls]["mixed"] += np.sum(present_classes == cls)
-    min_case = np.min([counter[i]["total"] for i in range(len(counter))])
+    min_case = np.min([counter[i]["total"] for i in range(label_patches.shape[-1]) if counter[i]["total"] != 0])
     for cls in range(label_patches.shape[-1]):
-        assert counter[cls]["total"] == min_case or counter[cls]["total"] == counter[cls]["mixed"]
+        assert counter[cls]["total"] == min_case or counter[cls]["total"] == counter[cls]["mixed"] or \
+               counter[cls]["total"] == 0
     count = np.bincount(np.where(label_patches == 1)[-1])                   # Count of total pixels
-    assert np.all(count == count[0])
+    assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
 
 
 def balance_test_segmentation(dataset_handler):
@@ -183,7 +184,7 @@ def scattering_vector(dataset_handler):
 
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.WARNING)
     test_flev()
     test_bretigny()
     test_sf()

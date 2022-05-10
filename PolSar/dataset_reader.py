@@ -200,7 +200,7 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
     labels_rgb = labels_to_rgb(labels, colors=colors, mask=mask)
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=labels_rgb.shape[:2])
+        fig, ax = plt.subplots()        # figsize=labels_rgb.shape[:2])
     # set_trace()
     if t is not None:
         rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
@@ -212,9 +212,9 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
             path = path + ".png"
         # ax.imsave(path)
         ax.axis('off')
-        fig.savefig(path, bbox_inches='tight', pad_inches=0, dpi=1)
+        fig.savefig(path, bbox_inches='tight', pad_inches=0)        # , dpi=1)
     if showfig:
-        plt.show(dpi=1)
+        plt.show()      # dpi=1)
     if fig is not None:
         plt.close(fig)
     return labels_rgb
@@ -531,13 +531,13 @@ class PolsarDatasetHandler(ABC):
             k_vector = self.get_pauli_vector()
             k_module = k_vector * np.conj(k_vector)
             rgb_image = self._diag_to_rgb(diagonal=k_module)
-        fig = plt.figure(figsize=rgb_image.shape[:2])
+        fig = plt.figure()      # figsize=rgb_image.shape[:2])
         ax = plt.Axes(fig, [0., 0., 1., 1.])
         ax.set_axis_off()
         fig.add_axes(ax)
         ax.imshow(rgb_image)
         if showfig:
-            plt.show(dpi=1)
+            plt.show()      # dpi=1)
         if savefile:
             path = self.root_path
             if isinstance(savefile, str):
@@ -928,8 +928,10 @@ class PolsarDatasetHandler(ABC):
         min_images_occ = np.min(np.array(total_img_occurrences)[np.nonzero(total_img_occurrences)[0]])
         for cls in range(label_patches.shape[-1]):         # O(cls).
             if not total_img_occurrences[cls]:
+                # Shall I let the user do this? or is obviously an error and raise one?
                 logging.warning(f"Class {cls} has no labels present. Will be ignored.")
                 continue
+                # raise ValueError(f"Class {cls} has no labels present.")
             location_of_patches_for_given_class = counter[cls]["full"]  # This was ordered
             one_class_occ = max(min_images_occ - mixed_img_occurrences[cls], 0)
             # If min_class_occ == 0 I should just remove everything. So to_keep should be an empty list
@@ -944,7 +946,7 @@ class PolsarDatasetHandler(ABC):
         # Done image balancing, now to pixel balancing.
         counter = self._get_balanced_patch_image_counter_information(label_patches)
         pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
-        total_to_be_achieved = np.min(pixel_occ_total)
+        total_to_be_achieved = np.min(pixel_occ_total[np.nonzero(pixel_occ_total)])
         for cls in range(len(counter)):     # Sanity checks
             assert len(counter[cls]) == min_images_occ or len(counter[cls]) == mixed_img_occurrences[cls],  \
                 f"Total images of class {cls} should have been " \
@@ -954,9 +956,9 @@ class PolsarDatasetHandler(ABC):
             mask = [indx in indexes for indx in range(len(label_patches))]
             assert pixel_occ_total[cls] == sum(np.where(label_patches[mask] == 1)[-1] == cls)
         total_img_occurrences = []
-        for cls in range(len(counter)):
+        for cls in range(label_patches.shape[-1]):
             total_img_occurrences.append(len(counter[cls]))
-        for cls in range(len(counter)):
+        for cls in range(label_patches.shape[-1]):
             if not total_img_occurrences[cls]:
                 continue
             if total_to_be_achieved < len(counter[cls]):
@@ -965,16 +967,15 @@ class PolsarDatasetHandler(ABC):
                     f"is less than the total amount of images. Resulting that some images will be empty.\n"
                     f"setting a minimum value of {len(counter[cls])} "
                     f"to avoid this (one pixel label per image)")
-                total_to_be_achieved = len(counter[cls])
+                to_be_achieved = len(counter[cls])
+            else:
+                to_be_achieved = total_to_be_achieved
             logging.debug(f"Balancing class {cls} with a total of {total_img_occurrences[cls]} images and "
-                          f"{pixel_occ_total[cls]} pixels and {total_to_be_achieved} to be achieved")
+                          f"{pixel_occ_total[cls]} pixels and {to_be_achieved} to be achieved")
             label_patches = self._get_total_pixels_to_meet(label_patches, cls=cls, cls_counter=counter[cls],
-                                                           to_be_achieved=total_to_be_achieved)
-        # one_class_label_occ = []
-        # for i in range(len(counter)):
-        #     one_class_label_occ.append(sum([co["occurrences"] for co in counter[i]["full"]]))
-        # assert np.all([len(counter[i]) == len(counter[1]) for i in range(1, len(counter))])
-        assert np.all(np.bincount(np.where(label_patches == 1)[-1]) == np.bincount(np.where(label_patches == 1)[-1])[0])
+                                                           to_be_achieved=to_be_achieved)
+        # assert np.all(np.bincount(np.where(label_patches == 1)[-1]) ==
+        #               np.bincount(np.where(label_patches == 1)[-1])[0])       # Commented because I trust people
         # assert np.all([len(counter[i]) for i in range(1, len(counter))] == len(counter[1]))
         return patches, label_patches
 
@@ -1379,7 +1380,7 @@ class PolsarDatasetHandler(ABC):
             size = tuple(size)
             assert len(size) == 2
         pad = self._parse_pad(pad, size)
-        logging.info(f"Computing dataset")
+        logging.info(f"Computing swo on dataset {self.name}")
         start = timeit.default_timer()
         patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
                                                                 segmentation=not classification,
