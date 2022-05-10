@@ -72,7 +72,7 @@ class SimulationScheduler(ABC):
 class LocalRunner(SimulationScheduler):
 
     def run_simulation(self, params: str):
-        return f"""python3 principal_simulation.py{params}"""
+        return f"""python3 -o principal_simulation.py{params}"""
 
     @staticmethod
     def submit_job(job):

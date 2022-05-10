@@ -78,11 +78,11 @@ def test_bretigny(show_gt=False, show_img=False):
 
 
 def full_verify_dataset(dataset_handler):
+    balanced_classification_test(dataset_handler, percentage=(0.04, 0.96), possible_to_balance_random=True,
+                                 possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
+    balanced_classification_test(dataset_handler, percentage=(0.6, ), possible_to_balance_random=False,
+                                 possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
     balance_test_segmentation(dataset_handler)
-    # balanced_classification_test(dataset_handler, percentage=(0.04, 0.96), possible_to_balance_random=True,
-    #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
-    # balanced_classification_test(dataset_handler, percentage=(0.6, ), possible_to_balance_random=False,
-    #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
     handler_to_test(dataset_handler)
     try:
         scattering_vector(dataset_handler)
