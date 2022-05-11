@@ -465,7 +465,8 @@ class PolsarDatasetHandler(ABC):
         elif method == "single_separated_image":
             assert not classification, f"Can't apply classification to the full image."
             x_patches, y_patches = self._get_single_image_separated_dataset(percentage=percentage, savefig=savefig,
-                                                                            azimuth=azimuth, pad=True)
+                                                                            azimuth=azimuth,
+                                                                            balance_dataset=balance_dataset, pad=True)
         else:
             raise ValueError(f"Unknown dataset method {method}")
         if use_tf_dataset:
@@ -668,13 +669,17 @@ class PolsarDatasetHandler(ABC):
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
+                                            balance_dataset: Union[bool, Tuple[bool]] = False,
                                             azimuth: Optional[str] = None, pad: bool = False):
         x, y = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
+        balance = self._parse_balance(balance_dataset, length=len(y))
         for i in range(0, len(y)):
             if pad:
                 x[i], y[i] = self._pad_image(x[i], y[i])
             x[i] = np.expand_dims(x[i], axis=0)
             y[i] = np.expand_dims(y[i], axis=0)
+            if balance[i]:
+                y[i] = self._balance_total_pixels_of_patch(y[i])
         return x, y
 
     # sparse <-> categorical (one-hot-encoded)
@@ -747,11 +752,11 @@ class PolsarDatasetHandler(ABC):
         elif len(balance_dataset) == length:
             balance = balance_dataset
         elif len(balance_dataset) < length:
-            balance = balance_dataset + (False,) * (length - len(balance_dataset))
+            balance = tuple(balance_dataset) + (False,) * (length - len(balance_dataset))
         else:
             ValueError(f"Balance dataset ({balance_dataset}) was longer than expected (length = {length}).")
         assert np.all(isinstance(bal, bool) for bal in balance)
-        return balance
+        return tuple(balance)
 
     # Methods to print rgb image
 
@@ -1332,10 +1337,10 @@ class PolsarDatasetHandler(ABC):
             size = tuple(size)
             assert len(size) == 2
         pad = self._parse_pad(pad, size)
-        logging.info(f"Computing swo on dataset {self.name}")
+        logging.debug(f"Computing swo on dataset {self.name}")
         start = timeit.default_timer()
         patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
                                                                 segmentation=not classification)
-        logging.info(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
-                     f"{int(timeit.default_timer() - start)} seconds")
+        logging.debug(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
+                      f"{int(timeit.default_timer() - start)} seconds")
         return patches, label_patches
