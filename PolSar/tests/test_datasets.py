@@ -78,19 +78,20 @@ def test_bretigny(show_gt=False, show_img=False):
 
 
 def full_verify_dataset(dataset_handler):
-    balanced_classification_test(dataset_handler, percentage=(0.04, 0.96), possible_to_balance_random=True,
-                                 possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
-    balanced_classification_test(dataset_handler, percentage=(0.6, ), possible_to_balance_random=False,
-                                 possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
+    logging.info(f"Testing dataset {dataset_handler.name}")
     balance_test_segmentation(dataset_handler)
-    handler_to_test(dataset_handler)
-    try:
-        scattering_vector(dataset_handler)
-        mode_change(dataset_handler)
-        coh_matrix_generator(dataset_handler)
-    except ValueError as e:
-        if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
-            raise e                                                 # Should catch the error
+    # balanced_classification_test(dataset_handler, percentage=(0.04, 0.96), possible_to_balance_random=True,
+    #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
+    # balanced_classification_test(dataset_handler, percentage=(0.6, ), possible_to_balance_random=False,
+    #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
+    # handler_to_test(dataset_handler)
+    # try:
+    #     scattering_vector(dataset_handler)
+    #     mode_change(dataset_handler)
+    #     coh_matrix_generator(dataset_handler)
+    # except ValueError as e:
+    #     if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
+    #         raise e                                                 # Should catch the error
 
 
 def balanced_classification_test(dataset_handler, percentage, possible_to_balance_random, possible_to_balance_sep):
@@ -128,6 +129,8 @@ def verify_labels_balanced(label_patches):
     :param label_patches:
     :return:
     """
+    count = np.bincount(np.where(label_patches == 1)[-1])  # Count of total pixels
+    assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
     counter = defaultdict(lambda: {"total": 0, "mixed": 0})
     for i, la in enumerate(label_patches):
         present_classes = np.where(la == 1)[-1]     # Find all classes (again, there will be at least one).
@@ -143,8 +146,6 @@ def verify_labels_balanced(label_patches):
     for cls in range(label_patches.shape[-1]):
         assert counter[cls]["total"] == min_case or counter[cls]["total"] == counter[cls]["mixed"] or \
                counter[cls]["total"] == 0
-    count = np.bincount(np.where(label_patches == 1)[-1])                   # Count of total pixels
-    assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
 
 
 def balance_test_segmentation(dataset_handler):
@@ -185,7 +186,7 @@ def scattering_vector(dataset_handler):
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     logging.basicConfig(level=logging.WARNING)
+    test_sf()
     test_flev()
     test_bretigny()
-    test_sf()
     test_ober()

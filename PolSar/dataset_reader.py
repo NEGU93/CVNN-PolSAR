@@ -405,32 +405,33 @@ class PolsarDatasetHandler(ABC):
     def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float],
                     size: int = 128, stride: int = 25, shuffle: bool = True, pad="same", savefig: Optional[str] = None,
                     azimuth: Optional[str] = None, data_augment: bool = False, classification: bool = False,
-                    complex_mode: bool = True, real_mode: str = "real_imag", balance_dataset: bool = False,
+                    complex_mode: bool = True, real_mode: str = "real_imag",
+                    balance_dataset: Union[bool, Tuple[bool]] = False,
                     batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         """
         Get the dataset in the desired form
         :param method: One of
-            - 'random': Sample patch images randomly using sliding window operation (swo).
-            - 'separate': Splits the image according to `percentage` parameter. Then gets patches using swo.
-            - 'single_separated_image': Splits the image according to `percentage` parameter. Returns full image.
-        :param percentage: Tuple giving the dataset split percentage.
+            - 'random': Sample patch images randomly using sliding window operation (swo)
+            - 'separate': Splits the image according to `percentage` parameter. Then gets patches using swo
+            - 'single_separated_image': Splits the image according to `percentage` parameter. Returns full image
+        :param percentage: Tuple giving the dataset split percentage
             If sum(percentage) != 1 it will add an extra value to force sum(percentage) = 1.
             If sum(percentage) > 1 or it has at least one negative value it will raise an exception.
             Example, for 60% train, 20% validation and 20% test set, use percentage = (.6, .2, .2) or (.6, .2).
-        :param size: Size of generated patches images. By default, it will generate images of 128x128.
-        :param stride: Stride used for the swo. If stride < size, parches will have coincident pixels.
+        :param size: Size of generated patches images. By default, it will generate images of 128x128
+        :param stride: Stride used for the swo. If stride < size, parches will have coincident pixels
         :param shuffle: Shuffle image patches (ignored if method == 'single_separated_image')
         :param pad: Pad image before swo or just add padding to output for method == 'single_separated_image'
         :param savefig: Used only if method='single_separated_image'.
-            - It saves len(percentage) images with the cropped generated images.
+            - It saves len(percentage) images with the cropped generated images
         :param azimuth: Cut the image 'horizontally' or 'vertically' when split (using percentage param for sizes).
             Ignored if method == 'random'
-        :param data_augment: Only used if use_tf_dataset = True. It performs data augmentation using flip.
-        :param classification: If true, it will have only one value per image path.
+        :param data_augment: Only used if use_tf_dataset = True. It performs data augmentation using flip
+        :param classification: If true, it will have only one value per image path
             Example, for a train dataset of shape (None, 128, 128, 3):
                 classification = True: labels will be of shape (None, classes)
                 classification = False: labels will be of shape (None, 128, 128, classes)
-        :param complex_mode: (default = True). Whether to return the data in complex dtype or float.
+        :param complex_mode: (default = True). Whether to return the data in complex dtype or float
         :param real_mode: If complex_mode = False, this param is used to specify the float format. One of:
             - real_imag: Stack real and imaginary part
             - amplitude_phase: stack amplitude and phase
@@ -440,12 +441,12 @@ class PolsarDatasetHandler(ABC):
             - If classification == False: Balanced using images that have only one class in it:
                 Example: If 100 and 200 images with only class 1 and 2 respectively,
                     100 of the 200 will be eliminated to have 100 and 100.
-                    If 1000 images have both classes, they will not be touched.
-            - If classification == True: It balances the train set leaving the test set unbalanced.
+                    If 1000 images have both classes, they will not be touched
+            - If classification == True: It balances the train set leaving the test set unbalanced
         :param batch_size: Used only if use_tf_dataset = True. Fixes the batch size of the tf.Dataset
-        :param use_tf_dataset: If True, return dtype will be a tf.Tensor dataset instead of numpy array.
-        :return: Returns a list of [train, (validation), (test), (k-folds)] according to percentage parameter.
-            - Each list[i] is a tuple of (data, labels) where both data and labels are numpy arrays.
+        :param use_tf_dataset: If True, return dtype will be a tf.Tensor dataset instead of numpy array
+        :return: Returns a list of [train, (validation), (test), (k-folds)] according to percentage parameter
+            - Each list[i] is a tuple of (data, labels) where both data and labels are numpy arrays
         """
         if azimuth is None:
             azimuth = self.azimuth
@@ -676,6 +677,7 @@ class PolsarDatasetHandler(ABC):
                 x[i], y[i] = self._pad_image(x[i], y[i])
             x[i] = np.expand_dims(x[i], axis=0)
             y[i] = np.expand_dims(y[i], axis=0)
+
         return x, y
 
     # sparse <-> categorical (one-hot-encoded)
@@ -974,8 +976,10 @@ class PolsarDatasetHandler(ABC):
                           f"{pixel_occ_total[cls]} pixels and {to_be_achieved} to be achieved")
             label_patches = self._get_total_pixels_to_meet(label_patches, cls=cls, cls_counter=counter[cls],
                                                            to_be_achieved=to_be_achieved)
-        # assert np.all(np.bincount(np.where(label_patches == 1)[-1]) ==
-        #               np.bincount(np.where(label_patches == 1)[-1])[0])       # Commented because I trust people
+        if __debug__:
+            class_occurrences = np.bincount(np.where(label_patches == 1)[-1])
+            assert np.all(np.logical_or(class_occurrences == class_occurrences[np.nonzero(class_occurrences)][0],
+                                        class_occurrences == 0))    # I allow zero in this case. Should I?
         # assert np.all([len(counter[i]) for i in range(1, len(counter))] == len(counter[1]))
         return patches, label_patches
 
@@ -1170,6 +1174,8 @@ class PolsarDatasetHandler(ABC):
             x.append(np.array(x_train))
             y.append(np.array(y_train))
         if full_percentage:
+            if balance[-1]:
+                x_test, y_test = self.balance_patches(x_test, y_test)
             x.append(np.array(x_test))
             y.append(np.array(y_test))
         return x, y

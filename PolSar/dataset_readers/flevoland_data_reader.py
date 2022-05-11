@@ -30,7 +30,7 @@ class FlevolandDataset(PolsarDatasetHandler):
 
     def __init__(self, mode='t', *args, **kwargs):
         if mode != 't':
-            print("WARNING: Flevoland dataset must be coherency matrix. mode parameter will be ignored")
+            logging.warning("Flevoland dataset must be coherency matrix. mode parameter will be ignored")
         super(FlevolandDataset, self).__init__(root_path=os.path.dirname(labels_path),
                                                name="FLEVOLAND", mode='t', *args, **kwargs)
         self.azimuth = "horizontal"
