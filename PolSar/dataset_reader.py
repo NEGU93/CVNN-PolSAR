@@ -200,7 +200,7 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
     labels_rgb = labels_to_rgb(labels, colors=colors, mask=mask)
     fig = None
     if ax is None:
-        fig, ax = plt.subplots()        # figsize=labels_rgb.shape[:2])
+        fig, ax = plt.subplots()  # figsize=labels_rgb.shape[:2])
     # set_trace()
     if t is not None:
         rgb = np.stack([t[:, :, 0], t[:, :, 1], t[:, :, 2]], axis=-1).astype(np.float32)
@@ -212,9 +212,9 @@ def pauli_rgb_map_plot(labels, dataset_name: str, t: Optional[np.ndarray] = None
             path = path + ".png"
         # ax.imsave(path)
         ax.axis('off')
-        fig.savefig(path, bbox_inches='tight', pad_inches=0)        # , dpi=1)
+        fig.savefig(path, bbox_inches='tight', pad_inches=0)  # , dpi=1)
     if showfig:
-        plt.show()      # dpi=1)
+        plt.show()  # dpi=1)
     if fig is not None:
         plt.close(fig)
     return labels_rgb
@@ -532,13 +532,13 @@ class PolsarDatasetHandler(ABC):
             k_vector = self.get_pauli_vector()
             k_module = k_vector * np.conj(k_vector)
             rgb_image = self._diag_to_rgb(diagonal=k_module)
-        fig = plt.figure()      # figsize=rgb_image.shape[:2])
+        fig = plt.figure()  # figsize=rgb_image.shape[:2])
         ax = plt.Axes(fig, [0., 0., 1., 1.])
         ax.set_axis_off()
         fig.add_axes(ax)
         ax.imshow(rgb_image)
         if showfig:
-            plt.show()      # dpi=1)
+            plt.show()  # dpi=1)
         if savefile:
             path = self.root_path
             if isinstance(savefile, str):
@@ -647,7 +647,6 @@ class PolsarDatasetHandler(ABC):
         :return: a Tuple of np.array (train_dataset, test_dataset)
         """
         patches, label_patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad,
-                                                                 balance_dataset=np.any(balance_dataset),
                                                                  classification=classification)
         x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
                                       percentage=percentage, shuffle=shuffle, balance_dataset=balance_dataset)
@@ -661,8 +660,7 @@ class PolsarDatasetHandler(ABC):
             # Balance validation because is used for choosing best model
             balance = self._parse_balance(balance_dataset, len(images))
             images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride,
-                                                      balance_dataset=balance[i],
-                                                      classification=classification, cast_to_numpy=True)
+                                                      classification=classification)
             if balance[i]:
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
@@ -677,7 +675,6 @@ class PolsarDatasetHandler(ABC):
                 x[i], y[i] = self._pad_image(x[i], y[i])
             x[i] = np.expand_dims(x[i], axis=0)
             y[i] = np.expand_dims(y[i], axis=0)
-
         return x, y
 
     # sparse <-> categorical (one-hot-encoded)
@@ -823,57 +820,16 @@ class PolsarDatasetHandler(ABC):
         y_test = np.concatenate(y_test_per_class)
         return x_train, x_test, y_train, y_test
 
-    def balance_single_image(self, labels_image: np.ndarray) -> np.ndarray:
-        """
-        Given a 3D one-hot-encoded image with empty labels as [0, ..., 0] and present class as [1, 0, ..., 0], etc.
-        If the image has mixed classes, it balances. For example, a 3x3 image with the following class:
-        [[ 1, 1, 0],
-         [1, 0, 2],
-         [1, 1, 2]]
-        with 5 occurrences of class 1 and 2 occurrences of class 2 can be converted to:
-        [[ 1, 0, 0],
-         [0, 0, 2],
-         [0, 1, 2]]
-        - Kept classes are chosen randomly using random.sample()
-        - ATTENTION: Example was given using a sparse matrix but the input should be one-hot-encoded!
-        :param labels_image: 3D image (H, W, C)
-        :return: Balanced image with same shape as labels_image.shape
-        """
-        present_classes = np.where(labels_image == 1)[-1]
-        if len(present_classes) == 0:
-            raise IndexError(f"Received labels image had no labels")
-        # There should not be empty images already so `all_equal` will not be empty
-        all_equal = np.all(present_classes == present_classes[0])
-        if not all_equal:
-            occurrences = [np.sum(present_classes == cls) for cls in set(present_classes)]
-            min_occ = np.min(occurrences)
-            sparse_present_classes = self.get_sparse_with_nul_label(labels_image)
-            indexes = set()
-            for cls in set(present_classes):
-                x_loc, y_loc = np.where(sparse_present_classes == cls + 1)  # Get loc where cls is present
-                locations = np.array([(x, y) for x, y in zip(x_loc, y_loc)])
-                selected_locations = locations[np.random.choice(locations.shape[0], min_occ, replace=False), :]
-                indexes = indexes.union(set(tuple(v) for v in selected_locations))  # Keep only a certain amount
-            # assert len(indexes) == min_occ * len(occurrences)
-            for x in range(len(labels_image)):
-                for y in range(len(labels_image[x])):
-                    if (x, y) not in indexes:
-                        labels_image[x][y] = np.array([0.] * labels_image.shape[-1])  # Remove not "saved" values
-            assert len(indexes) % len(set(present_classes)) == 0    # Divisible by each class
-            if __debug__:
-                present_classes_check = np.where(labels_image == 1)[-1]
-                occurrences_check = [np.sum(present_classes_check == cls) for cls in set(present_classes_check)]
-                assert np.all(occurrences_check == occurrences_check[0])
-        return np.array(labels_image)
-
     def balance_patches(self, patches, label_patches):
         label_patches = np.array(label_patches)
         if len(label_patches.shape) == 4:
             # First make 'one-class' images to be the same amount
             patches, label_patches = self._remove_exceeding_one_class_images(patches, label_patches)
             # Then make all classes pixels to be the same amount
+            if __debug__:
+                self._sanity_check_total_one_class_images(label_patches)
             # This was added into previous function for optimization
-            # label_patches = self._balance_total_pixels_of_patch(label_patches)
+            label_patches = self._balance_total_pixels_of_patch(label_patches)
             # assert len(patches) == len(label_patches)
         elif len(label_patches.shape) == 2:
             patches, label_patches = self._balance_classification_patches(patches, label_patches)
@@ -881,6 +837,7 @@ class PolsarDatasetHandler(ABC):
             ValueError(f"Unknown shape for label_patches {label_patches.shape}")
         return patches, label_patches
 
+    # Classification balance
     @staticmethod
     def _balance_classification_patches(patches, label_patches):
         find_classes = np.where(label_patches == 1)
@@ -905,6 +862,7 @@ class PolsarDatasetHandler(ABC):
             assert np.all(counts[np.nonzero(counts)] == counts[np.nonzero(counts)][0])
         return patches, label_patches
 
+    # Segmentation Balance
     def _remove_exceeding_one_class_images(self, patches, label_patches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         This code receives labels and 2 cases are possible
@@ -918,17 +876,10 @@ class PolsarDatasetHandler(ABC):
         :param label_patches: one-hot-encoded labels of shape (P, H, W, cls)
         :return: tuple of balanced (patches, label_patches).
         """
-        counter, indexes_to_keep = self._get_patch_image_counter_information(label_patches)
-        full_img_occurrences = []
-        mixed_img_occurrences = []
-        total_img_occurrences = []
-        # I use shape to make sure I go through every class
-        for i in range(label_patches.shape[-1]):  # TODO: This could be added into previous for loop, but...
-            full_img_occurrences.append(len(counter[i]["full"]))  # It should not be costly I won't normally have many classes
-            mixed_img_occurrences.append(len(counter[i]["mixed"]))
-            total_img_occurrences.append(len(counter[i]["full"]) + len(counter[i]["mixed"]))
+        counter, indexes_to_keep, full_img_occurrences, \
+        mixed_img_occurrences, total_img_occurrences = self._get_patch_image_counter_information(label_patches)
         min_images_occ = np.min(np.array(total_img_occurrences)[np.nonzero(total_img_occurrences)[0]])
-        for cls in range(label_patches.shape[-1]):         # O(cls).
+        for cls in range(label_patches.shape[-1]):  # This loop removed the actual exceding one-class images
             if not total_img_occurrences[cls]:
                 # Shall I let the user do this? or is obviously an error and raise one?
                 logging.warning(f"Class {cls} has no labels present. Will be ignored.")
@@ -944,19 +895,26 @@ class PolsarDatasetHandler(ABC):
         mask = [i in indexes_to_keep for i in range(len(patches))]  # Keep saved indexes
         patches = np.array(list(compress(patches, mask)))  # Apply mask
         label_patches = np.array(list(compress(label_patches, mask)))
-        # Sanity Check
-        # Done image balancing, now to pixel balancing.
+        return patches, label_patches
+
+    def _sanity_check_total_one_class_images(self, label_patches):
+        _, _, _, mixed_img_occurrences, total_img_occurrences = self._get_patch_image_counter_information(label_patches)
+        min_images_occ = np.min(np.array(total_img_occurrences)[np.nonzero(total_img_occurrences)[0]])
         counter = self._get_balanced_patch_image_counter_information(label_patches)
         pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
-        total_to_be_achieved = np.min(pixel_occ_total[np.nonzero(pixel_occ_total)])
-        for cls in range(len(counter)):     # Sanity checks
-            assert len(counter[cls]) == min_images_occ or len(counter[cls]) == mixed_img_occurrences[cls],  \
+        for cls in range(len(counter)):  # Sanity checks
+            assert len(counter[cls]) == min_images_occ or len(counter[cls]) == mixed_img_occurrences[cls], \
                 f"Total images of class {cls} should have been " \
                 f"{max(mixed_img_occurrences[cls], min_images_occ)} but was {len(counter[cls])}"
             assert pixel_occ_total[cls] == sum([co["occurrences"] for co in counter[cls]])  # Occurrences sum make sense
             indexes = [co["index"] for co in counter[cls]]
             mask = [indx in indexes for indx in range(len(label_patches))]
             assert pixel_occ_total[cls] == sum(np.where(label_patches[mask] == 1)[-1] == cls)
+
+    def _balance_total_pixels_of_patch(self, label_patches):
+        counter = self._get_balanced_patch_image_counter_information(label_patches)
+        pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
+        total_to_be_achieved = np.min(pixel_occ_total[np.nonzero(pixel_occ_total)])
         total_img_occurrences = []
         for cls in range(label_patches.shape[-1]):
             total_img_occurrences.append(len(counter[cls]))
@@ -974,54 +932,15 @@ class PolsarDatasetHandler(ABC):
                 to_be_achieved = total_to_be_achieved
             logging.debug(f"Balancing class {cls} with a total of {total_img_occurrences[cls]} images and "
                           f"{pixel_occ_total[cls]} pixels and {to_be_achieved} to be achieved")
+            # TODO: May be optimized if I do it for all classes at once
             label_patches = self._get_total_pixels_to_meet(label_patches, cls=cls, cls_counter=counter[cls],
                                                            to_be_achieved=to_be_achieved)
         if __debug__:
             class_occurrences = np.bincount(np.where(label_patches == 1)[-1])
             assert np.all(np.logical_or(class_occurrences == class_occurrences[np.nonzero(class_occurrences)][0],
-                                        class_occurrences == 0))    # I allow zero in this case. Should I?
+                                        class_occurrences == 0))  # I allow zero in this case. Should I?
         # assert np.all([len(counter[i]) for i in range(1, len(counter))] == len(counter[1]))
-        return patches, label_patches
-
-    @staticmethod
-    def _get_patch_image_counter_information(label_patches):
-        # counter is a Dictionary of the following format:
-        # {"class_number": List[(
-        #           "index": index of patch that contains the class
-        #           "occurrences": number of pixels of the class for current image in the patch
-        # )]}
-        indexes_to_keep = set()  # Indexes of all patches images to keep
-        counter = defaultdict(lambda: {"full": [], "mixed": []})
-        for i, la in enumerate(label_patches):  # For each patch image.
-            present_classes = np.where(la == 1)[-1]  # Find all classes (again, there will be at least one).
-            if len(present_classes) == 0:
-                raise IndexError(f"No patch image should have had an empty label.")
-            all_equal = np.all(present_classes == present_classes[0])  # Are all classes the same one?
-            for cls in set(present_classes):
-                ordered_insertion_by_key(counter[cls]["full" if all_equal else "mixed"],
-                                         # +1 because class = 0 is reserved for mix classes cases
-                                         {"index": i, "occurrences": len(present_classes[present_classes == cls])},
-                                         key="occurrences")
-                if not all_equal:
-                    indexes_to_keep.add(i)  # Keep all mixed figures, this is to make it faster
-                    # If mixed case, then it should have been balanced in the sliding window operation so assert it?
-                    # assert np.all([np.sum(present_classes == cls) for cls in set(present_classes)] ==
-                    #               np.sum(present_classes == present_classes[0]))  # This was supposedly done before.
-        return counter, indexes_to_keep
-
-    @staticmethod
-    def _get_balanced_patch_image_counter_information(label_patches):
-        counter = defaultdict(list)
-        for i, la in enumerate(label_patches):  # For each patch image.
-            present_classes = np.where(la == 1)[-1]  # Find all classes (again, there will be at least one).
-            if len(present_classes) == 0:
-                raise IndexError(f"No patch image should have had an empty label.")
-            for cls in set(present_classes):
-                ordered_insertion_by_key(counter[cls],
-                                         # +1 because class = 0 is reserved for mix classes cases
-                                         {"index": i, "occurrences": len(present_classes[present_classes == cls])},
-                                         key="occurrences")
-        return counter
+        return label_patches
 
     def _get_total_pixels_to_meet(self, label_patches, cls, cls_counter, to_be_achieved):
         """
@@ -1075,19 +994,51 @@ class PolsarDatasetHandler(ABC):
             image[available_pixel[index][0]][available_pixel[index][1]] = np.array([0.] * image.shape[-1])
         return image
 
-    def _balance_total_pixels_of_patch(self, label_patches):
-        """
-        DEPRECATED: Not used
-        """
-        counter, pixel_occ_mixed = self._get_patch_image_counter_information(label_patches)
-        pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
-        total_to_be_achieved = np.min(pixel_occ_total)
-        for cls in range(0, len(counter)):
-            label_patches = self._get_total_pixels_to_meet(label_patches, counter[cls],
-                                                           to_be_achieved=total_to_be_achieved - pixel_occ_mixed[cls])
-        pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
-        assert np.all(pixel_occ_total == pixel_occ_total[0])
-        return label_patches
+    # Counter generators for balancing
+    @staticmethod
+    def _get_patch_image_counter_information(label_patches):
+        # counter is a Dictionary of the following format:
+        # {"class_number": List[(
+        #           "index": index of patch that contains the class
+        #           "occurrences": number of pixels of the class for current image in the patch
+        # )]}
+        indexes_to_keep = set()  # Indexes of all patches images to keep
+        counter = defaultdict(lambda: {"full": [], "mixed": []})
+        for i, la in enumerate(label_patches):  # For each patch image.
+            present_classes = np.where(la == 1)[-1]  # Find all classes (again, there will be at least one).
+            if len(present_classes) == 0:
+                raise IndexError(f"No patch image should have had an empty label.")
+            all_equal = np.all(present_classes == present_classes[0])  # Are all classes the same one?
+            for cls in set(present_classes):
+                ordered_insertion_by_key(counter[cls]["full" if all_equal else "mixed"],
+                                         # +1 because class = 0 is reserved for mix classes cases
+                                         {"index": i, "occurrences": len(present_classes[present_classes == cls])},
+                                         key="occurrences")
+                if not all_equal:
+                    indexes_to_keep.add(i)  # Keep all mixed figures, this is to make it faster
+                    # If mixed case, then it should have been balanced in the sliding window operation so assert it?
+                    # assert np.all([np.sum(present_classes == cls) for cls in set(present_classes)] ==
+                    #               np.sum(present_classes == present_classes[0]))  # This was supposedly done before.
+        full_img_occurrences, mixed_img_occurrences, total_img_occurrences = [], [], []
+        for i in range(label_patches.shape[-1]):  # I use shape to make sure I go through every class
+            full_img_occurrences.append(len(counter[i]["full"]))
+            mixed_img_occurrences.append(len(counter[i]["mixed"]))
+            total_img_occurrences.append(len(counter[i]["full"]) + len(counter[i]["mixed"]))
+        return counter, indexes_to_keep, full_img_occurrences, mixed_img_occurrences, total_img_occurrences
+
+    @staticmethod
+    def _get_balanced_patch_image_counter_information(label_patches):
+        counter = defaultdict(list)
+        for i, la in enumerate(label_patches):  # For each patch image.
+            present_classes = np.where(la == 1)[-1]  # Find all classes (again, there will be at least one).
+            if len(present_classes) == 0:
+                raise IndexError(f"No patch image should have had an empty label.")
+            for cls in set(present_classes):
+                ordered_insertion_by_key(counter[cls],
+                                         # +1 because class = 0 is reserved for mix classes cases
+                                         {"index": i, "occurrences": len(present_classes[present_classes == cls])},
+                                         key="occurrences")
+        return counter
 
     # MISC
     def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str]):
@@ -1144,7 +1095,7 @@ class PolsarDatasetHandler(ABC):
                           percentage: Union[Tuple[float], float], shuffle: bool = True, classification: bool = False,
                           balance_dataset: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
-        Separates dataset patches according to the percentage.
+        Separates dataset patches according to the percentage
         :param percentage: list of percentages for each value,
             example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test.
         :param shuffle: Shuffle dataset before split.
@@ -1193,8 +1144,8 @@ class PolsarDatasetHandler(ABC):
         return masked_filtered_data, masked_filtered_labels
 
     def _sliding_window_operation(self, im, lab, size: Tuple[int, int], stride: int,
-                                  pad: Tuple[Tuple[int, int], Tuple[int, int]], segmentation: bool = True,
-                                  balance_dataset: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+                                  pad: Tuple[Tuple[int, int], Tuple[int, int]],
+                                  segmentation: bool = True) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extracts many sub-images from one big image. Labels included.
         Using the Sliding Window Operation defined in:
@@ -1218,10 +1169,8 @@ class PolsarDatasetHandler(ABC):
                 slice_x = slice(x, x + size[0])
                 slice_y = slice(y, y + size[1])
                 label_to_add = np.array(lab[slice_x, slice_y])
-                if segmentation:    # Only add if there is at least one label:
+                if segmentation:  # Only add if there is at least one label:
                     if not np.all(np.all(label_to_add == 0, axis=-1)):  # If image has at least one label
-                        # if balance_dataset:  # Here, if image has more than 1 label, it will balance them all.
-                        #     label_to_add = self.balance_single_image(label_to_add)
                         label_tiles.append(label_to_add)
                         tiles.append(im[slice_x, slice_y])
                 elif not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0):  # If the pixel has a label
@@ -1229,7 +1178,7 @@ class PolsarDatasetHandler(ABC):
                     tiles.append(im[slice_x, slice_y])
         # Sanity checks
         assert len(tiles) == len(label_tiles)
-        assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])    # Commented, expensive assertion
+        assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
         assert np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
         if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
             assert int(np.shape(tiles)[0]) == int(
@@ -1368,16 +1317,13 @@ class PolsarDatasetHandler(ABC):
         return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
 
     def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False, cast_to_numpy: bool = False, balance_dataset: bool = False):
+                      classification: bool = False):
         """
-        Performs the sliding window operation to the image.
+        Performs the sliding window operation to the image
         :param size:
         :param stride:
         :param pad:
         :param classification:
-        :param cast_to_numpy:
-        :param balance_dataset: If segmentation (classification = False), it will balance the dataset so that patches
-            are more or less same class occurrences
         :return: image and label patches of the main image and labels
         """
         if isinstance(size, int):
@@ -1389,8 +1335,7 @@ class PolsarDatasetHandler(ABC):
         logging.info(f"Computing swo on dataset {self.name}")
         start = timeit.default_timer()
         patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
-                                                                segmentation=not classification,
-                                                                balance_dataset=balance_dataset)
+                                                                segmentation=not classification)
         logging.info(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
                      f"{int(timeit.default_timer() - start)} seconds")
         return patches, label_patches
