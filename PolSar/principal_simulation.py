@@ -389,12 +389,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                 percentage = (0.4, 0.1, 0.05)
         else:
             percentage = DATASET_META[dataset_name]["percentage"]
+    balance_dataset = (balance == "dataset",) * (len(percentage) - 1) + (False,)
     # Dataset
     dataset_name = dataset_name.upper()
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
-                                          balance_dataset=(balance == "dataset"),
+                                          balance_dataset=balance_dataset,
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=MODEL_META[model_name]["size"],
                                           stride=128 if dataset_name == "GARON" else MODEL_META[model_name]["stride"],
