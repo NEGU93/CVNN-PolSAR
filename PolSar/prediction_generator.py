@@ -13,11 +13,11 @@ from results_reader import ResultReader
 
 
 def bretigny_mask():
-    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/04April/15Friday/run-17h49m33")
-    dataset_handler = BretignyDataset(mode="t", balance_dataset=True)
+    path = Path("/home/barrachina/Documents/onera/PolSar/log/2022/05May/12Thursday/run-10h55m58")
+    dataset_handler = BretignyDataset(mode="k", balance_dataset=True)
     get_final_model_results(path, dataset_handler=dataset_handler, model_name="cao",
                             tensorflow=True, complex_mode=False,
-                            channels=6, dropout=DROPOUT_DEFAULT, use_mask=True)
+                            channels=3, dropout=DROPOUT_DEFAULT, use_mask=True)
 
 
 def plot_no_mask_flev():
@@ -76,6 +76,6 @@ def garon():
 
 
 if __name__ == "__main__":
-    garon()
+    # garon()
     # plot_no_mask_flev()
-    # bretigny_mask()
+    bretigny_mask()

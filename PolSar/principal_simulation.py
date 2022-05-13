@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import gc
 import os.path
@@ -23,6 +24,7 @@ from tensorflow.keras import callbacks
 import tensorflow as tf
 from typing import Optional, List, Union, Tuple
 from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
+from cvnn.real_equiv_tools import EQUIV_TECHNIQUES
 from dataset_reader import labels_to_rgb, COLORS
 from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from dataset_readers.sf_data_reader import SanFranciscoDataset
@@ -80,6 +82,7 @@ MODEL_META = {
 }
 
 
+
 def get_callbacks_list(early_stop, temp_path):
     tensorboard_callback = callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     cp_callback = callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt', save_weights_only=True,
@@ -116,6 +119,9 @@ def parse_input():
                              '\t- separate: split first the image into sections and select the sets from there\n'
                              '\t- single_separated_image: as separate, but do not apply the slinding window operation '
                              '\n\t\t(no batches, only one image per set). \n\t\tOnly possible with segmentation models')
+    parser.add_argument('--equiv_technique', nargs=1, default=["ratio_tp"], type=str,
+                        help="Available options:\n" +
+                             "".join([f"\t- {technique}\n" for technique in EQUIV_TECHNIQUES]))
     parser.add_argument('--tensorflow', action='store_true', help='Use tensorflow library')
     parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='(int) epochs to be done')
     parser.add_argument('--model', nargs=1, type=str, default=["cao"],
@@ -178,8 +184,11 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
 
 
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
-               dropout, complex_mode: bool = True, tensorflow: bool = False):
+               dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp"):
     model_name = model_name.lower()
+    if equiv_technique != "ratio_tp" and model_name != "mlp":
+        logging.warning(f"Equivalent technique requested {equiv_technique} but model ({model_name})"
+                        f"is not mlp so it will not be applied.")
     if complex_mode:
         name_prefix = "cv-"
         dtype = np.complex64
@@ -225,8 +234,8 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
         model = get_mlp_model(input_shape=(MODEL_META["mlp"]["size"],
                                            MODEL_META["mlp"]["size"], channels),
                               num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
-                              dropout=dropout["downsampling"],
-                              name=name_prefix + model_name)
+                              dropout=dropout["downsampling"], equiv_technique=equiv_technique,
+                              name=equiv_technique.replace('_', '-') + '-' + name_prefix + model_name)
     elif model_name == 'tan':
         if weights is not None:
             print("WARNING: Tan model does not support weighted loss")
@@ -378,7 +387,7 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
 
 def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
-              early_stop: Union[bool, int], epochs: int, temp_path, dropout,
+              early_stop: Union[bool, int], epochs: int, equiv_technique: str, temp_path, dropout,
               dataset_name: str, dataset_method: str, percentage: Optional[Union[Tuple[float], float]] = None,
               debug: bool = False, use_tf_dataset=False):
     if percentage is None:
@@ -422,9 +431,11 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     # weights = dataset_handler.labels_occurrences if balance == "loss" else None
     model = _get_model(model_name=model_name,
                        channels=6 if mode == "t" else 3,
-                       weights=weights,
+                       weights=weights, equiv_technique=equiv_technique,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
                        complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
+    with open(temp_path / 'model_summary.txt', 'a') as summary_file:
+        model.summary(print_fn=lambda x: summary_file.write(x + '\n'))
     callbacks = get_callbacks_list(early_stop, temp_path)
     # Training
     history = model.fit(x=train_ds[0] if not use_tf_dataset else train_ds,
@@ -530,20 +541,20 @@ def parse_dropout(dropout):
 def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                 mode: str, complex_mode: bool, real_mode: str,
                 early_stop: Union[int, bool], epochs: int, coh_kernel_size: int,
-                dataset_name: str, dataset_method: str, dropout,
+                dataset_name: str, dataset_method: str, dropout, equiv_technique: str,
                 percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False):
     temp_path = create_folder("./log/")
     makedirs(temp_path, exist_ok=True)
     dropout = parse_dropout(dropout=dropout)
     with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
         summary_file.write(" ".join(sys.argv[1:]) + "\n")
-        summary_file.write(f"\tRunned on {socket.gethostname()}\n")
+        summary_file.write(f"\tRun on {socket.gethostname()}\n")
     df, dataset_handler, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
                                              mode=mode, complex_mode=complex_mode, real_mode=real_mode,
                                              early_stop=early_stop, temp_path=temp_path, epochs=epochs,
                                              dataset_name=dataset_name, dataset_method=dataset_method,
                                              percentage=percentage, debug=debug, dropout=dropout,
-                                             coh_kernel_size=coh_kernel_size)
+                                             coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
     # get_final_model_results(temp_path, balance=balance, dataset_name=dataset_name,  mode=mode, model_name=model_name,
@@ -564,7 +575,7 @@ if __name__ == "__main__":
                     complex_mode=True if args.real_mode == 'complex' else False,
                     real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
-                    dropout=args.dropout)
+                    dropout=args.dropout, equiv_technique=args.equiv_technique[0])
     except Exception as e:
         traceback.print_exc()
         if Notify is not None:
