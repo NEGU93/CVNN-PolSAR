@@ -34,7 +34,7 @@ source venv/bin/activate
 python3 -m pip install -r requirements.txt
 python3 -m pip install cvnn -U
     
-python3 ../../principal_simulation.py{params}
+python3 -O ../../principal_simulation.py{params}
 """
 
     @staticmethod

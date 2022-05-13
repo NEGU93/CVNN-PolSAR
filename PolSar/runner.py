@@ -1,12 +1,8 @@
 import os
-import sys
 import json
-import pathlib
 from typing import Dict, List
 import argparse
-from collections.abc import Iterable
-from abc import abstractmethod, ABC
-from pdb import set_trace
+from abc import ABC
 
 
 def add_to_all(key: str, value, list_dict):
@@ -72,7 +68,7 @@ class SimulationScheduler(ABC):
 class LocalRunner(SimulationScheduler):
 
     def run_simulation(self, params: str):
-        return f"""python3 -o principal_simulation.py{params}"""
+        return f"""python3 -O principal_simulation.py{params}"""
 
     @staticmethod
     def submit_job(job):
