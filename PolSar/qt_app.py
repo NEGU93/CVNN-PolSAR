@@ -248,6 +248,7 @@ class MainWindow(QMainWindow):
         vlayout.addLayout(self.add_title(self.dataset_mode_radiobuttons(), "Dataset Mode"))
         vlayout.addLayout(self.add_title(self.model_method_radiobutton(), "Dataset Method"))
         vlayout.addLayout(self.add_title(self.balance_radiobuttons(), "Balance"))
+        vlayout.addLayout(self.add_title(self.equiv_technique_radiobutton(), "Equivalent Technique"))
 
         hl.addLayout(vlayout)
         hl.addWidget(self.ground_truth_image)
@@ -331,6 +332,35 @@ class MainWindow(QMainWindow):
         vlayout.addWidget(rb1)
         vlayout.addWidget(rb2)
         vlayout.addWidget(rb3)
+        vlayout.addStretch()
+
+        return vlayout
+
+    def equiv_technique_radiobutton(self):
+        vlayout = QHBoxLayout()
+        rb1 = QRadioButton("ratio_tp")
+        rb1.toggled.connect(lambda: self.update_information("equiv_technique", rb1.text()))
+
+        rb2 = QRadioButton("np", self)
+        rb2.toggled.connect(lambda: self.update_information("equiv_technique", rb2.text()))
+
+        rb3 = QRadioButton("alternate_tp")
+        rb3.toggled.connect(lambda: self.update_information("equiv_technique", rb3.text()))
+
+        rb4 = QRadioButton("none")
+        rb4.toggled.connect(lambda: self.update_information("equiv_technique", rb4.text()))
+
+        self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb4)
+        self.btngroup[-1].addButton(rb3)
+        self.btngroup[-1].addButton(rb2)
+        self.btngroup[-1].addButton(rb1)
+
+        rb1.setChecked(True)
+        vlayout.addWidget(rb1)
+        vlayout.addWidget(rb2)
+        vlayout.addWidget(rb3)
+        vlayout.addWidget(rb4)
         vlayout.addStretch()
 
         return vlayout
@@ -577,7 +607,8 @@ class MainWindow(QMainWindow):
             self.params[key] = value
             self._verify_combinations(key, value)
         self.params_label.setText(str(self.params))
-        # Not yet working. Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
+        # Not yet working.
+        # Try https://stackoverflow.com/questions/49929668/disable-and-enable-radiobuttons-from-another-radiobutton-in-pyqt4-python
         json_key = json.dumps(self.params, sort_keys=True)
         self.get_image(self.simulation_results.get_image(json_key))
         self.get_image_ground_truth()

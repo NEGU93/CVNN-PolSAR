@@ -136,7 +136,8 @@ class ResultReader:
                                 "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
                                 "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
                                 "dataset_method": self._get_dataset_method(simu_params),
-                                "balance": self._get_balance(simu_params)
+                                "balance": self._get_balance(simu_params),
+                                "equiv_technique": self._get_equiv_technique(simu_params)
                             }
                             monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
                                 str(Path(child_dir[0]) / 'prediction.png'))
@@ -327,6 +328,14 @@ class ResultReader:
         if return_value == "BRETIGNY":
             return_value = "BRET"
         return return_value
+
+    @staticmethod
+    def _get_equiv_technique(simu_params):
+        try:
+            equiv_technique_index = simu_params.split().index('--equiv_technique')
+        except ValueError:
+            equiv_technique_index = -1
+        return f"{simu_params.split()[equiv_technique_index + 1] if equiv_technique_index != -1 else 'ratio_tp'}".lower()
 
     @staticmethod
     def _get_balance(simu_params):

@@ -82,7 +82,6 @@ MODEL_META = {
 }
 
 
-
 def get_callbacks_list(early_stop, temp_path):
     tensorboard_callback = callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     cp_callback = callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt', save_weights_only=True,
@@ -500,10 +499,11 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
 
 
 def clear_and_open_saved_model(*args, **kwargs):
-    print(f"Clearing {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB of GPU memory usage")
-    tf.keras.backend.clear_session()
-    gc.collect()
-    print(f"GPU memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB")
+    if tf.test.is_gpu_available():
+        print(f"Clearing {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB of GPU memory usage")
+        tf.keras.backend.clear_session()
+        gc.collect()
+        print(f"GPU memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB")
     return open_saved_model(*args, **kwargs)
 
 
