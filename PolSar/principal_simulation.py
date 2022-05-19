@@ -20,6 +20,8 @@ except ImportError:
     Notify = None
 from pandas import DataFrame
 from os import makedirs
+from random import randint
+from time import sleep
 from tensorflow.keras import callbacks
 import tensorflow as tf
 from typing import Optional, List, Union, Tuple
@@ -569,6 +571,7 @@ if __name__ == "__main__":
     start_time = time.monotonic()
     if Notify is not None:
         notify = Notify()
+        sleep(randint(1, 30))       # Wait between 1 sec and half a minute
         notify.send(f"{socket.gethostname()}: Running simulation with params {' '.join(sys.argv[1:])}")
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
