@@ -4,7 +4,7 @@
         "epochs": 200,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false
+        "coherency": true
     },
     {
         "model": "cao",
@@ -13,14 +13,14 @@
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": true
     },
     {
         "model": "cao",
         "epochs": 200,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false,
+        "coherency": true,
         "dataset_method": "separate"
     },
     {
@@ -30,7 +30,7 @@
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false,
+        "coherency": true,
         "dataset_method": "separate"
     }
 ]

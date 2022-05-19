@@ -500,7 +500,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
 
 def clear_and_open_saved_model(*args, **kwargs):
     if tf.test.is_gpu_available():
-        print(f"Clearing {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB of GPU memory usage")
+        print(f"Clearing "
+              f"{tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB of GPU memory usage")
         tf.keras.backend.clear_session()
         gc.collect()
         print(f"GPU memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB")
