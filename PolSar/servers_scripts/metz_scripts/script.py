@@ -1,8 +1,8 @@
 import os
 import sys
-import json
 import pathlib
-import argparse
+from random import randint
+from time import sleep
 sys.path.insert(1, "../../")
 from runner import SimulationScheduler
 from pdb import set_trace
@@ -17,6 +17,7 @@ class MetzScheduler(SimulationScheduler):
         os.makedirs(str(root_path / "logslurms"), exist_ok=True)  # Ensure the log directory exists
 
     def run_simulation(self, params: str):
+        sleep(randint(1, 30))       # Wait between 1 sec and half a minute
         return f"""#!/bin/bash 
     
 #SBATCH --job-name={self.name}
