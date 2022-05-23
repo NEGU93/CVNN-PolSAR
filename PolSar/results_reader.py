@@ -246,10 +246,13 @@ class ResultReader:
         if len(self.monte_dict[json_key]['conf_stats']) == 0:
             cm = []
             # TODO: Put separated function. Repeat code twice
+            if len(self.monte_dict[json_key]) == 0:
+                raise ValueError(f"No simulations results found for json_key:\n{json_key}")
             for path in self.monte_dict[json_key]['train_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
                 tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
                 cm.append(tmp_cm)
+            # set_trace()
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
             self.monte_dict[json_key]['conf_stats'].append(cm_group.mean())
@@ -971,9 +974,10 @@ def plot_all(simulations, models_params, library, root_path, labels, colors=None
 
 
 if __name__ == "__main__":
-    PLOT_OBER = True
-    PLOT_SF = True
-    PLOT_FLEV = True
+    PLOT_OBER = False
+    PLOT_SF = False
+    PLOT_FLEV = False
+    PLOT_OBER_EQUIV = True
     simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
     # lst = list(simulation_results.monte_dict.keys())
     if PLOT_SF:
@@ -1019,6 +1023,28 @@ if __name__ == "__main__":
         labels = ["CV-FCNN", "RV-FCNN", "CV-CNN", "RV-CNN", "CV-MLP", "RV-MLP"]
         plot_all(simulations=simulation_results, models_params=keys, library="plotly",
                  root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Oberpfaffenhofen/",
+                 labels=labels, colors=COLORS['OBER'])
+    if PLOT_OBER_EQUIV:
+        keys = [
+            '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
+            '"dataset_mode": "coh", "dtype": "complex", "equiv_technique": "ratio_tp", "library": "cvnn", '
+            '"model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "ratio_tp", "library": '
+            '"tensorflow", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "np", "library": '
+            '"tensorflow", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "alternate_tp", "library": '
+            '"tensorflow", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "none", "library": '
+            '"tensorflow", "model": "mlp"}'
+        ]
+        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-ALTERNATE", "RV-MLP-NONE"]
+        plot_all(simulations=simulation_results, models_params=keys, library="plotly",
+                 root_path="/media/barrachina/data/results/graphs/equiv_technique_ober_mlp",
                  labels=labels, colors=COLORS['OBER'])
     if PLOT_FLEV:
         keys = [

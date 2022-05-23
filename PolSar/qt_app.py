@@ -601,6 +601,9 @@ class MainWindow(QMainWindow):
                     self.coh_rb.setEnabled(True)
                 if hasattr(self, 'pauli_rb'):
                     self.pauli_rb.setEnabled(True)
+        elif key == "equiv_technique" and value != "ratio_tp":
+            if hasattr(self, 'real_dtype_rb'):
+                self.real_dtype_rb.setChecked(True)  # Set real dtype
 
     def update_information(self, key=None, value=None):
         if key and value:
