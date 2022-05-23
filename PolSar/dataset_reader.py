@@ -317,12 +317,6 @@ class PolsarDatasetHandler(ABC):
         :param root_path:
         :param name:
         :param mode:
-        :param balance_dataset:
-            - If classification, it will have a balanced dataset classes on the training set
-            - For Bretigny it will load the balanced labels also so that even for segmentation it is balanced.
-            - In get_dataset if method is not 'random' it will balance each slice labels
-                (Note that according to the stride and padding there still be a little difference between classes).
-            - Has no effect if method is 'random'
         :param coh_kernel_size:
         """
         self.root_path = Path(str(root_path))
@@ -1150,7 +1144,7 @@ class PolsarDatasetHandler(ABC):
 
     def _sliding_window_operation(self, im, lab, size: Tuple[int, int], stride: int,
                                   pad: Tuple[Tuple[int, int], Tuple[int, int]],
-                                  segmentation: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+                                  segmentation: bool = True, add_unlabeled: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extracts many sub-images from one big image. Labels included.
         Using the Sliding Window Operation defined in:
@@ -1175,16 +1169,17 @@ class PolsarDatasetHandler(ABC):
                 slice_y = slice(y, y + size[1])
                 label_to_add = np.array(lab[slice_x, slice_y])
                 if segmentation:  # Only add if there is at least one label:
-                    if not np.all(np.all(label_to_add == 0, axis=-1)):  # If image has at least one label
+                    if add_unlabeled or not np.all(np.all(label_to_add == 0, axis=-1)):  # If image has at least one lbl
                         label_tiles.append(label_to_add)
                         tiles.append(im[slice_x, slice_y])
-                elif not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0):  # If the pixel has a label
+                elif add_unlabeled or not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0):
+                    # If the pixel has a label
                     label_tiles.append(lab[x + int(size[0] / 2), y + int(size[1] / 2)])
                     tiles.append(im[slice_x, slice_y])
         # Sanity checks
         assert len(tiles) == len(label_tiles)
         assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
-        assert np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
+        assert add_unlabeled or np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
         if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
             assert int(np.shape(tiles)[0]) == int(
                 (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
@@ -1322,14 +1317,16 @@ class PolsarDatasetHandler(ABC):
         return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
 
     def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False):
+                      classification: bool = False, add_unlabeled: bool = False):
         """
         Performs the sliding window operation to the image
         :param size:
         :param stride:
         :param pad:
         :param classification:
+        :param add_unlabeled: Add unlabeled data patch (False by default)
         :return: image and label patches of the main image and labels
+
         """
         if isinstance(size, int):
             size = (size, size)
@@ -1340,7 +1337,8 @@ class PolsarDatasetHandler(ABC):
         logging.debug(f"Computing swo on dataset {self.name}")
         start = timeit.default_timer()
         patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
-                                                                segmentation=not classification)
+                                                                segmentation=not classification,
+                                                                add_unlabeled=add_unlabeled)
         logging.debug(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
                       f"{int(timeit.default_timer() - start)} seconds")
         return patches, label_patches

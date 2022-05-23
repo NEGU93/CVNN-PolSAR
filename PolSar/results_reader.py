@@ -153,6 +153,7 @@ class ResultReader:
                                                                        balance=(params['balance'] == "dataset"))
                                 get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
                                                         model_name=params["model"],
+                                                        equiv_technique=params["equiv_technique"],
                                                         tensorflow='tensorflow' in simu_params,
                                                         complex_mode='real_mode' not in simu_params,
                                                         channels=6 if 'coherency' in simu_params else 3,

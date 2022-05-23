@@ -250,11 +250,11 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
 
 
 def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, channels: int, dropout,
-                     real_mode: str, tensorflow: bool, num_classes: int):
+                     real_mode: str, tensorflow: bool, num_classes: int, equiv_technique: str):
     if isinstance(root_path, str):
         root_path = Path(root_path)
     model = _get_model(model_name=model_name, tensorflow=tensorflow, dropout=dropout,
-                       channels=channels, weights=weights, real_mode=real_mode,
+                       channels=channels, weights=weights, real_mode=real_mode, equiv_technique=equiv_technique,
                        complex_mode=complex_mode, num_classes=num_classes)
     model.load_weights(str(root_path / "checkpoints/cp.ckpt"))
     return model
@@ -295,12 +295,13 @@ def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
     labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
 
 
-def _final_result_classification(root_path, use_mask, dataset_handler, model):
+def _final_result_classification(root_path, use_mask, dataset_handler, model, complex_mode, real_mode):
     shape = model.input.shape[1:]
     stride = 1
-    tiles, label_tiles = dataset_handler.apply_sliding(stride=stride, size=shape[:-1], pad="same", classification=True)
-    if not dataset_handler.complex_mode:
-        tiles, label_tiles = transform_to_real_map_function(tiles, label_tiles, dataset_handler.real_mode)
+    tiles, label_tiles = dataset_handler.apply_sliding_on_self_data(stride=stride, size=shape[:-1],
+                                                                    pad="same", classification=True, add_unlabeled=True)
+    if not complex_mode:
+        tiles, label_tiles = transform_to_real_map_function(tiles, label_tiles, real_mode)
     if use_mask:
         mask = dataset_handler.get_sparse_labels()
     else:
@@ -330,7 +331,7 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model):
 
 
 def get_final_model_results(root_path, model_name: str,
-                            dataset_handler,
+                            dataset_handler, equiv_technique: str,
                             # mode: str, balance: str, dataset_name: str,
                             dropout, channels: int = 3,  # model hyper-parameters
                             complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
@@ -341,13 +342,13 @@ def get_final_model_results(root_path, model_name: str,
     #                                        normalize=False, classification=MODEL_META[model_name]['task'])
     model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
                              weights=None,  # I am not training, so no need to use weights in the loss function here
-                             channels=channels, real_mode=real_mode, dropout=dropout,
+                             channels=channels, real_mode=real_mode, dropout=dropout, equiv_technique=equiv_technique,
                              tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
     if MODEL_META[model_name]['task'] == 'segmentation':
         _final_result_segmentation(root_path=root_path, model=model, dataset_handler=dataset_handler, use_mask=use_mask)
     elif MODEL_META[model_name]['task'] == 'classification':
         _final_result_classification(root_path=root_path, model=model, dataset_handler=dataset_handler,
-                                     use_mask=use_mask)
+                                     use_mask=use_mask, complex_mode=complex_mode, real_mode=real_mode)
     else:
         raise ValueError(f"Unknown task {MODEL_META[model_name]['task']}")
 
@@ -447,7 +448,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     del model
     # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights,
+                                                  weights=weights, equiv_technique=equiv_technique,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
@@ -459,7 +460,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
     del checkpoint_model
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights,
+                                                  weights=weights, equiv_technique=equiv_technique,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
@@ -470,7 +471,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if val_ds:
         del checkpoint_model
         checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights,
+                                                      weights=weights, equiv_technique=equiv_technique,
                                                       channels=3 if mode == "s" else 6, dropout=dropout,
                                                       real_mode=real_mode, tensorflow=tensorflow,
                                                       num_classes=DATASET_META[dataset_name]["classes"])
@@ -485,7 +486,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if len(ds_list) >= 3:
         del checkpoint_model
         checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights,
+                                                      weights=weights, equiv_technique=equiv_technique,
                                                       channels=3 if mode == "s" else 6, dropout=dropout,
                                                       real_mode=real_mode, tensorflow=tensorflow,
                                                       num_classes=DATASET_META[dataset_name]["classes"])
