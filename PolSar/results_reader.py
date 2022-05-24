@@ -246,13 +246,12 @@ class ResultReader:
         if len(self.monte_dict[json_key]['conf_stats']) == 0:
             cm = []
             # TODO: Put separated function. Repeat code twice
-            if len(self.monte_dict[json_key]) == 0:
+            if len(self.monte_dict[json_key]['train_conf']) == 0:
                 raise ValueError(f"No simulations results found for json_key:\n{json_key}")
             for path in self.monte_dict[json_key]['train_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
                 tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
                 cm.append(tmp_cm)
-            # set_trace()
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
             self.monte_dict[json_key]['conf_stats'].append(cm_group.mean())
@@ -977,7 +976,8 @@ if __name__ == "__main__":
     PLOT_OBER = False
     PLOT_SF = False
     PLOT_FLEV = False
-    PLOT_OBER_EQUIV = True
+    PLOT_OBER_EQUIV = False
+    BRET_PLOTS = True
     simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
     # lst = list(simulation_results.monte_dict.keys())
     if PLOT_SF:
@@ -999,6 +999,67 @@ if __name__ == "__main__":
         plot_all(simulations=simulation_results, models_params=sf_keys, library="plotly",
                  root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/SF-AIRSAR/",
                  labels=labels, colors=COLORS['SF-AIRSAR'])
+    if BRET_PLOTS:
+        keys = []
+        labels = []
+        for dataset_mode in {"k", "coh"}:
+            for dataset_method in {"random", "separate"}:
+                keys.append(
+                    f'{{"balance": "dataset", "dataset": "BRET", "dataset_method": "{dataset_method}", '
+                    f'"dataset_mode": "{dataset_mode}", "dtype": "complex", "equiv_technique": "ratio_tp", '
+                    f'"library": "cvnn", "model": "cao"}}'
+                )
+                keys.append(
+                    f'{{"balance": "dataset", "dataset": "BRET", "dataset_method": "{dataset_method}", '
+                    f'"dataset_mode": "{dataset_mode}", "dtype": "real_imag", "equiv_technique": "ratio_tp", '
+                    f'"library": "tensorflow", "model": "cao"}}'
+                )
+                labels.append(f"CV-FCNN-{dataset_mode}-{dataset_method}")
+                labels.append(f"RV-FCNN-{dataset_mode}-{dataset_method}")
+        plot_all(simulations=simulation_results, models_params=keys, library="plotly",
+                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Bretigny/",
+                 labels=labels, colors=COLORS['BRET'])
+    if PLOT_OBER_EQUIV:
+        keys = [
+            '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
+            '"dataset_mode": "coh", "dtype": "complex", "equiv_technique": "ratio_tp", "library": "cvnn", '
+            '"model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "ratio_tp", "library": '
+            '"tensorflow", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "np", "library": '
+            '"tensorflow", "model": "mlp"}',
+            # '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            # '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "alternate_tp", "library": '
+            # '"tensorflow", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "none", "library": '
+            '"tensorflow", "model": "mlp"}'
+        ]
+        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-NONE"]     # "RV-MLP-ALTERNATE",
+        set_trace()
+        plot_all(simulations=simulation_results, models_params=keys, library="seaborn",
+                 root_path="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img",
+                 labels=labels, colors=COLORS['OBER'])
+    if PLOT_FLEV:
+        keys = [
+            '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": "random", '
+            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
+            '"model": "cao"}',
+            '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
+            '"tensorflow", "model": "cao"}',
+        ]
+        labels = ["CV-FCNN", "RV-FCNN"]
+        library = "plotly"
+        library_paths = {
+            "seaborn": "/home/barrachina/gretsi_images/",
+            "plotly": "/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Flevoland/"
+        }
+        plot_all(simulations=simulation_results, models_params=keys, library=library,
+                 y_min_bar_plot=0.8, print_values_bar_plot=False,
+                 root_path=library_paths[library], labels=labels, colors=COLORS['FLEVOLAND'])
     if PLOT_OBER:
         keys = [
             '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
@@ -1024,44 +1085,3 @@ if __name__ == "__main__":
         plot_all(simulations=simulation_results, models_params=keys, library="plotly",
                  root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Oberpfaffenhofen/",
                  labels=labels, colors=COLORS['OBER'])
-    if PLOT_OBER_EQUIV:
-        keys = [
-            '{"balance": "none", "dataset": "OBER", "dataset_method": "random", '
-            '"dataset_mode": "coh", "dtype": "complex", "equiv_technique": "ratio_tp", "library": "cvnn", '
-            '"model": "mlp"}',
-            '{"balance": "none", "dataset": "OBER", "dataset_method": '
-            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "ratio_tp", "library": '
-            '"tensorflow", "model": "mlp"}',
-            '{"balance": "none", "dataset": "OBER", "dataset_method": '
-            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "np", "library": '
-            '"tensorflow", "model": "mlp"}',
-            '{"balance": "none", "dataset": "OBER", "dataset_method": '
-            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "alternate_tp", "library": '
-            '"tensorflow", "model": "mlp"}',
-            '{"balance": "none", "dataset": "OBER", "dataset_method": '
-            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "none", "library": '
-            '"tensorflow", "model": "mlp"}'
-        ]
-        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-ALTERNATE", "RV-MLP-NONE"]
-        plot_all(simulations=simulation_results, models_params=keys, library="plotly",
-                 root_path="/media/barrachina/data/results/graphs/equiv_technique_ober_mlp",
-                 labels=labels, colors=COLORS['OBER'])
-    if PLOT_FLEV:
-        keys = [
-            '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": "random", '
-            '"dataset_mode": "coh", "dtype": "complex", "library": "cvnn", '
-            '"model": "cao"}',
-            '{"balance": "none", "dataset": "FLEVOLAND", "dataset_method": '
-            '"random", "dataset_mode": "coh", "dtype": "real_imag", "library": '
-            '"tensorflow", "model": "cao"}',
-        ]
-        labels = ["CV-FCNN", "RV-FCNN"]
-        library = "plotly"
-        library_paths = {
-            "seaborn": "/home/barrachina/gretsi_images/",
-            "plotly": "/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Flevoland/"
-        }
-        plot_all(simulations=simulation_results, models_params=keys, library=library,
-                 y_min_bar_plot=0.8, print_values_bar_plot=False,
-                 root_path=library_paths[library], labels=labels, colors=COLORS['FLEVOLAND'])
-

@@ -1,0 +1,11 @@
+[
+    {
+        "model": "mlp",
+        "epochs": 1000,
+        "dataset": "OBER",
+        "equiv_technique": "np",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true
+    }
+]
