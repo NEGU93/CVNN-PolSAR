@@ -1,14 +1,30 @@
 [
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": true
     },
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true
+    },
+    {
+        "model": "mlp",
+        "epochs": 500,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "coherency": true
+    },
+    {
+        "model": "mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -17,32 +33,14 @@
     },
     {
         "model": "cnn",
-        "epochs": 1,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "coherency": true,
-        "dataset_method": "separate"
-    },
-    {
-        "model": "cnn",
-        "epochs": 1,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true,
-        "dataset_method": "separate"
-    },
-    {
-        "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": false
     },
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -50,21 +48,19 @@
         "coherency": false
     },
     {
-        "model": "cnn",
-        "epochs": 1,
+        "model": "mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false,
-        "dataset_method": "separate"
+        "coherency": false
     },
     {
-        "model": "cnn",
-        "epochs": 1,
+        "model": "mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false,
-        "dataset_method": "separate"
+        "coherency": false
     }
 ]
