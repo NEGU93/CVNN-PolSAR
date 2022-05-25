@@ -748,7 +748,7 @@ class PolsarDatasetHandler(ABC):
         elif len(balance_dataset) < length:
             balance = tuple(balance_dataset) + (False,) * (length - len(balance_dataset))
         else:
-            ValueError(f"Balance dataset ({balance_dataset}) was longer than expected (length = {length}).")
+            raise ValueError(f"Balance dataset ({balance_dataset}) was longer than expected (length = {length}).")
         assert np.all(isinstance(bal, bool) for bal in balance)
         return tuple(balance)
 

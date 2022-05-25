@@ -79,46 +79,51 @@ def test_bretigny(show_gt=False, show_img=False):
 
 def full_verify_dataset(dataset_handler):
     logging.info(f"Testing dataset {dataset_handler.name}")
-    # balance_test_segmentation(dataset_handler)
-    balanced_classification_test(dataset_handler, percentage=(0.04, 0.96), possible_to_balance_random=True,
-                                 possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
-    # balanced_classification_test(dataset_handler, percentage=(0.6, ), possible_to_balance_random=False,
-    #                              possible_to_balance_sep=dataset_handler.name != "FLEVOLAND")
-    # handler_to_test(dataset_handler)
-    # try:
-    #     scattering_vector(dataset_handler)
-    #     mode_change(dataset_handler)
-    #     coh_matrix_generator(dataset_handler)
-    # except ValueError as e:
-    #     if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
-    #         raise e                                                 # Should catch the error
+    balance_test_segmentation(dataset_handler)
+    balanced_classification_separate_test(dataset_handler)
+    if dataset_handler.name != "FLEVOLAND":
+        balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
+        balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
+                                            balance_dataset=[True, True, False])
+    balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
+                                        balance_dataset=False)
+    handler_to_test(dataset_handler)
+    try:
+        scattering_vector(dataset_handler)
+        mode_change(dataset_handler)
+        coh_matrix_generator(dataset_handler)
+    except ValueError as e:
+        if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
+            raise e                                                 # Should catch the error
 
 
-def balanced_classification_test(dataset_handler, percentage, possible_to_balance_random, possible_to_balance_sep,
-                                 balance_dataset=None):
-    # This method fails if I have the warning that the min samples was not met.
+def balanced_classification_random_test(dataset_handler, percentage, balance_dataset=None):
     if balance_dataset is None:
         balance_dataset = [True, False]
-    list_ds = dataset_handler.get_dataset(method="separate", size=6, stride=1, pad=0,
-                                          percentage=DATASET_META[dataset_handler.name]["percentage"],
+    list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, size=6, stride=1, pad=0,
                                           shuffle=True, savefig=None, classification=True,
                                           balance_dataset=balance_dataset)
-    if possible_to_balance_sep:
+    if np.any(balance_dataset):
         for i in range(sum(balance_dataset)):
             train_sparse = np.argmax(list_ds[i][1], axis=-1)
             train_count = np.bincount(train_sparse)
             assert np.all(train_count[np.nonzero(train_count)] == train_count[np.nonzero(train_count)][0])
-    list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, size=6, stride=1, pad=0,
-                                          shuffle=True, savefig=None, classification=True,
-                                          balance_dataset=[True, False])
-    if possible_to_balance_random:
+    else:
         total = [list_ds[i][1].shape[0] for i in range(len(percentage))]
         for i, p in enumerate(percentage):
             assert np.isclose(p, total[i] / sum(total), rtol=0.1)
-        for i in range(len(percentage) - 1):
-            train_sparse = np.argmax(list_ds[i][1], axis=-1)
-            train_count = np.bincount(train_sparse)
-            assert np.all(train_count == train_count[0])
+
+
+def balanced_classification_separate_test(dataset_handler):
+    list_ds = dataset_handler.get_dataset(method="separate", size=6, stride=1, pad=0,
+                                          percentage=DATASET_META[dataset_handler.name]["percentage"],
+                                          shuffle=True, savefig=None, classification=True,
+                                          balance_dataset=[True] * len(DATASET_META[dataset_handler.name]["percentage"])
+                                          )
+    for i in range(len(DATASET_META[dataset_handler.name]["percentage"])):
+        train_sparse = np.argmax(list_ds[i][1], axis=-1)
+        train_count = np.bincount(train_sparse)
+        assert np.all(train_count[np.nonzero(train_count)] == train_count[np.nonzero(train_count)][0])
 
 
 def garon_balance_test(percentage):
