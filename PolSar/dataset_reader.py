@@ -794,8 +794,9 @@ class PolsarDatasetHandler(ABC):
     # Balance dataset
     @staticmethod
     def balanced_test_split(x_all, y_all, test_size, shuffle):
-        x_train_per_class, x_test_per_class, y_train_per_class, y_test_per_class = [], [], [], []
         sparse_y = np.argmax(y_all, axis=-1)
+        mask = np.full(shape=sparse_y.shape, fill_value=False)
+        # train_size_totals = []
         for cls in range(y_all.shape[-1]):
             expected_size = int((1 - test_size) * y_all.shape[0] / y_all.shape[-1])
             min_size = x_all[sparse_y == cls].shape[0] - 1
@@ -807,22 +808,21 @@ class PolsarDatasetHandler(ABC):
                 logging.warning(f"All samples ({train_size}) but one used for class {cls}. "
                                 f"It was expected to have at least {expected_size} samples."
                                 f"Try using a lower train percentage.")
-            # No need to shuffle here
-            x_train, x_test, y_train, y_test = train_test_split(x_all[sparse_y == cls], y_all[sparse_y == cls],
-                                                                train_size=train_size, shuffle=False)
-            x_train_per_class.append(x_train)
-            x_test_per_class.append(x_test)
-            y_train_per_class.append(y_train)
-            y_test_per_class.append(y_test)
-        x_train = np.concatenate(x_train_per_class)
-        x_test = np.concatenate(x_test_per_class)
-        y_train = np.concatenate(y_train_per_class)
-        y_test = np.concatenate(y_test_per_class)
+            indexes = np.random.choice(np.where(sparse_y == cls)[0], size=train_size, replace=False)
+            # train_size_totals.append(train_size)
+            mask[indexes] = True
+            assert len(indexes) == train_size
+            # assert sum(mask) == sum(train_size_totals)
+        inverted_mask = np.invert(mask)
+        x_train = x_all[mask]
+        y_train = y_all[mask]
+        x_test = x_all[inverted_mask]
+        y_test = y_all[inverted_mask]
         if shuffle:
             assert len(x_train) == len(y_train)
             p = np.random.permutation(len(x_train))
             x_train = x_train[p]
-            x_test = x_test[p]
+            y_train = y_train[p]
         return x_train, x_test, y_train, y_test
 
     def balance_patches(self, patches, label_patches):
