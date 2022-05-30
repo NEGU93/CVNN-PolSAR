@@ -976,9 +976,10 @@ if __name__ == "__main__":
     PLOT_OBER = False
     PLOT_SF = False
     PLOT_FLEV = False
-    PLOT_OBER_EQUIV = False
-    BRET_PLOTS = True
-    simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
+    PLOT_OBER_EQUIV = True
+    BRET_PLOTS = False
+    # simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
+    simulation_results = ResultReader(root_dir="/media/barrachina/data/results/equiv_technique")
     # lst = list(simulation_results.monte_dict.keys())
     if PLOT_SF:
         sf_keys = [
@@ -1038,9 +1039,8 @@ if __name__ == "__main__":
             '"tensorflow", "model": "mlp"}'
         ]
         labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-NONE"]     # "RV-MLP-ALTERNATE",
-        set_trace()
         plot_all(simulations=simulation_results, models_params=keys, library="seaborn",
-                 root_path="/home/barrachina/Dropbox/Apps/Overleaf/JSPS-MLSP/img",
+                 root_path="/media/barrachina/data/results/graphs/equiv_technique_ober_mlp",
                  labels=labels, colors=COLORS['OBER'])
     if PLOT_FLEV:
         keys = [

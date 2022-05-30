@@ -1143,7 +1143,7 @@ class PolsarDatasetHandler(ABC):
         return masked_filtered_data, masked_filtered_labels
 
     def _sliding_window_operation(self, im, lab, size: Tuple[int, int], stride: int,
-                                  pad: Tuple[Tuple[int, int], Tuple[int, int]],
+                                  pad: Tuple[Tuple[int, int], Tuple[int, int]], total_pixels_to_use: float = 1.,
                                   segmentation: bool = True, add_unlabeled: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Extracts many sub-images from one big image. Labels included.
@@ -1154,6 +1154,7 @@ class PolsarDatasetHandler(ABC):
         :param size: Size of the desired mini new images
         :param stride: stride between images, use stride=size for images not to overlap
         :param pad: Pad borders
+        :param total_pixels_to_use: float from (0, 1]. The percentage of pixels to use. Used to optimize the algorithm.
         :return: tuple of numpy arrays (tiles, label_tiles)
         """
         tiles = []
@@ -1165,17 +1166,11 @@ class PolsarDatasetHandler(ABC):
                                                                 f"({size[0]}x{size[1]})"
         for x in range(0, im.shape[0] - size[0] + 1, stride):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
-                slice_x = slice(x, x + size[0])
-                slice_y = slice(y, y + size[1])
-                label_to_add = np.array(lab[slice_x, slice_y])
-                if segmentation:  # Only add if there is at least one label:
-                    if add_unlabeled or not np.all(np.all(label_to_add == 0, axis=-1)):  # If image has at least one lbl
-                        label_tiles.append(label_to_add)
-                        tiles.append(im[slice_x, slice_y])
-                elif add_unlabeled or not np.all(lab[x + int(size[0] / 2), y + int(size[1] / 2)] == 0):
-                    # If the pixel has a label
-                    label_tiles.append(lab[x + int(size[0] / 2), y + int(size[1] / 2)])
-                    tiles.append(im[slice_x, slice_y])
+                image_to_add, label_to_add = self.get_image_around_point(im, lab, x, y, size, segmentation)
+                if add_unlabeled or (segmentation and not np.all(np.all(label_to_add == 0, axis=-1))) or \
+                        (not segmentation and not np.all(label_to_add == 0)):
+                    label_tiles.append(label_to_add)
+                    tiles.append(image_to_add)
         # Sanity checks
         assert len(tiles) == len(label_tiles)
         assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
@@ -1186,6 +1181,16 @@ class PolsarDatasetHandler(ABC):
         tiles = np.array(tiles)
         label_tiles = np.array(label_tiles)
         return tiles, label_tiles
+
+    @staticmethod
+    def get_image_around_point(im, lab, x, y, size: Tuple[int, int], segmentation: bool):
+        slice_x = slice(x, x + size[0])
+        slice_y = slice(y, y + size[1])
+        if segmentation:
+            label_to_add = lab[slice_x, slice_y]
+        else:
+            label_to_add = lab[x + int(size[0] / 2), y + int(size[1] / 2)]
+        return im[slice_x, slice_y], label_to_add
 
     # Open with path
     @staticmethod

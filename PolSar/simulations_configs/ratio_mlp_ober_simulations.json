@@ -3,9 +3,18 @@
         "model": "mlp",
         "epochs": 1000,
         "dataset": "OBER",
-        "equiv_technique": "np",
+        "equiv_technique": "ratio_tp",
         "tensorflow": true,
         "real_mode": true,
+        "coherency": true
+    },
+    {
+        "model": "mlp",
+        "epochs": 1000,
+        "dataset": "OBER",
+        "equiv_technique": "ratio_tp",
+        "tensorflow": false,
+        "real_mode": false,
         "coherency": true
     }
 ]
