@@ -807,8 +807,9 @@ class PolsarDatasetHandler(ABC):
                 logging.warning(f"All samples ({train_size}) but one used for class {cls}. "
                                 f"It was expected to have at least {expected_size} samples."
                                 f"Try using a lower train percentage.")
+            # No need to shuffle here
             x_train, x_test, y_train, y_test = train_test_split(x_all[sparse_y == cls], y_all[sparse_y == cls],
-                                                                train_size=train_size, shuffle=shuffle)
+                                                                train_size=train_size, shuffle=False)
             x_train_per_class.append(x_train)
             x_test_per_class.append(x_test)
             y_train_per_class.append(y_train)
@@ -817,6 +818,11 @@ class PolsarDatasetHandler(ABC):
         x_test = np.concatenate(x_test_per_class)
         y_train = np.concatenate(y_train_per_class)
         y_test = np.concatenate(y_test_per_class)
+        if shuffle:
+            assert len(x_train) == len(y_train)
+            p = np.random.permutation(len(x_train))
+            x_train = x_train[p]
+            x_test = x_test[p]
         return x_train, x_test, y_train, y_test
 
     def balance_patches(self, patches, label_patches):
