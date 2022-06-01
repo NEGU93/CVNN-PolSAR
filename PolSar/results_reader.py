@@ -1031,14 +1031,14 @@ if __name__ == "__main__":
             '{"balance": "none", "dataset": "OBER", "dataset_method": '
             '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "np", "library": '
             '"tensorflow", "model": "mlp"}',
-            # '{"balance": "none", "dataset": "OBER", "dataset_method": '
-            # '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "alternate_tp", "library": '
-            # '"tensorflow", "model": "mlp"}',
+            '{"balance": "none", "dataset": "OBER", "dataset_method": '
+            '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "alternate_tp", "library": '
+            '"tensorflow", "model": "mlp"}',
             '{"balance": "none", "dataset": "OBER", "dataset_method": '
             '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "none", "library": '
             '"tensorflow", "model": "mlp"}'
         ]
-        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-NONE"]     # "RV-MLP-ALTERNATE",
+        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-ALTERNATE", "RV-MLP-NONE"]     # "RV-MLP-ALTERNATE",
         plot_all(simulations=simulation_results, models_params=keys, library="seaborn",
                  root_path="/media/barrachina/data/results/graphs/equiv_technique_ober_mlp",
                  labels=labels, colors=COLORS['OBER'])

@@ -645,12 +645,15 @@ class PolsarDatasetHandler(ABC):
                                                                  classification=classification)
         x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
                                       percentage=percentage, shuffle=shuffle, balance_dataset=balance_dataset)
+        x = self.get_patches_image_from_points(patches_points=x, image_to_crop=self.image, size=size, pad=pad,
+                                               segmentation=True)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
                                balance_dataset: Union[bool, Tuple[bool]] = False):
-        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
+        image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
+        images = image_slices.copy()
         for i in range(0, len(labels)):
             # Balance validation because is used for choosing best model
             balance = self._parse_balance(balance_dataset, len(images))
@@ -660,6 +663,8 @@ class PolsarDatasetHandler(ABC):
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
+        images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices, size=size,
+                                                    pad=None, segmentation=True)
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
@@ -799,7 +804,7 @@ class PolsarDatasetHandler(ABC):
         # train_size_totals = []
         for cls in range(y_all.shape[-1]):
             expected_size = int((1 - test_size) * y_all.shape[0] / y_all.shape[-1])
-            min_size = x_all[sparse_y == cls].shape[0] - 1
+            min_size = y_all[sparse_y == cls].shape[0] - 1
             train_size = min(min_size, expected_size)
             if train_size == min_size:
                 if train_size == 0:
@@ -814,15 +819,12 @@ class PolsarDatasetHandler(ABC):
             assert len(indexes) == train_size
             # assert sum(mask) == sum(train_size_totals)
         inverted_mask = np.invert(mask)
-        x_train = x_all[mask]
+        x_train = list(np.array(x_all)[mask])       # Cannot slice lists, so this is kind of nasty.
         y_train = y_all[mask]
-        x_test = x_all[inverted_mask]
+        x_test = list(np.array(x_all)[inverted_mask])
         y_test = y_all[inverted_mask]
         if shuffle:
-            assert len(x_train) == len(y_train)
-            p = np.random.permutation(len(x_train))
-            x_train = x_train[p]
-            y_train = y_train[p]
+            x_train, y_train = sklearn.utils.shuffle(x_train, y_train)
         return x_train, x_test, y_train, y_test
 
     def balance_patches(self, patches, label_patches):
@@ -860,7 +862,7 @@ class PolsarDatasetHandler(ABC):
             mask_indexes = mask_indexes.union(set(np.random.choice(indexes, size=total_to_keep, replace=False)))
         assert total_to_keep * len(set(find_classes[-1])) == len(mask_indexes)
         mask = [i in mask_indexes for i in range(len(patches))]
-        patches = np.array(list(compress(patches, mask)))  # Apply mask
+        patches = list(compress(patches, mask))  # Apply mask
         label_patches = np.array(list(compress(label_patches, mask)))
         if __debug__:
             counts = np.bincount(np.where(label_patches == 1)[-1])
@@ -868,7 +870,7 @@ class PolsarDatasetHandler(ABC):
         return patches, label_patches
 
     # Segmentation Balance
-    def _remove_exceeding_one_class_images(self, patches, label_patches: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _remove_exceeding_one_class_images(self, patches, label_patches: np.ndarray) -> Tuple[List, np.ndarray]:
         """
         This code receives labels and 2 cases are possible
             - Either the image has only one class present (together with unlabeled pixels)
@@ -898,7 +900,7 @@ class PolsarDatasetHandler(ABC):
             counter[cls]["full"] = to_keep
             indexes_to_keep = indexes_to_keep.union(set([keep["index"] for keep in to_keep]))  # Saved the indexes saved
         mask = [i in indexes_to_keep for i in range(len(patches))]  # Keep saved indexes
-        patches = np.array(list(compress(patches, mask)))  # Apply mask
+        patches = list(compress(patches, mask))         # Apply mask
         label_patches = np.array(list(compress(label_patches, mask)))
         return patches, label_patches
 
@@ -1108,7 +1110,7 @@ class PolsarDatasetHandler(ABC):
         """
         percentage = self._parse_percentage(percentage)
         balance = self._parse_balance(balance_dataset, length=len(percentage))
-        x_test = np.array(patches)
+        x_test = patches.copy()
         y_test = np.array(label_patches)
         x = []
         y = []
@@ -1127,13 +1129,13 @@ class PolsarDatasetHandler(ABC):
                     x_train, y_train = self.balance_patches(x_train, y_train)
             if i < len(percentage) - 1:
                 percentage[i + 1:] = [value / (1 - percentage[i]) for value in percentage[i + 1:]]
-            x.append(np.array(x_train))
-            y.append(np.array(y_train))
+            x.append(x_train.copy())
+            y.append(y_train.copy())
         if full_percentage:
             if balance[-1]:
                 x_test, y_test = self.balance_patches(x_test, y_test)
-            x.append(np.array(x_test))
-            y.append(np.array(y_test))
+            x.append(x_test.copy())
+            y.append(y_test.copy())
         return x, y
 
     @staticmethod
@@ -1149,8 +1151,8 @@ class PolsarDatasetHandler(ABC):
         return masked_filtered_data, masked_filtered_labels
 
     def _sliding_window_operation(self, im, lab, size: Tuple[int, int], stride: int,
-                                  pad: Tuple[Tuple[int, int], Tuple[int, int]], total_pixels_to_use: float = 1.,
-                                  segmentation: bool = True, add_unlabeled: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+                                  pad: Tuple[Tuple[int, int], Tuple[int, int]],
+                                  segmentation: bool = True, add_unlabeled: bool = False) -> Tuple[List, List]:
         """
         Extracts many sub-images from one big image. Labels included.
         Using the Sliding Window Operation defined in:
@@ -1160,7 +1162,6 @@ class PolsarDatasetHandler(ABC):
         :param size: Size of the desired mini new images
         :param stride: stride between images, use stride=size for images not to overlap
         :param pad: Pad borders
-        :param total_pixels_to_use: float from (0, 1]. The percentage of pixels to use. Used to optimize the algorithm.
         :return: tuple of numpy arrays (tiles, label_tiles)
         """
         tiles = []
@@ -1172,31 +1173,52 @@ class PolsarDatasetHandler(ABC):
                                                                 f"({size[0]}x{size[1]})"
         for x in range(0, im.shape[0] - size[0] + 1, stride):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
-                image_to_add, label_to_add = self.get_image_around_point(im, lab, x, y, size, segmentation)
+                label_to_add = self.get_image_around_point(lab, x, y, size, segmentation)
+                # image_to_add = self.get_image_around_point(im, x, y, size, segmentation=True)
                 if add_unlabeled or (segmentation and not np.all(np.all(label_to_add == 0, axis=-1))) or \
                         (not segmentation and not np.all(label_to_add == 0)):
                     label_tiles.append(label_to_add)
-                    tiles.append(image_to_add)
+                    tiles.append((x, y))
         # Sanity checks
         assert len(tiles) == len(label_tiles)
-        assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
+        # assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
         assert add_unlabeled or np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
         if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
             assert int(np.shape(tiles)[0]) == int(
                 (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
-        tiles = np.array(tiles)
-        label_tiles = np.array(label_tiles)
+        # tiles = np.array(tiles)
+        # label_tiles = np.array(label_tiles)
         return tiles, label_tiles
 
     @staticmethod
-    def get_image_around_point(im, lab, x, y, size: Tuple[int, int], segmentation: bool):
+    def get_image_around_point(image_to_crop, x, y, size: Tuple[int, int], segmentation: bool):
         slice_x = slice(x, x + size[0])
         slice_y = slice(y, y + size[1])
         if segmentation:
-            label_to_add = lab[slice_x, slice_y]
+            cropped = image_to_crop[slice_x, slice_y]
         else:
-            label_to_add = lab[x + int(size[0] / 2), y + int(size[1] / 2)]
-        return im[slice_x, slice_y], label_to_add
+            cropped = image_to_crop[x + int(size[0] / 2), y + int(size[1] / 2)]
+        return cropped
+
+    def get_patches_image_from_points(self, patches_points: List[List[Tuple[int, int]]],
+                                      image_to_crop, size: Union[int, Tuple[int, int]],
+                                      pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]], segmentation: bool):
+        if isinstance(size, int):
+            size = (size, size)
+        else:
+            size = tuple(size)
+            assert len(size) == 2
+        multiple_images = len(patches_points) == len(image_to_crop)
+        if pad is not None:
+            pad = self._parse_pad(pad, size)
+            image_to_crop = np.pad(image_to_crop, (pad[0], pad[1], (0, 0)))
+        for i, dset in enumerate(patches_points):
+            for j, points in enumerate(dset):
+                patches_points[i][j] = self.get_image_around_point(image_to_crop=image_to_crop[i] if multiple_images else image_to_crop,
+                                                                   x=patches_points[i][j][0],
+                                                                   y=patches_points[i][j][1],
+                                                                   size=size, segmentation=segmentation)
+        return patches_points
 
     # Open with path
     @staticmethod

@@ -2,6 +2,8 @@ import logging
 import sys
 import os
 from collections import defaultdict
+import time
+from datetime import timedelta
 from os import makedirs
 from pathlib import Path
 import numpy as np
@@ -78,9 +80,10 @@ def test_bretigny(show_gt=False, show_img=False):
 
 
 def full_verify_dataset(dataset_handler):
+    startt = time.monotonic()
     logging.info(f"Testing dataset {dataset_handler.name}")
-    balance_test_segmentation(dataset_handler)
     balanced_classification_separate_test(dataset_handler)
+    balance_test_segmentation(dataset_handler)
     if dataset_handler.name != "FLEVOLAND":
         balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
         balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
@@ -95,6 +98,7 @@ def full_verify_dataset(dataset_handler):
     except ValueError as e:
         if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
             raise e                                                 # Should catch the error
+    logging.info(f"Time testing {dataset_handler.name} was {timedelta(seconds=time.monotonic() - startt)}")
 
 
 def balanced_classification_random_test(dataset_handler, percentage, balance_dataset=None):
@@ -203,7 +207,9 @@ def scattering_vector(dataset_handler):
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     logging.basicConfig(level=logging.INFO)
+    start_time = time.monotonic()
     test_sf()
     test_flev()
     test_bretigny()
     test_ober()
+    logging.info(f"Time of tests {timedelta(seconds=time.monotonic() - start_time)}")
