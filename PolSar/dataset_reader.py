@@ -798,7 +798,8 @@ class PolsarDatasetHandler(ABC):
 
     # Balance dataset
     @staticmethod
-    def balanced_test_split(x_all, y_all, test_size, shuffle):
+    def balanced_test_split(x_all: List[Tuple[int, int]], y_all: np.ndarray, test_size, shuffle: bool) \
+            -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]], np.ndarray, np.ndarray]:
         sparse_y = np.argmax(y_all, axis=-1)
         mask = np.full(shape=sparse_y.shape, fill_value=False)
         # train_size_totals = []
@@ -827,7 +828,8 @@ class PolsarDatasetHandler(ABC):
             x_train, y_train = sklearn.utils.shuffle(x_train, y_train)
         return x_train, x_test, y_train, y_test
 
-    def balance_patches(self, patches, label_patches):
+    def balance_patches(self, patches: List[Tuple[int, int]], label_patches: List) \
+            -> Tuple[List[Tuple[int, int]], np.ndarray]:
         label_patches = np.array(label_patches)
         if len(label_patches.shape) == 4:
             # First make 'one-class' images to be the same amount
@@ -846,7 +848,8 @@ class PolsarDatasetHandler(ABC):
 
     # Classification balance
     @staticmethod
-    def _balance_classification_patches(patches, label_patches):
+    def _balance_classification_patches(patches: List[Tuple[int, int]], label_patches: Union[List, np.ndarray]) \
+            -> Tuple[List[Tuple[int, int]], np.ndarray]:
         find_classes = np.where(label_patches == 1)
         assert len(label_patches) == len(find_classes[0])  # There was no empty label
         total_per_class = np.bincount(find_classes[-1])
@@ -870,7 +873,8 @@ class PolsarDatasetHandler(ABC):
         return patches, label_patches
 
     # Segmentation Balance
-    def _remove_exceeding_one_class_images(self, patches, label_patches: np.ndarray) -> Tuple[List, np.ndarray]:
+    def _remove_exceeding_one_class_images(self, patches: List[Tuple[int, int]], label_patches: np.ndarray) \
+            -> Tuple[List[Tuple[int, int]], np.ndarray]:
         """
         This code receives labels and 2 cases are possible
             - Either the image has only one class present (together with unlabeled pixels)
@@ -918,7 +922,7 @@ class PolsarDatasetHandler(ABC):
             mask = [indx in indexes for indx in range(len(label_patches))]
             assert pixel_occ_total[cls] == sum(np.where(label_patches[mask] == 1)[-1] == cls)
 
-    def _balance_total_pixels_of_patch(self, label_patches):
+    def _balance_total_pixels_of_patch(self, label_patches: np.ndarray) -> np.ndarray:
         counter = self._get_balanced_patch_image_counter_information(label_patches)
         pixel_occ_total = np.bincount(np.where(label_patches == 1)[-1])
         total_to_be_achieved = np.min(pixel_occ_total[np.nonzero(pixel_occ_total)])
@@ -1098,15 +1102,19 @@ class PolsarDatasetHandler(ABC):
         labels = np.pad(labels, paddings)
         return image, labels
 
-    def _separate_dataset(self, patches: np.ndarray, label_patches: np.ndarray,
+    def _separate_dataset(self, patches: List[Tuple[int, int]], label_patches: List,
                           percentage: Union[Tuple[float], float], shuffle: bool = True, classification: bool = False,
-                          balance_dataset: bool = False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+                          balance_dataset: bool = False) -> Tuple[List[Tuple[int, int]], List]:
         """
         Separates dataset patches according to the percentage
+        :param patches:
+        :param label_patches: Normally 4D
         :param percentage: list of percentages for each value,
-            example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test.
-        :param shuffle: Shuffle dataset before split.
-        :return: tuple of two lists of size = len(percentage), one with data x and other with labels y.
+            example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test
+        :param shuffle: Shuffle dataset before split
+        :param classification:
+        :param balance_dataset:
+        :return: tuple of lists of size = len(percentage), one with data x and other with labels y.
         """
         percentage = self._parse_percentage(percentage)
         balance = self._parse_balance(balance_dataset, length=len(percentage))
@@ -1152,7 +1160,8 @@ class PolsarDatasetHandler(ABC):
 
     def _sliding_window_operation(self, im, lab, size: Tuple[int, int], stride: int,
                                   pad: Tuple[Tuple[int, int], Tuple[int, int]],
-                                  segmentation: bool = True, add_unlabeled: bool = False) -> Tuple[List, List]:
+                                  segmentation: bool = True, add_unlabeled: bool = False) \
+            -> Tuple[List[Tuple[int, int]], List]:
         """
         Extracts many sub-images from one big image. Labels included.
         Using the Sliding Window Operation defined in:
@@ -1201,8 +1210,19 @@ class PolsarDatasetHandler(ABC):
         return cropped
 
     def get_patches_image_from_points(self, patches_points: List[List[Tuple[int, int]]],
-                                      image_to_crop, size: Union[int, Tuple[int, int]],
-                                      pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]], segmentation: bool):
+                                      image_to_crop,
+                                      size: Union[int, Tuple[int, int]],
+                                      pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]],
+                                      segmentation: bool) -> List:
+        """
+        :param patches_points:
+        :param image_to_crop: Either ND array. N >= 2. TODO: This constraint of N is not verified
+            If first dimension equals patches_points first dimension it will use different images for each set
+        :param size:
+        :param pad:
+        :param segmentation:
+        :return:
+        """
         if isinstance(size, int):
             size = (size, size)
         else:
@@ -1346,20 +1366,22 @@ class PolsarDatasetHandler(ABC):
         PUBLIC
     """
 
-    def apply_sliding_on_self_data(self, *args, **kwargs):
+    def apply_sliding_on_self_data(self, *args, **kwargs) -> Tuple[List[Tuple[int, int]], List]:
         return self.apply_sliding(image=self.image, labels=self.labels, *args, **kwargs)
 
     def apply_sliding(self, image, labels, size: Union[int, Tuple[int, int]] = 128, stride: int = 25, pad="same",
-                      classification: bool = False, add_unlabeled: bool = False):
+                      classification: bool = False, add_unlabeled: bool = False) -> Tuple[List[Tuple[int, int]], List]:
         """
         Performs the sliding window operation to the image
+        :param image:
+        :param labels:
         :param size:
         :param stride:
         :param pad:
         :param classification:
         :param add_unlabeled: Add unlabeled data patch (False by default)
-        :return: image and label patches of the main image and labels
-
+        :return: Tuple, first element is a list of the selected pixels (another tuple) and
+            second element the labels of those pixels (Normally 3D)
         """
         if isinstance(size, int):
             size = (size, size)
