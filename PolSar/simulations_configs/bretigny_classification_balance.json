@@ -4,7 +4,8 @@
         "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "cnn",
@@ -13,14 +14,16 @@
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "mlp",
         "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "mlp",
@@ -29,14 +32,16 @@
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "cnn",
         "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     },
     {
         "model": "cnn",
@@ -45,14 +50,16 @@
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     },
     {
         "model": "mlp",
         "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     },
     {
         "model": "mlp",
@@ -61,6 +68,7 @@
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     }
 ]
