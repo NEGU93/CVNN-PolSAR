@@ -17,12 +17,13 @@ from itertools import compress
 import tikzplotlib
 from bisect import insort, bisect
 import tensorflow as tf
-from typing import Tuple, Optional, List, Union
+from typing import Tuple, Optional, List, Union, Sequence
 from sklearn.model_selection import train_test_split
 import sklearn
 from cvnn.utils import transform_to_real_map_function, REAL_CAST_MODES
 
 BUFFER_SIZE = 32000
+PAD_TYPING = Union[int, str, Sequence]
 
 cao_dataset_parameters = {
     'validation_split': 0.1,  # Section 3.3.2
@@ -631,7 +632,7 @@ class PolsarDatasetHandler(ABC):
     # 3 get dataset main methods
     def _get_shuffled_dataset(self, size: int = 128, stride: int = 25,
                               percentage: Union[Tuple[float], float] = (0.8, 0.2),
-                              shuffle: bool = True, pad="same", balance_dataset: bool = False,
+                              shuffle: bool = True, pad: PAD_TYPING = "same", balance_dataset: bool = False,
                               classification: bool = False) -> (np.ndarray, np.ndarray):
         """
         Applies the sliding window operations getting smaller images of a big image T.
@@ -649,11 +650,11 @@ class PolsarDatasetHandler(ABC):
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
-                               pad="same",
+                               pad: PAD_TYPING = "same",
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
                                balance_dataset: Union[bool, Tuple[bool]] = False):
         pad = self._parse_pad(pad, size)
-        image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth, pad=pad)
+        image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         images = image_slices.copy()
         for i in range(0, len(labels)):
             # Balance validation because is used for choosing best model
@@ -723,7 +724,7 @@ class PolsarDatasetHandler(ABC):
         return percentage
 
     @staticmethod
-    def _parse_pad(pad, kernel_size):
+    def _parse_pad(pad: PAD_TYPING, kernel_size: Union[int, Sequence]):
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
         else:
@@ -1058,7 +1059,7 @@ class PolsarDatasetHandler(ABC):
         return counter
 
     # MISC
-    def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str], pad):
+    def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str]):
         if azimuth is None:
             azimuth = self.azimuth
         if azimuth is None:
@@ -1110,7 +1111,7 @@ class PolsarDatasetHandler(ABC):
 
     def _separate_dataset(self, patches: List[Tuple[int, int]], label_patches: List,
                           percentage: Union[Tuple[float], float], shuffle: bool = True, classification: bool = False,
-                          balance_dataset: bool = False) -> Tuple[List[Tuple[int, int]], List]:
+                          balance_dataset: bool = False) -> Tuple[List[List[Tuple[int, int]]], List]:
         """
         Separates dataset patches according to the percentage
         :param patches:
@@ -1217,7 +1218,7 @@ class PolsarDatasetHandler(ABC):
 
     def get_patches_image_from_point_and_self_image(self, patches_points: List[List[Tuple[int, int]]],
                                                     size: Union[int, Tuple[int, int]],
-                                                    pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]]
+                                                    pad: Optional[PAD_TYPING]
                                                     ) -> List:
         return self.get_patches_image_from_points(patches_points=patches_points,
                                                   image_to_crop=self.image,
@@ -1226,7 +1227,7 @@ class PolsarDatasetHandler(ABC):
     def get_patches_image_from_points(self, patches_points: List[List[Tuple[int, int]]],
                                       image_to_crop,
                                       size: Union[int, Tuple[int, int]],
-                                      pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]]) -> List:
+                                      pad: Optional[PAD_TYPING]) -> List:
         """
         :param patches_points:
         :param image_to_crop: Either ND array. N >= 2. TODO: This constraint of N is not verified
