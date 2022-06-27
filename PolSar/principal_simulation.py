@@ -505,10 +505,11 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                                       num_classes=DATASET_META[dataset_name]["classes"])
         test_ds = ds_list[2]
         test_x = tf.convert_to_tensor(test_ds[0])
+        test_y = tf.convert_to_tensor(test_ds[1])
         predict_result = checkpoint_model.predict(test_x, batch_size=MODEL_META[model_name]['batch_size'])
-        evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_x, test_ds[1]),
+        evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_x, test_y),
                                               metrics=checkpoint_model.metrics_names)
-        test_confusion_matrix = _get_confusion_matrix(predict_result, test_ds[1], DATASET_META[dataset_name]["classes"])
+        test_confusion_matrix = _get_confusion_matrix(predict_result, test_y, DATASET_META[dataset_name]["classes"])
         test_confusion_matrix.to_csv(str(temp_path / 'test_confusion_matrix.csv'))
     eval_df = DataFrame.from_dict(evaluate)
     return df, dataset_handler, eval_df

@@ -649,10 +649,11 @@ class PolsarDatasetHandler(ABC):
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
+                               pad="same",
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
                                balance_dataset: Union[bool, Tuple[bool]] = False):
-        # TODO: Why I dont use pad here?
-        image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
+        pad = self._parse_pad(pad, size)
+        image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth, pad=pad)
         images = image_slices.copy()
         for i in range(0, len(labels)):
             # Balance validation because is used for choosing best model
@@ -664,7 +665,7 @@ class PolsarDatasetHandler(ABC):
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
         images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices, size=size,
-                                                    pad=None)
+                                                    pad=pad)
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
@@ -723,6 +724,11 @@ class PolsarDatasetHandler(ABC):
 
     @staticmethod
     def _parse_pad(pad, kernel_size):
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size, kernel_size)
+        else:
+            kernel_size = tuple(kernel_size)
+            assert len(kernel_size) == 2
         if isinstance(pad, int):
             pad = ((pad, pad), (pad, pad))
         elif isinstance(pad, str):
@@ -1052,7 +1058,7 @@ class PolsarDatasetHandler(ABC):
         return counter
 
     # MISC
-    def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str]):
+    def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str], pad):
         if azimuth is None:
             azimuth = self.azimuth
         if azimuth is None:
@@ -1237,13 +1243,13 @@ class PolsarDatasetHandler(ABC):
         multiple_images = len(patches_points) == len(image_to_crop)
         if pad is not None:
             pad = self._parse_pad(pad, size)
-            image_to_crop = np.pad(image_to_crop, (pad[0], pad[1], (0, 0)))
+            if not multiple_images:
+                image_to_crop = np.pad(image_to_crop, (pad[0], pad[1], (0, 0)))
+            else:
+                image_to_crop = [np.pad(img, (pad[0], pad[1], (0, 0))) for img in image_to_crop]
         result = [np.empty(shape=(len(patches_points[i]),) + size + (image_to_crop[0].shape[-1],),
                            dtype=image_to_crop[i].dtype)
                   for i in range(len(patches_points))]
-        # result = np.empty(shape=(len(patches_points), len(patches_points[0])) + size + (image_to_crop[0].shape[-1],),
-        #                   dtype=image_to_crop[0].dtype)
-
         for dset_index, dset in enumerate(patches_points):
             for points_index, points in enumerate(dset):
                 result[dset_index][points_index] = self.get_image_around_point(image_to_crop=

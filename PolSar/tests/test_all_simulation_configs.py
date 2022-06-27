@@ -40,13 +40,18 @@ class RunnerDebugger(SimulationScheduler):
 
 
 def test_all_files():
-    local_runner = RunnerDebugger()
     simulation_config_path = "/".join(os.path.abspath(__file__).split('/')[:-2] + ["simulations_configs"])
     for file in os.listdir(simulation_config_path):
-        if file.endswith(".json"):
-            print(f"Testing {Path(simulation_config_path) / file}")
-            local_runner(str(Path(simulation_config_path) / file))
+        single_file_test(file)
+
+
+def single_file_test(file):
+    if file.endswith(".json"):
+        print(f"Testing {file}")
+    simulation_config_path = "/".join(os.path.abspath(__file__).split('/')[:-2] + ["simulations_configs"])
+    RunnerDebugger()(str(Path(simulation_config_path) / file))
 
 
 if __name__ == "__main__":
-    test_all_files()
+    # test_all_files()
+    single_file_test("bretigny.json")
