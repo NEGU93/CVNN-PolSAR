@@ -41,7 +41,8 @@ class SimulationScheduler(ABC):
                 result += f" --{key}{f' {value}' if not isinstance(value, bool) else ''}"
         return result
 
-    def parse_input(self):
+    @staticmethod
+    def parse_input():
         parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument("-I", '--iterations', nargs=1, type=int, default=[1],
                             help='(int) iterations to be done')

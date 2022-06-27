@@ -76,7 +76,6 @@ def test_ober(show_gt=False, show_img=False):
 
 def test_bretigny(show_gt=False, show_img=False):
     dataset_handler = BretignyDataset(mode='s')
-    set_trace()
     full_verify_dataset(dataset_handler)
 
 
@@ -209,8 +208,8 @@ if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     logging.basicConfig(level=logging.INFO)
     start_time = time.monotonic()
-    # test_sf()
-    # test_flev()
     test_bretigny()
-    # test_ober()
+    test_sf()
+    test_flev()
+    test_ober()
     logging.info(f"Time of tests {timedelta(seconds=time.monotonic() - start_time)}")
