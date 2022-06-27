@@ -645,13 +645,13 @@ class PolsarDatasetHandler(ABC):
                                                                  classification=classification)
         x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
                                       percentage=percentage, shuffle=shuffle, balance_dataset=balance_dataset)
-        x = self.get_patches_image_from_points(patches_points=x, image_to_crop=self.image, size=size, pad=pad,
-                                               segmentation=True)
+        x = self.get_patches_image_from_point_and_self_image(patches_points=x, size=size, pad=pad)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
                                balance_dataset: Union[bool, Tuple[bool]] = False):
+        # TODO: Why I dont use pad here?
         image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         images = image_slices.copy()
         for i in range(0, len(labels)):
@@ -664,7 +664,7 @@ class PolsarDatasetHandler(ABC):
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
         images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices, size=size,
-                                                    pad=None, segmentation=True)
+                                                    pad=None)
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
@@ -1182,7 +1182,7 @@ class PolsarDatasetHandler(ABC):
                                                                 f"({size[0]}x{size[1]})"
         for x in range(0, im.shape[0] - size[0] + 1, stride):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
-                label_to_add = self.get_image_around_point(lab, x, y, size, segmentation)
+                label_to_add = self.get_image_around_point(lab, x, y, size if segmentation else (1, 1))
                 # image_to_add = self.get_image_around_point(im, x, y, size, segmentation=True)
                 if add_unlabeled or (segmentation and not np.all(np.all(label_to_add == 0, axis=-1))) or \
                         (not segmentation and not np.all(label_to_add == 0)):
@@ -1200,27 +1200,33 @@ class PolsarDatasetHandler(ABC):
         return tiles, label_tiles
 
     @staticmethod
-    def get_image_around_point(image_to_crop, x, y, size: Tuple[int, int], segmentation: bool):
+    def get_image_around_point(image_to_crop, x, y, size: Tuple[int, int]):
         slice_x = slice(x, x + size[0])
         slice_y = slice(y, y + size[1])
-        if segmentation:
+        if size[0] != 1 and size[1] != 1:
             cropped = image_to_crop[slice_x, slice_y]
         else:
-            cropped = image_to_crop[x + int(size[0] / 2), y + int(size[1] / 2)]
+            cropped = image_to_crop[x, y]
         return cropped
+
+    def get_patches_image_from_point_and_self_image(self, patches_points: List[List[Tuple[int, int]]],
+                                                    size: Union[int, Tuple[int, int]],
+                                                    pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]]
+                                                    ) -> List:
+        return self.get_patches_image_from_points(patches_points=patches_points,
+                                                  image_to_crop=self.image,
+                                                  size=size, pad=pad)
 
     def get_patches_image_from_points(self, patches_points: List[List[Tuple[int, int]]],
                                       image_to_crop,
                                       size: Union[int, Tuple[int, int]],
-                                      pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]],
-                                      segmentation: bool) -> List:
+                                      pad: Optional[Tuple[Tuple[int, int], Tuple[int, int]]]) -> List:
         """
         :param patches_points:
         :param image_to_crop: Either ND array. N >= 2. TODO: This constraint of N is not verified
             If first dimension equals patches_points first dimension it will use different images for each set
         :param size:
         :param pad:
-        :param segmentation:
         :return:
         """
         if isinstance(size, int):
@@ -1232,13 +1238,21 @@ class PolsarDatasetHandler(ABC):
         if pad is not None:
             pad = self._parse_pad(pad, size)
             image_to_crop = np.pad(image_to_crop, (pad[0], pad[1], (0, 0)))
-        for i, dset in enumerate(patches_points):
-            for j, points in enumerate(dset):
-                patches_points[i][j] = self.get_image_around_point(image_to_crop=image_to_crop[i] if multiple_images else image_to_crop,
-                                                                   x=patches_points[i][j][0],
-                                                                   y=patches_points[i][j][1],
-                                                                   size=size, segmentation=segmentation)
-        return patches_points
+        result = [np.empty(shape=(len(patches_points[i]),) + size + (image_to_crop[0].shape[-1],),
+                           dtype=image_to_crop[i].dtype)
+                  for i in range(len(patches_points))]
+        # result = np.empty(shape=(len(patches_points), len(patches_points[0])) + size + (image_to_crop[0].shape[-1],),
+        #                   dtype=image_to_crop[0].dtype)
+
+        for dset_index, dset in enumerate(patches_points):
+            for points_index, points in enumerate(dset):
+                result[dset_index][points_index] = self.get_image_around_point(image_to_crop=
+                                                                               image_to_crop[dset_index] if
+                                                                               multiple_images else image_to_crop,
+                                                                               x=patches_points[dset_index][points_index][0],
+                                                                               y=patches_points[dset_index][points_index][1],
+                                                                               size=size)
+        return result
 
     # Open with path
     @staticmethod

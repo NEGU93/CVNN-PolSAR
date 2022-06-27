@@ -67,9 +67,9 @@ DATASET_META = {
 }
 
 MODEL_META = {
-    "cao": {"size": 128, "stride": 25, "pad": 127, "batch_size": 30,
+    "cao": {"size": 128, "stride": 25, "pad": 'same', "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
-    "own": {"size": 128, "stride": 25, "pad": 0, "batch_size": 32,
+    "own": {"size": 128, "stride": 25, "pad": 'same', "batch_size": 32,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
@@ -79,6 +79,8 @@ MODEL_META = {
                 "percentage": (0.02, 0.08, 0.1, 0.8), "task": "classification"},
     "mlp": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
             "percentage": (0.08, 0.02, 0.1), "task": "classification"},
+    "expanded-mlp": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
+                     "percentage": (0.08, 0.02, 0.1), "task": "classification"},
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
@@ -237,6 +239,14 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                               num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                               dropout=dropout["downsampling"], equiv_technique=equiv_technique,
                               name=equiv_technique.replace('_', '-') + '-' + name_prefix + model_name)
+    elif model_name == 'expanded-mlp':
+        if weights is not None:
+            print("WARNING: expanded-MLP model does not support weighted loss")
+        model = get_mlp_model(input_shape=(MODEL_META["expanded-mlp"]["size"],
+                                           MODEL_META["expanded-mlp"]["size"], channels),
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              dropout=dropout["downsampling"], equiv_technique=equiv_technique,
+                              name=equiv_technique.replace('_', '-') + '-' + name_prefix + model_name)
     elif model_name == 'tan':
         if weights is not None:
             print("WARNING: Tan model does not support weighted loss")
@@ -300,8 +310,9 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
     stride = 1
     tiles, label_tiles = dataset_handler.apply_sliding_on_self_data(stride=stride, size=shape[:-1],
                                                                     pad="same", classification=True, add_unlabeled=True)
+    tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
     if not complex_mode:
-        tiles, label_tiles = transform_to_real_map_function(tiles, label_tiles, real_mode)
+        tiles, label_tiles = transform_to_real_map_function(tiles[0], label_tiles, real_mode)
     if use_mask:
         mask = dataset_handler.get_sparse_labels()
     else:
@@ -313,6 +324,8 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
             eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
             eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
             eval_df.to_csv(str(root_path / 'evaluate.csv'))
+    except ValueError as error:
+        raise error
     except:  # tf.python.framework.errors_impl.InternalError:
         print("Could not predict full image due to memory issues")
         return None
@@ -502,7 +515,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
 
 
 def clear_and_open_saved_model(*args, **kwargs):
-    if tf.test.is_gpu_available():
+    if tf.config.list_physical_devices('GPU'):
         print(f"Clearing "
               f"{tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9:.3f} GB of GPU memory usage")
         tf.keras.backend.clear_session()
