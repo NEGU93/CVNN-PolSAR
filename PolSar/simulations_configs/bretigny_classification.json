@@ -1,14 +1,14 @@
 [
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": true
     },
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -16,15 +16,15 @@
         "coherency": true
     },
     {
-        "model": "mlp",
-        "epochs": 1,
+        "model": "expanded-mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": true
     },
     {
-        "model": "mlp",
-        "epochs": 1,
+        "model": "expanded-mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -33,14 +33,14 @@
     },
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": false
     },
     {
         "model": "cnn",
-        "epochs": 1,
+        "epochs": 400,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -48,15 +48,15 @@
         "coherency": false
     },
     {
-        "model": "mlp",
-        "epochs": 1,
+        "model": "expanded-mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": false
     },
     {
-        "model": "mlp",
-        "epochs": 1,
+        "model": "expanded-mlp",
+        "epochs": 500,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
