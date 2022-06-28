@@ -4,19 +4,15 @@ import os
 from collections import defaultdict
 import time
 from datetime import timedelta
-from os import makedirs
-from pathlib import Path
 import numpy as np
+from pdb import set_trace
 from dataset_readers.sf_data_reader import SanFranciscoDataset
 from dataset_readers.flevoland_data_reader import FlevolandDataset
 from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from dataset_readers.bretigny_dataset import BretignyDataset
 from dataset_readers.garon_dataset import GaronDataset
-from pdb import set_trace
-from cvnn.utils import create_folder
-
 sys.path.insert(1, "/".join(os.path.abspath(__file__).split('/')[:-2]))
-from principal_simulation import _get_dataset_handler, MODEL_META, DATASET_META
+from principal_simulation import DATASET_META
 
 
 def coh_matrix_generator(dataset_handler, kernel_shape=1):
@@ -59,22 +55,22 @@ def handler_to_test(dataset_handler, show_gt=False, show_img=False):
         rgb_image, ground_truth = verify_images(dataset_handler, ground_truth, rgb_image, show_gt, show_img)
 
 
-def test_sf(show_gt=False, show_img=False):
+def test_sf():
     dataset_handler = SanFranciscoDataset(mode='s', dataset_name="SF-AIRSAR")
     full_verify_dataset(dataset_handler)
 
 
-def test_flev(show_gt=False, show_img=False):
+def test_flev():
     dataset_handler = FlevolandDataset(mode='s')
     full_verify_dataset(dataset_handler)
 
 
-def test_ober(show_gt=False, show_img=False):
+def test_ober():
     dataset_handler = OberpfaffenhofenDataset(mode='s')
     full_verify_dataset(dataset_handler)
 
 
-def test_bretigny(show_gt=False, show_img=False):
+def test_bretigny():
     dataset_handler = BretignyDataset(mode='s')
     full_verify_dataset(dataset_handler)
 
@@ -82,22 +78,23 @@ def test_bretigny(show_gt=False, show_img=False):
 def full_verify_dataset(dataset_handler):
     startt = time.monotonic()
     logging.info(f"Testing dataset {dataset_handler.name}")
-    balanced_classification_separate_test(dataset_handler)
-    balance_test_segmentation(dataset_handler)
-    if dataset_handler.name != "FLEVOLAND":
-        balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
-        balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
-                                            balance_dataset=[True, True, False])
-    balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
-                                        balance_dataset=False)
-    handler_to_test(dataset_handler)
-    try:
-        scattering_vector(dataset_handler)
-        mode_change(dataset_handler)
-        coh_matrix_generator(dataset_handler)
-    except ValueError as e:
-        if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
-            raise e                                                 # Should catch the error
+    test_tf_tensor_mode(dataset_handler)
+    # balanced_classification_separate_test(dataset_handler)
+    # balance_test_segmentation(dataset_handler)
+    # if dataset_handler.name != "FLEVOLAND":
+    #     balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
+    #     balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
+    #                                         balance_dataset=[True, True, False])
+    # balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
+    #                                     balance_dataset=False)
+    # handler_to_test(dataset_handler)
+    # try:
+    #     scattering_vector(dataset_handler)
+    #     mode_change(dataset_handler)
+    #     coh_matrix_generator(dataset_handler)
+    # except ValueError as e:
+    #     if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
+    #         raise e                                                 # Should catch the error
     logging.info(f"Time testing {dataset_handler.name} was {timedelta(seconds=time.monotonic() - startt)}")
 
 
@@ -130,7 +127,7 @@ def balanced_classification_separate_test(dataset_handler):
         assert np.all(train_count[np.nonzero(train_count)] == train_count[np.nonzero(train_count)][0])
 
 
-def garon_balance_test(percentage):
+def garon_balance_test():
     dataset_handler = GaronDataset(mode='s', image_number=1)
     full_verify_dataset(dataset_handler)
 
@@ -204,12 +201,48 @@ def scattering_vector(dataset_handler):
     assert np.allclose(s_image, dataset_handler.image)
 
 
+def test_tf_tensor_mode(dataset_handler):
+    np_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=1.)
+    tf_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=1., use_tf_dataset=True)
+    compare_numpy_w_tf(np_ds, tf_ds)
+    np_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=(.3, .4, .3))
+    tf_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=(.3, .4, .3), use_tf_dataset=True)
+    compare_numpy_w_tf(np_ds, tf_ds)
+    if dataset_handler.name != "BRET":
+        tf_ds = dataset_handler.get_dataset(method="random", percentage=1., shuffle=False, use_tf_dataset=True)
+        np_ds = dataset_handler.get_dataset(method="random", percentage=1., shuffle=False)
+        compare_numpy_w_tf(np_ds, tf_ds)
+        tf_ds = dataset_handler.get_dataset(method="random", percentage=(0.5, .4), shuffle=False, use_tf_dataset=True)
+        np_ds = dataset_handler.get_dataset(method="random", percentage=(0.5, .4), shuffle=False)
+        compare_numpy_w_tf(np_ds, tf_ds)
+        tf_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4), shuffle=False, use_tf_dataset=True)
+        np_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4), shuffle=False)
+        compare_numpy_w_tf(np_ds, tf_ds)
+        tf_ds = dataset_handler.get_dataset(method="separate", percentage=1, shuffle=False, use_tf_dataset=True)
+        np_ds = dataset_handler.get_dataset(method="separate", percentage=1, shuffle=False)
+        compare_numpy_w_tf(np_ds, tf_ds)
+        tf_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4, .1), shuffle=False, use_tf_dataset=True)
+        np_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4, .1), shuffle=False)
+        compare_numpy_w_tf(np_ds, tf_ds)
+
+
+def compare_numpy_w_tf(np_ds, tf_ds):
+    assert len(np_ds) == len(tf_ds)
+    batch = 0
+    for i in range(len(np_ds)):
+        for j, elem in enumerate(iter(tf_ds[i])):
+            last_batch = batch
+            batch = elem[0].numpy().shape[0]
+            assert np.all(elem[0].numpy() == np_ds[i][0][j*last_batch:j*last_batch+batch])
+            assert np.all(elem[1].numpy() == np_ds[i][1][j*last_batch:j*last_batch+batch])
+
+
 if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     logging.basicConfig(level=logging.INFO)
     start_time = time.monotonic()
-    test_bretigny()
     test_sf()
+    test_bretigny()
     test_flev()
     test_ober()
     logging.info(f"Time of tests {timedelta(seconds=time.monotonic() - start_time)}")

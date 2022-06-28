@@ -650,10 +650,8 @@ class PolsarDatasetHandler(ABC):
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
-                               pad: PAD_TYPING = "same",
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
                                balance_dataset: Union[bool, Tuple[bool]] = False):
-        pad = self._parse_pad(pad, size)
         image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
         images = image_slices.copy()
         for i in range(0, len(labels)):
@@ -665,8 +663,8 @@ class PolsarDatasetHandler(ABC):
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
-        images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices, size=size,
-                                                    pad=pad)
+        images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices,
+                                                    size=size, pad="same")
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
@@ -1218,7 +1216,7 @@ class PolsarDatasetHandler(ABC):
 
     def get_patches_image_from_point_and_self_image(self, patches_points: List[List[Tuple[int, int]]],
                                                     size: Union[int, Tuple[int, int]],
-                                                    pad: Optional[PAD_TYPING]
+                                                    pad: Optional[PAD_TYPING] = "same",
                                                     ) -> List:
         return self.get_patches_image_from_points(patches_points=patches_points,
                                                   image_to_crop=self.image,
@@ -1227,7 +1225,7 @@ class PolsarDatasetHandler(ABC):
     def get_patches_image_from_points(self, patches_points: List[List[Tuple[int, int]]],
                                       image_to_crop,
                                       size: Union[int, Tuple[int, int]],
-                                      pad: Optional[PAD_TYPING]) -> List:
+                                      pad: Optional[PAD_TYPING] = "same") -> List:
         """
         :param patches_points:
         :param image_to_crop: Either ND array. N >= 2. TODO: This constraint of N is not verified
