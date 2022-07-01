@@ -47,11 +47,11 @@ def handler_to_test(dataset_handler, show_gt=False, show_img=False):
     rgb_image = None
     for dataset_method in ["random", "separate", "single_separated_image"]:
         dataset_handler.get_dataset(method=dataset_method, percentage=(0.8, 0.2), size=128, stride=25, pad=0,
-                                    shuffle=True, savefig=None, classification=False)
+                                    shuffle=True, savefig=None, classification=False, cast_to_np=True)
         rgb_image, ground_truth = verify_images(dataset_handler, ground_truth, rgb_image, show_gt, show_img)
     for dataset_method in ["separate", "random"]:
         dataset_handler.get_dataset(method=dataset_method, percentage=(0.8, 0.2), size=128, stride=25, pad=0,
-                                    shuffle=True, savefig=None, classification=True)
+                                    shuffle=True, savefig=None, classification=True, cast_to_np=True)
         rgb_image, ground_truth = verify_images(dataset_handler, ground_truth, rgb_image, show_gt, show_img)
 
 
@@ -78,23 +78,23 @@ def test_bretigny():
 def full_verify_dataset(dataset_handler):
     startt = time.monotonic()
     logging.info(f"Testing dataset {dataset_handler.name}")
-    test_tf_tensor_mode(dataset_handler)
-    # balanced_classification_separate_test(dataset_handler)
-    # balance_test_segmentation(dataset_handler)
-    # if dataset_handler.name != "FLEVOLAND":
-    #     balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
-    #     balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
-    #                                         balance_dataset=[True, True, False])
-    # balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
-    #                                     balance_dataset=False)
-    # handler_to_test(dataset_handler)
-    # try:
-    #     scattering_vector(dataset_handler)
-    #     mode_change(dataset_handler)
-    #     coh_matrix_generator(dataset_handler)
-    # except ValueError as e:
-    #     if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
-    #         raise e                                                 # Should catch the error
+    # test_tf_tensor_mode(dataset_handler)
+    balanced_classification_separate_test(dataset_handler)
+    balance_test_segmentation(dataset_handler)
+    if dataset_handler.name != "FLEVOLAND":
+        balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
+        balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
+                                            balance_dataset=[True, True, False])
+    balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
+                                        balance_dataset=False)
+    handler_to_test(dataset_handler)
+    try:
+        scattering_vector(dataset_handler)
+        mode_change(dataset_handler)
+        coh_matrix_generator(dataset_handler)
+    except ValueError as e:
+        if dataset_handler.name not in ["OBER", "FLEVOLAND"]:       # These datasets only support t mode.
+            raise e                                                 # Should catch the error
     logging.info(f"Time testing {dataset_handler.name} was {timedelta(seconds=time.monotonic() - startt)}")
 
 
@@ -103,7 +103,7 @@ def balanced_classification_random_test(dataset_handler, percentage, balance_dat
         balance_dataset = [True, False]
     list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, size=6, stride=1, pad=0,
                                           shuffle=True, savefig=None, classification=True,
-                                          balance_dataset=balance_dataset)
+                                          balance_dataset=balance_dataset, cast_to_np=True)
     if np.any(balance_dataset):
         for i in range(sum(balance_dataset)):
             train_sparse = np.argmax(list_ds[i][1], axis=-1)
@@ -119,6 +119,7 @@ def balanced_classification_separate_test(dataset_handler):
     list_ds = dataset_handler.get_dataset(method="separate", size=6, stride=1, pad=0,
                                           percentage=DATASET_META[dataset_handler.name]["percentage"],
                                           shuffle=True, savefig=None, classification=True,
+                                          cast_to_np=True,
                                           balance_dataset=[True] * len(DATASET_META[dataset_handler.name]["percentage"])
                                           )
     for i in range(len(DATASET_META[dataset_handler.name]["percentage"])):
@@ -163,17 +164,17 @@ def balance_test_segmentation(dataset_handler):
     list_ds = dataset_handler.get_dataset(method="separate",
                                           percentage=DATASET_META[dataset_handler.name]["percentage"],
                                           balance_dataset=(True, True), stride=25,
-                                          shuffle=True, classification=False)
+                                          shuffle=True, classification=False, cast_to_np=True)
     verify_labels_balanced(list_ds[0][1])
     verify_labels_balanced(list_ds[1][1])
     list_ds = dataset_handler.get_dataset(method="random", balance_dataset=(True, True), stride=25,
                                           percentage=DATASET_META[dataset_handler.name]["percentage"],
-                                          shuffle=True, classification=False)
+                                          shuffle=True, classification=False, cast_to_np=True)
     verify_labels_balanced(list_ds[0][1])
     verify_labels_balanced(list_ds[1][1])
     list_ds = dataset_handler.get_dataset(method="single_separated_image", balance_dataset=(True, True), stride=25,
                                           percentage=DATASET_META[dataset_handler.name]["percentage"],
-                                          shuffle=True, classification=False)
+                                          shuffle=True, classification=False, cast_to_np=True)
     count = np.bincount(np.where(list_ds[0][1] == 1)[-1])
     assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
     count = np.bincount(np.where(list_ds[1][1] == 1)[-1])
@@ -203,25 +204,25 @@ def scattering_vector(dataset_handler):
 
 def test_tf_tensor_mode(dataset_handler):
     np_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=1.)
-    tf_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=1., use_tf_dataset=True)
+    tf_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=1.,  cast_to_np=True)
     compare_numpy_w_tf(np_ds, tf_ds)
     np_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=(.3, .4, .3))
-    tf_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=(.3, .4, .3), use_tf_dataset=True)
+    tf_ds = dataset_handler.get_dataset(method="single_separated_image", percentage=(.3, .4, .3), cast_to_np=True)
     compare_numpy_w_tf(np_ds, tf_ds)
     if dataset_handler.name != "BRET":
-        tf_ds = dataset_handler.get_dataset(method="random", percentage=1., shuffle=False, use_tf_dataset=True)
+        tf_ds = dataset_handler.get_dataset(method="random", percentage=1., shuffle=False, cast_to_np=True)
         np_ds = dataset_handler.get_dataset(method="random", percentage=1., shuffle=False)
         compare_numpy_w_tf(np_ds, tf_ds)
-        tf_ds = dataset_handler.get_dataset(method="random", percentage=(0.5, .4), shuffle=False, use_tf_dataset=True)
+        tf_ds = dataset_handler.get_dataset(method="random", percentage=(0.5, .4), shuffle=False, cast_to_np=True)
         np_ds = dataset_handler.get_dataset(method="random", percentage=(0.5, .4), shuffle=False)
         compare_numpy_w_tf(np_ds, tf_ds)
-        tf_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4), shuffle=False, use_tf_dataset=True)
+        tf_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4), shuffle=False, cast_to_np=True)
         np_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4), shuffle=False)
         compare_numpy_w_tf(np_ds, tf_ds)
-        tf_ds = dataset_handler.get_dataset(method="separate", percentage=1, shuffle=False, use_tf_dataset=True)
+        tf_ds = dataset_handler.get_dataset(method="separate", percentage=1, shuffle=False, cast_to_np=True)
         np_ds = dataset_handler.get_dataset(method="separate", percentage=1, shuffle=False)
         compare_numpy_w_tf(np_ds, tf_ds)
-        tf_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4, .1), shuffle=False, use_tf_dataset=True)
+        tf_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4, .1), shuffle=False, cast_to_np=True)
         np_ds = dataset_handler.get_dataset(method="separate", percentage=(0.5, .4, .1), shuffle=False)
         compare_numpy_w_tf(np_ds, tf_ds)
 

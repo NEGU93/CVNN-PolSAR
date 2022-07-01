@@ -2,7 +2,7 @@ import os.path
 import timeit
 import sys
 import logging
-from collections.abc import Sequence
+import pandas as pd
 from packaging import version
 from collections import defaultdict
 from scipy.ndimage import uniform_filter
@@ -310,6 +310,13 @@ def ordered_insertion_by_key(sequence, value, key):
         sequence.insert(bisect_index, value)
 
 
+def multi_dimensional_string_to_list(data: str) -> List:
+    if data.startswith("["):
+        assert data.endswith(']')
+        result_list = []
+
+
+
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, coh_kernel_size: int = 1):
@@ -402,11 +409,63 @@ class PolsarDatasetHandler(ABC):
     """
 
     def get_dataset(self, method: str, percentage: Union[Tuple[float, ...], float],
-                    size: int = 128, stride: int = 25, shuffle: bool = True, pad="same", savefig: Optional[str] = None,
+                    size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
+                    savefig: Optional[str] = None,
                     azimuth: Optional[str] = None, data_augment: bool = False, classification: bool = False,
                     complex_mode: bool = True, real_mode: str = "real_imag",
-                    balance_dataset: Union[bool, Tuple[bool]] = False,
-                    batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
+                    balance_dataset: Union[bool, Tuple[bool]] = False, re_process_data=False,
+                    batch_size: int = cao_dataset_parameters['batch_size'], cast_to_np=False):
+        # 1. Parse input
+        percentage = self._parse_percentage(percentage)
+        if azimuth is None:
+            azimuth = self.azimuth
+            if azimuth is None and method != "random":
+                raise ValueError(f"This instance does not have an azimuth defined. "
+                                 f"Please select it using the azimuth parameter")
+        # 2. Get filename
+        kwargs = locals()       # Normally ordered.
+        # In recent versions of python, dicts are ordered but I do it just in case
+        object_variable_dict = {k: v for k, v in vars(self).items() if not k.startswith("_")}
+        object_variable_dict.update(kwargs)  # add the parameters
+        del object_variable_dict["self"]
+        del object_variable_dict["root_path"]
+        del object_variable_dict["batch_size"]
+        del object_variable_dict["cast_to_np"]
+        del object_variable_dict["savefig"]
+        del object_variable_dict["re_process_data"]
+        cache_path = self.root_path / "cache"
+        cache_path.mkdir(exist_ok=True)
+        # assert len(args) == 0       # TODO: *args not used. This can have issues! I need to add *args to **kwargs
+        filename = ''
+        for k, v in sorted(object_variable_dict.items()):
+            filename += f"{k}_{v}_".replace('.', '').replace(' ', '').replace('[', '').replace(']', '')
+        filename = filename[:-1] + ".npz"                           # Remove trailing '_' and add extension
+        # 3. If data does not exist. Create it
+        if re_process_data or not (cache_path / ("k0_" + filename)).is_file():         # Dataset was not created
+            ds_list = self.generate_data(method=method, percentage=percentage, size=size, stride=stride,
+                                         shuffle=shuffle, pad=pad, savefig=savefig, azimuth=azimuth,
+                                         data_augment=data_augment, classification=classification,
+                                         complex_mode=complex_mode, real_mode=real_mode,
+                                         balance_dataset=balance_dataset, batch_size=batch_size, use_tf_dataset=False)
+            for subset_index, subset in enumerate(ds_list):
+                np.savez(str(cache_path / (f"k{subset_index}_" + filename)), images=subset[0], labels=subset[1])
+        # Get dataset
+        tf_dataset = []
+        for subset_index in range(len(percentage)):
+            loaded = np.load(str(cache_path / (f"k{subset_index}_" + filename)))
+            tensor_data = (loaded["images"], loaded["labels"])
+            if not cast_to_np:
+                tensor_data = tf.data.Dataset.from_tensor_slices(tensor_data).batch(batch_size)
+            tf_dataset.append(tensor_data)
+        return tf_dataset
+
+    def generate_data(self, method: str, percentage,
+                      size: int = 128, stride: int = 25, shuffle: bool = True, pad="same",
+                      savefig: Optional[str] = None,
+                      azimuth: Optional[str] = None, data_augment: bool = False, classification: bool = False,
+                      complex_mode: bool = True, real_mode: str = "real_imag",
+                      balance_dataset: Union[bool, Tuple[bool]] = False,
+                      batch_size: int = cao_dataset_parameters['batch_size'], use_tf_dataset=False):
         """
         Get the dataset in the desired form
         :param method: One of
@@ -447,11 +506,6 @@ class PolsarDatasetHandler(ABC):
         :return: Returns a list of [train, (validation), (test), (k-folds)] according to percentage parameter
             - Each list[i] is a tuple of (data, labels) where both data and labels are numpy arrays
         """
-        if azimuth is None:
-            azimuth = self.azimuth
-            if azimuth is None and method != "random":
-                raise ValueError(f"This instance does not have an azimuth defined. "
-                                 f"Please select it using the azimuth parameter")
         if method == "random":
             x_patches, y_patches = self._get_shuffled_dataset(size=size, stride=stride, pad=pad, percentage=percentage,
                                                               shuffle=shuffle, classification=classification,
@@ -478,7 +532,6 @@ class PolsarDatasetHandler(ABC):
             else:
                 ds_list = [transform_to_real_with_numpy(x, y, real_mode)
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
-
         return tuple(ds_list)
 
     def print_ground_truth(self, label: Optional = None, path: Optional[str] = None,
@@ -809,6 +862,7 @@ class PolsarDatasetHandler(ABC):
     @staticmethod
     def balanced_test_split(x_all: List[Tuple[int, int]], y_all: np.ndarray, test_size, shuffle: bool) \
             -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]], np.ndarray, np.ndarray]:
+        y_all = np.array(y_all)
         sparse_y = np.argmax(y_all, axis=-1)
         mask = np.full(shape=sparse_y.shape, fill_value=False)
         # train_size_totals = []

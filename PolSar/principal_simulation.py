@@ -425,7 +425,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
               early_stop: Union[bool, int], epochs: int, equiv_technique: str, temp_path, dropout,
               dataset_name: str, dataset_method: str, percentage: Optional[Union[Tuple[float], float]] = None,
-              debug: bool = False, use_tf_dataset=False):
+              debug: bool = False, use_tf_dataset=True):
     if percentage is None:
         if dataset_method == "random":
             if dataset_name != "GARON":
@@ -449,7 +449,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
                                           azimuth=DATASET_META[dataset_name]['azimuth'],
                                           data_augment=False, batch_size=MODEL_META[model_name]['batch_size'],
-                                          use_tf_dataset=use_tf_dataset
+                                          cast_to_np=not use_tf_dataset
                                           )
     train_ds = ds_list[0]
     val_ds = ds_list[1]
