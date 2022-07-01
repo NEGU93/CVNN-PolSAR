@@ -1,4 +1,7 @@
 import argparse
+import itertools
+import functools
+from tqdm import tqdm
 import logging
 import os
 import gc
@@ -22,10 +25,11 @@ from pandas import DataFrame
 from os import makedirs
 from random import randint
 from time import sleep
+
 from tensorflow.keras import callbacks
 import tensorflow as tf
 from typing import Optional, List, Union, Tuple
-from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
+from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function, transform_to_real
 from cvnn.real_equiv_tools import EQUIV_TECHNIQUES
 from dataset_reader import labels_to_rgb, COLORS
 from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
@@ -305,30 +309,47 @@ def _final_result_segmentation(root_path, use_mask, dataset_handler, model):
     labels_to_rgb(prediction, savefig=str(root_path / "prediction"), mask=mask, colors=COLORS[dataset_handler.name])
 
 
-def _final_result_classification(root_path, use_mask, dataset_handler, model, complex_mode, real_mode):
+def _final_result_classification(root_path, use_mask, dataset_handler, model, complex_mode, real_mode,
+                                 batch_size: int = 10000):
     shape = model.input.shape[1:]
-    stride = 1
-    tiles, label_tiles = dataset_handler.apply_sliding_on_self_data(stride=stride, size=shape[:-1],
-                                                                    pad="same", classification=True, add_unlabeled=True)
-    tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
-    if not complex_mode:
-        tiles, label_tiles = transform_to_real_map_function(tiles[0], label_tiles, real_mode)
+    generator = dataset_handler.apply_sliding_on_self_data(stride=1, size=shape[:-1],
+                                                           pad="same", classification=True, add_unlabeled=True)
+    prediction = None
+    pbar = tqdm(total=int(np.ceil(np.prod(dataset_handler.shape) / batch_size)))
+    while True:
+        patches = [x for _, x in zip(range(batch_size), generator)]     # TODO: itertools.islice did not work. Why?
+        tiles = np.array([x[0] for x in patches])
+        labels = np.array([x[1] for x in patches])                      # TODO: Horrible management
+        if len(patches) == 0:
+            break
+        # tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
+        if not complex_mode:
+            tiles = transform_to_real(tiles, real_mode)
+        if prediction is not None:
+            prediction = np.concatenate((prediction, model.predict(tiles)))
+            eval_result = model.evaluate(tiles, np.array(labels), verbose=0)
+            if not np.isclose(eval_result[1], 0):
+                evaluation = np.append(evaluation, np.expand_dims(eval_result, axis=0), axis=0)
+        else:
+            prediction = model.predict(tiles)
+            evaluation = np.expand_dims(model.evaluate(tiles, np.array(labels), verbose=0), axis=0)
+        pbar.update(1)
+    pbar.close()
     if use_mask:
         mask = dataset_handler.get_sparse_labels()
     else:
         mask = None
-    try:
-        prediction = model.predict(tiles)
-        if os.path.isfile(str(root_path / 'evaluate.csv')):
-            evaluate = _eval_list_to_dict(model.evaluate(tiles, label_tiles), model.metrics_names)
-            eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
-            eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
-            eval_df.to_csv(str(root_path / 'evaluate.csv'))
-    except ValueError as error:
-        raise error
-    except:  # tf.python.framework.errors_impl.InternalError:
-        print("Could not predict full image due to memory issues")
-        return None
+    # TODO: Removed this value from results to save memory on run
+    if os.path.isfile(str(root_path / 'evaluate.csv')):
+        evaluate = np.mean(evaluation, axis=0)
+        eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
+        eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
+        eval_df.to_csv(str(root_path / 'evaluate.csv'))
+    # except ValueError as error:
+    #     raise error
+    # except:  # tf.python.framework.errors_impl.InternalError:
+    #     print("Could not predict full image due to memory issues")
+    #     return None
     # next_tile = tiles[:int(tiles.shape[0]/10)]
     # prediction = model.predict(next_tile)
     # for i in range(1, 10):     # compute in groups of 10 for memory problems.

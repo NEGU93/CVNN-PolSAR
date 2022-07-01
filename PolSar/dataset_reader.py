@@ -17,7 +17,7 @@ from itertools import compress
 import tikzplotlib
 from bisect import insort, bisect
 import tensorflow as tf
-from typing import Tuple, Optional, List, Union, Sequence
+from typing import Tuple, Optional, List, Union, Sequence, Generator
 from sklearn.model_selection import train_test_split
 import sklearn
 from cvnn.utils import transform_to_real_map_function, REAL_CAST_MODES
@@ -338,6 +338,10 @@ class PolsarDatasetHandler(ABC):
         return self._image
 
     @property
+    def shape(self):
+        return self.image.shape[:-1]
+
+    @property
     def sparse_labels(self):
         if self._sparse_labels is None:
             self._sparse_labels = self.get_sparse_labels()
@@ -470,10 +474,11 @@ class PolsarDatasetHandler(ABC):
                        for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         else:
             if complex_mode:
-                ds_list = [(x, y) for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+                ds_list = [(np.array(x), np.array(y)) for i, (x, y) in enumerate(zip(x_patches, y_patches))]
             else:
                 ds_list = [transform_to_real_with_numpy(x, y, real_mode)
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+
         return tuple(ds_list)
 
     def print_ground_truth(self, label: Optional = None, path: Optional[str] = None,
@@ -642,29 +647,34 @@ class PolsarDatasetHandler(ABC):
         :param percentage: float. Percentage of examples to be used for the test set [0, 1]
         :return: a Tuple of np.array (train_dataset, test_dataset)
         """
-        patches, label_patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad,
-                                                                 classification=classification)
-        x, y = self._separate_dataset(patches=patches, label_patches=label_patches, classification=classification,
-                                      percentage=percentage, shuffle=shuffle, balance_dataset=balance_dataset)
-        x = self.get_patches_image_from_point_and_self_image(patches_points=x, size=size, pad=pad)
+        patches = self.apply_sliding_on_self_data(size=size, stride=stride, pad=pad, classification=classification)
+        x, y = self._separate_dataset(patches=patches, classification=classification, percentage=percentage,
+                                      shuffle=shuffle, balance_dataset=balance_dataset)
+        # x = self.get_patches_image_from_point_and_self_image(patches_points=x, size=size, pad=pad)
         return x, y
 
     def _get_separated_dataset(self, percentage: tuple, size: int = 128, stride: int = 25, shuffle: bool = True,
                                savefig: Optional[str] = None, azimuth: Optional[str] = None, classification=False,
                                balance_dataset: Union[bool, Tuple[bool]] = False):
-        image_slices, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
-        images = image_slices.copy()
+        images, labels = self._slice_dataset(percentage=percentage, savefig=savefig, azimuth=azimuth)
+        # images = image_slices.copy()
         for i in range(0, len(labels)):
             # Balance validation because is used for choosing best model
             balance = self._parse_balance(balance_dataset, len(images))
-            images[i], labels[i] = self.apply_sliding(images[i], labels[i], size=size, stride=stride,
-                                                      classification=classification)
+            patches = self.apply_sliding(images[i], labels[i], size=size, stride=stride, classification=classification)
+            img_patches = []
+            label_patches = []
+            for elem in patches:
+                img_patches.append(elem[0])
+                label_patches.append(elem[1])
+            images[i] = img_patches.copy()
+            labels[i] = label_patches.copy()
             if balance[i]:
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
-        images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices,
-                                                    size=size, pad="same")
+        # images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices,
+        #                                             size=size, pad="same")
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
@@ -1107,13 +1117,12 @@ class PolsarDatasetHandler(ABC):
         labels = np.pad(labels, paddings)
         return image, labels
 
-    def _separate_dataset(self, patches: List[Tuple[int, int]], label_patches: List,
+    def _separate_dataset(self, patches: Generator,
                           percentage: Union[Tuple[float], float], shuffle: bool = True, classification: bool = False,
                           balance_dataset: bool = False) -> Tuple[List[List[Tuple[int, int]]], List]:
         """
         Separates dataset patches according to the percentage
-        :param patches:
-        :param label_patches: Normally 4D
+        :param patches: Generator of Tuple[ image patches, label_patches ]
         :param percentage: list of percentages for each value,
             example [0.9, 0.02, 0.08] to get 90% train, 2% val and 8% test
         :param shuffle: Shuffle dataset before split
@@ -1123,7 +1132,13 @@ class PolsarDatasetHandler(ABC):
         """
         percentage = self._parse_percentage(percentage)
         balance = self._parse_balance(balance_dataset, length=len(percentage))
-        x_test = patches.copy()
+        # Get lists from patches
+        img_patches = []
+        label_patches = []
+        for elem in patches:
+            img_patches.append(elem[0])
+            label_patches.append(elem[1])
+        x_test = img_patches.copy()
         y_test = np.array(label_patches)
         x = []
         y = []
@@ -1178,8 +1193,8 @@ class PolsarDatasetHandler(ABC):
         :param pad: Pad borders
         :return: tuple of numpy arrays (tiles, label_tiles)
         """
-        tiles = []
-        label_tiles = []
+        # tiles = []
+        # label_tiles = []
         im = np.pad(im, (pad[0], pad[1], (0, 0)))
         lab = np.pad(lab, (pad[0], pad[1], (0, 0)))
         assert im.shape[0] > size[0] and im.shape[1] > size[1], f"Image shape ({im.shape[0]}x{im.shape[1]}) " \
@@ -1188,21 +1203,22 @@ class PolsarDatasetHandler(ABC):
         for x in range(0, im.shape[0] - size[0] + 1, stride):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
                 label_to_add = self.get_image_around_point(lab, x, y, size if segmentation else (1, 1))
-                # image_to_add = self.get_image_around_point(im, x, y, size, segmentation=True)
+                image_to_add = self.get_image_around_point(im, x, y, size)
                 if add_unlabeled or (segmentation and not np.all(np.all(label_to_add == 0, axis=-1))) or \
                         (not segmentation and not np.all(label_to_add == 0)):
-                    label_tiles.append(label_to_add)
-                    tiles.append((x, y))
-        # Sanity checks
-        assert len(tiles) == len(label_tiles)
-        # assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
-        assert add_unlabeled or np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
-        if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
-            assert int(np.shape(tiles)[0]) == int(
-                (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
-        # tiles = np.array(tiles)
-        # label_tiles = np.array(label_tiles)
-        return tiles, label_tiles
+                    # label_tiles.append(label_to_add)
+                    # tiles.append((x, y))
+                    yield image_to_add, label_to_add
+        # # Sanity checks
+        # assert len(tiles) == len(label_tiles)
+        # # assert np.all([p.shape == (size[0], size[1], im.shape[2]) for p in tiles])  # Commented, expensive assertion
+        # assert add_unlabeled or np.all([not np.all(np.all(la == 0, axis=-1)) for la in label_tiles])
+        # if not pad:  # If not pad then use equation 7 of https://www.mdpi.com/2072-4292/10/12/1984
+        #     assert int(np.shape(tiles)[0]) == int(
+        #         (np.floor((im.shape[0] - size[0]) / stride) + 1) * (np.floor((im.shape[1] - size[1]) / stride) + 1))
+        # # tiles = np.array(tiles)
+        # # label_tiles = np.array(label_tiles)
+        # return tiles, label_tiles
 
     @staticmethod
     def get_image_around_point(image_to_crop, x, y, size: Tuple[int, int]):
@@ -1408,11 +1424,10 @@ class PolsarDatasetHandler(ABC):
             size = tuple(size)
             assert len(size) == 2
         pad = self._parse_pad(pad, size)
-        logging.debug(f"Computing swo on dataset {self.name}")
-        start = timeit.default_timer()
-        patches, label_patches = self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
-                                                                segmentation=not classification,
-                                                                add_unlabeled=add_unlabeled)
-        logging.debug(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
-                      f"{int(timeit.default_timer() - start)} seconds")
-        return patches, label_patches
+        # logging.debug(f"Computing swo on dataset {self.name}")
+        # start = timeit.default_timer()
+        return self._sliding_window_operation(image, labels, size=size, stride=stride, pad=pad,
+                                              segmentation=not classification, add_unlabeled=add_unlabeled)
+        # logging.debug(f"Computation done in {int((timeit.default_timer() - start) / 60)} minutes "
+        #               f"{int(timeit.default_timer() - start)} seconds")
+        # return patches, label_patches

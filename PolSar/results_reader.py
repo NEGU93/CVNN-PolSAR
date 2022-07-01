@@ -152,6 +152,7 @@ class ResultReader:
                                 dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
                                                                        balance=(params['balance'] == "dataset"))
                                 get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
+                                                        use_mask=False,
                                                         model_name=params["model"],
                                                         equiv_technique=params["equiv_technique"],
                                                         tensorflow='tensorflow' in simu_params,
