@@ -662,13 +662,7 @@ class PolsarDatasetHandler(ABC):
             # Balance validation because is used for choosing best model
             balance = self._parse_balance(balance_dataset, len(images))
             patches = self.apply_sliding(images[i], labels[i], size=size, stride=stride, classification=classification)
-            img_patches = []
-            label_patches = []
-            for elem in patches:
-                img_patches.append(elem[0])
-                label_patches.append(elem[1])
-            images[i] = img_patches.copy()
-            labels[i] = label_patches.copy()
+            images[i], labels[i] = self._generator_to_list(patches)
             if balance[i]:
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
@@ -1067,6 +1061,15 @@ class PolsarDatasetHandler(ABC):
         return counter
 
     # MISC
+    @staticmethod
+    def _generator_to_list(patches):
+        img_patches = []
+        label_patches = []
+        for elem in patches:
+            img_patches.append(elem[0])
+            label_patches.append(elem[1])
+        return img_patches, label_patches
+
     def _slice_dataset(self, percentage: tuple, azimuth: Optional[str], savefig: Optional[str]):
         if azimuth is None:
             azimuth = self.azimuth
@@ -1132,14 +1135,7 @@ class PolsarDatasetHandler(ABC):
         """
         percentage = self._parse_percentage(percentage)
         balance = self._parse_balance(balance_dataset, length=len(percentage))
-        # Get lists from patches
-        img_patches = []
-        label_patches = []
-        for elem in patches:
-            img_patches.append(elem[0])
-            label_patches.append(elem[1])
-        x_test = img_patches.copy()
-        y_test = np.array(label_patches)
+        x_test, y_test = self._generator_to_list(patches)
         x = []
         y = []
         full_percentage = np.isclose(sum(percentage), 1)  # Not the same to have (0.1, 0.2, 0.7) or (0.1, 0.2)
