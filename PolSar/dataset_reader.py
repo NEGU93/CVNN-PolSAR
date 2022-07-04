@@ -3,6 +3,7 @@ import timeit
 import sys
 import logging
 import pandas as pd
+import pickle
 from packaging import version
 from collections import defaultdict
 from scipy.ndimage import uniform_filter
@@ -453,9 +454,12 @@ class PolsarDatasetHandler(ABC):
                                          complex_mode=complex_mode, real_mode=real_mode,
                                          balance_dataset=balance_dataset, batch_size=batch_size, use_tf_dataset=False)
             for subset_index, subset in enumerate(ds_list):
-                np.savez(str(cache_path / (f"k{subset_index}_" + filename + "npz")), images=subset[0], labels=subset[1])
+                np.savez(str(cache_path / (f"k{subset_index}_" + filename + ".npz")),
+                         images=subset[0], labels=subset[1])
                 tf_dataset = tf.data.Dataset.from_tensor_slices((subset[0], subset[1]))
                 tf.data.experimental.save(dataset=tf_dataset, path=str(cache_path / (f"k{subset_index}_" + filename)))
+                with open(str(cache_path / (f"k{subset_index}_" + filename + ".pickle")), 'wb') as file:
+                    pickle.dump(tf_dataset.element_spec, file)
             del ds_list
         else:
             tf.print("Dataset found. Loading...")
@@ -463,18 +467,13 @@ class PolsarDatasetHandler(ABC):
         tf_dataset = []
         for subset_index in range(len(percentage)):
             if cast_to_np:
-                loaded = np.load(str(cache_path / (f"k{subset_index}_" + filename)))
+                loaded = np.load(str(cache_path / (f"k{subset_index}_" + filename + ".npz")))
                 tensor_data = (loaded["images"], loaded["labels"])
             else:
-                dimension = 6 if self.mode == "t" else 3
-                dimension *= REAL_CAST_MODES[real_mode]*int(not complex_mode)
+                element_spec = pickle.load(open(str(cache_path / (f"k{subset_index}_" + filename + ".pickle")), 'rb'))
                 tensor_data = tf.data.experimental.load(str(cache_path / (f"k{subset_index}_" + filename)),
-                                                        element_spec=(  # TODO: I might be able to pickle with tf_dataset.element_spec
-                                                            tf.TensorSpec(shape=(size, size, dimension),
-                                                                          dtype=tf.complex128 if complex_mode else tf.float64),
-                                                            tf.TensorSpec(shape=(self.labels.shape[-1],),
-                                                                          dtype=tf.float64),
-                                                        )).batch(batch_size=batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
+                                                        element_spec=element_spec)\
+                    .batch(batch_size=batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
             tf_dataset.append(tensor_data)
         return tf_dataset
 

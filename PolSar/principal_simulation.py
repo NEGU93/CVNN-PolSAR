@@ -522,6 +522,7 @@ def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
     test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
     return evaluate
 
+
 def clear_and_open_saved_model(*args, **kwargs):
     if tf.config.list_physical_devices('GPU'):
         print(f"Clearing "

@@ -103,14 +103,17 @@ def balanced_classification_random_test(dataset_handler, percentage, balance_dat
         balance_dataset = [True, False]
     list_ds = dataset_handler.get_dataset(method="random", percentage=percentage, size=6, stride=1, pad=0,
                                           shuffle=True, savefig=None, classification=True,
-                                          balance_dataset=balance_dataset, cast_to_np=True)
+                                          balance_dataset=balance_dataset, cast_to_np=False)
     if np.any(balance_dataset):
         for i in range(sum(balance_dataset)):
-            train_sparse = np.argmax(list_ds[i][1], axis=-1)
+            labels = np.concatenate([x[1] for x in list_ds[i]], axis=0)
+            train_sparse = np.argmax(labels, axis=-1)
             train_count = np.bincount(train_sparse)
             assert np.all(train_count[np.nonzero(train_count)] == train_count[np.nonzero(train_count)][0])
     else:
-        total = [list_ds[i][1].shape[0] for i in range(len(percentage))]
+        for i in range(len(percentage)):
+            labels = np.concatenate([x[1] for x in list_ds[i]], axis=0)
+            total = [lb.shape[0] for lb in labels]
         for i, p in enumerate(percentage):
             assert np.isclose(p, total[i] / sum(total), rtol=0.1)
 
