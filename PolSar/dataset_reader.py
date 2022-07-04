@@ -17,6 +17,7 @@ from itertools import compress
 import tikzplotlib
 from bisect import insort, bisect
 import tensorflow as tf
+import tensorflow_datasets as tfds
 from typing import Tuple, Optional, List, Union, Sequence, Generator
 from sklearn.model_selection import train_test_split
 import sklearn
@@ -438,24 +439,42 @@ class PolsarDatasetHandler(ABC):
         # assert len(args) == 0       # TODO: *args not used. This can have issues! I need to add *args to **kwargs
         filename = ''
         for k, v in sorted(object_variable_dict.items()):
-            filename += f"{k}_{v}_".replace('.', '').replace(' ', '').replace('[', '').replace(']', '')
-        filename = filename[:-1] + ".npz"                           # Remove trailing '_' and add extension
+            filename += f"{k}_{v}_".replace('.', '').replace(' ', '').replace('[', '').replace(']', '').replace(',', '').replace('(', '').replace(')', '')
+        filename = filename[:-1]                            # Remove trailing '_' and add extension
         # 3. If data does not exist. Create it
-        if re_process_data or not (cache_path / ("k0_" + filename)).is_file():         # Dataset was not created
+        if re_process_data or not (cache_path / ("k0_" + filename)).is_dir():        # Dataset was not created
+            if re_process_data:
+                tf.print("Creating dataset ignoring saved files")
+            else:
+                tf.print("Dataset not found. Creating dataset")
             ds_list = self.generate_data(method=method, percentage=percentage, size=size, stride=stride,
                                          shuffle=shuffle, pad=pad, savefig=savefig, azimuth=azimuth,
                                          data_augment=data_augment, classification=classification,
                                          complex_mode=complex_mode, real_mode=real_mode,
                                          balance_dataset=balance_dataset, batch_size=batch_size, use_tf_dataset=False)
             for subset_index, subset in enumerate(ds_list):
-                np.savez(str(cache_path / (f"k{subset_index}_" + filename)), images=subset[0], labels=subset[1])
+                np.savez(str(cache_path / (f"k{subset_index}_" + filename + "npz")), images=subset[0], labels=subset[1])
+                tf_dataset = tf.data.Dataset.from_tensor_slices((subset[0], subset[1]))
+                tf.data.experimental.save(dataset=tf_dataset, path=str(cache_path / (f"k{subset_index}_" + filename)))
+            del ds_list
+        else:
+            tf.print("Dataset found. Loading...")
         # Get dataset
         tf_dataset = []
         for subset_index in range(len(percentage)):
-            loaded = np.load(str(cache_path / (f"k{subset_index}_" + filename)))
-            tensor_data = (loaded["images"], loaded["labels"])
-            if not cast_to_np:
-                tensor_data = tf.data.Dataset.from_tensor_slices(tensor_data).batch(batch_size)
+            if cast_to_np:
+                loaded = np.load(str(cache_path / (f"k{subset_index}_" + filename)))
+                tensor_data = (loaded["images"], loaded["labels"])
+            else:
+                dimension = 6 if self.mode == "t" else 3
+                dimension *= REAL_CAST_MODES[real_mode]*int(not complex_mode)
+                tensor_data = tf.data.experimental.load(str(cache_path / (f"k{subset_index}_" + filename)),
+                                                        element_spec=(
+                                                            tf.TensorSpec(shape=(size, size, dimension),
+                                                                          dtype=tf.complex128 if complex_mode else tf.float64),
+                                                            tf.TensorSpec(shape=(self.labels.shape[-1],),
+                                                                          dtype=tf.float64),
+                                                        )).batch(batch_size=batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
             tf_dataset.append(tensor_data)
         return tf_dataset
 
