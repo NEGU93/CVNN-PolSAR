@@ -469,7 +469,7 @@ class PolsarDatasetHandler(ABC):
                 dimension = 6 if self.mode == "t" else 3
                 dimension *= REAL_CAST_MODES[real_mode]*int(not complex_mode)
                 tensor_data = tf.data.experimental.load(str(cache_path / (f"k{subset_index}_" + filename)),
-                                                        element_spec=(
+                                                        element_spec=(  # TODO: I might be able to pickle with tf_dataset.element_spec
                                                             tf.TensorSpec(shape=(size, size, dimension),
                                                                           dtype=tf.complex128 if complex_mode else tf.float64),
                                                             tf.TensorSpec(shape=(self.labels.shape[-1],),

@@ -400,12 +400,18 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
     # prediction = model.predict(x_input)
     # x_input, y_true = ds
     # prediction = model.predict(x_input)
+    if isinstance(y_true, tf.data.Dataset):
+        labels = np.concatenate([x[1].numpy() for x in y_true], axis=0)
+    elif isinstance(y_true, np.ndarray):
+        labels = y_true
+    else:
+        raise ValueError(f"y_true {y_true} format not supported")
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         real_prediction = (np.real(prediction) + np.imag(prediction)) / 2.
     else:
         real_prediction = prediction
     real_flatten_prediction = np.reshape(real_prediction, newshape=[-1, num_classes])
-    flatten_y_true = np.reshape(y_true, newshape=[-1, num_classes])
+    flatten_y_true = np.reshape(labels, newshape=[-1, num_classes])
     mask = np.invert(np.all(flatten_y_true == 0, axis=1))
     flatten_filtered_y_true = flatten_y_true[mask]  # tf.boolean_mask(flatten_y_true, mask)
     filtered_y_pred = real_flatten_prediction[mask]  # tf.boolean_mask(real_flatten_prediction, mask)
@@ -453,6 +459,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                           )
     train_ds = ds_list[0]
     val_ds = ds_list[1]
+    test_ds = ds_list[2] if len(ds_list) >= 3 else None
     # tf.config.list_physical_devices()
     # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10**9} GB")
     if debug:
@@ -480,61 +487,40 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
     df = DataFrame.from_dict(history.history)
     del model
-    # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
-    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights, equiv_technique=equiv_technique,
-                                                  channels=3 if mode == "s" else 6, dropout=dropout,
-                                                  real_mode=real_mode, tensorflow=tensorflow,
-                                                  num_classes=DATASET_META[dataset_name]["classes"])
-    # print(f"memory usage {tf.config.experimental.get_memory_info('GPU:0')['current'] / 10 ** 9} GB")
-    # train_x = tf.convert_to_tensor(train_ds[0])
-    eval_result = checkpoint_model.evaluate(x=train_ds[0] if not use_tf_dataset else train_ds,
-                                            y=train_ds[1] if not use_tf_dataset else None,
-                                            batch_size=MODEL_META[model_name]['batch_size'])
-    evaluate = {'train': _eval_list_to_dict(evaluate=eval_result, metrics=checkpoint_model.metrics_names)}
-    del checkpoint_model
-    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                  weights=weights, equiv_technique=equiv_technique,
-                                                  channels=3 if mode == "s" else 6, dropout=dropout,
-                                                  real_mode=real_mode, tensorflow=tensorflow,
-                                                  num_classes=DATASET_META[dataset_name]["classes"])
-    predict_result = checkpoint_model.predict(train_ds[0] if not use_tf_dataset else train_ds,
-                                              batch_size=MODEL_META[model_name]['batch_size'])
-    train_confusion_matrix = _get_confusion_matrix(predict_result, train_ds[1], DATASET_META[dataset_name]["classes"])
-    train_confusion_matrix.to_csv(str(temp_path / 'train_confusion_matrix.csv'))
+    evaluate = {}
+    evaluate = add_eval_and_conf_matrix(train_ds, evaluate, 'train',
+                                        temp_path, model_name, complex_mode, weights, equiv_technique, mode, dropout,
+                                        real_mode, tensorflow, dataset_name, use_tf_dataset)
     if val_ds:
-        del checkpoint_model
-        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights, equiv_technique=equiv_technique,
-                                                      channels=3 if mode == "s" else 6, dropout=dropout,
-                                                      real_mode=real_mode, tensorflow=tensorflow,
-                                                      num_classes=DATASET_META[dataset_name]["classes"])
-        val_x = tf.convert_to_tensor(val_ds[0])
-        predict_result = checkpoint_model.predict(val_x, batch_size=MODEL_META[model_name]['batch_size'])
-        evaluate['val'] = _eval_list_to_dict(
-            evaluate=checkpoint_model.evaluate(val_x, val_ds[1]),
-            metrics=checkpoint_model.metrics_names
-        )
-        val_confusion_matrix = _get_confusion_matrix(predict_result, val_ds[1], DATASET_META[dataset_name]["classes"])
-        val_confusion_matrix.to_csv(str(temp_path / 'val_confusion_matrix.csv'))
-    if len(ds_list) >= 3:
-        del checkpoint_model
-        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
-                                                      weights=weights, equiv_technique=equiv_technique,
-                                                      channels=3 if mode == "s" else 6, dropout=dropout,
-                                                      real_mode=real_mode, tensorflow=tensorflow,
-                                                      num_classes=DATASET_META[dataset_name]["classes"])
-        test_ds = ds_list[2]
-        test_x = tf.convert_to_tensor(test_ds[0])
-        test_y = tf.convert_to_tensor(test_ds[1])
-        predict_result = checkpoint_model.predict(test_x, batch_size=MODEL_META[model_name]['batch_size'])
-        evaluate['test'] = _eval_list_to_dict(evaluate=checkpoint_model.evaluate(test_x, test_y),
-                                              metrics=checkpoint_model.metrics_names)
-        test_confusion_matrix = _get_confusion_matrix(predict_result, test_y, DATASET_META[dataset_name]["classes"])
-        test_confusion_matrix.to_csv(str(temp_path / 'test_confusion_matrix.csv'))
+        evaluate = add_eval_and_conf_matrix(val_ds, evaluate, 'val',
+                                            temp_path, model_name, complex_mode, weights, equiv_technique, mode,
+                                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
+    if test_ds:
+        evaluate = add_eval_and_conf_matrix(test_ds, evaluate, 'test',
+                                            temp_path, model_name, complex_mode, weights, equiv_technique, mode,
+                                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
     eval_df = DataFrame.from_dict(evaluate)
     return df, dataset_handler, eval_df
 
+
+def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
+                             temp_path, model_name, complex_mode, weights, equiv_technique, mode, dropout, real_mode,
+                             tensorflow, dataset_name, use_tf_dataset):
+    checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                  weights=weights, equiv_technique=equiv_technique,
+                                                  channels=3 if mode == "s" else 6, dropout=dropout,
+                                                  real_mode=real_mode, tensorflow=tensorflow,
+                                                  num_classes=DATASET_META[dataset_name]["classes"])
+    predict_result = checkpoint_model.predict(dataset[0] if not use_tf_dataset else dataset,
+                                              batch_size=MODEL_META[model_name]['batch_size'])
+    test_confusion_matrix = _get_confusion_matrix(predict_result, dataset[1] if not use_tf_dataset else dataset,
+                                                  DATASET_META[dataset_name]["classes"])
+    evaluate[ds_set] = _eval_list_to_dict(
+        evaluate=checkpoint_model.evaluate(dataset[0] if not use_tf_dataset else dataset,
+                                           dataset[1] if not use_tf_dataset else None),
+        metrics=checkpoint_model.metrics_names)
+    test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
+    return evaluate
 
 def clear_and_open_saved_model(*args, **kwargs):
     if tf.config.list_physical_devices('GPU'):
