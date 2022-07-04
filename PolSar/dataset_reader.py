@@ -473,6 +473,7 @@ class PolsarDatasetHandler(ABC):
                 element_spec = pickle.load(open(str(cache_path / (f"k{subset_index}_" + filename + ".pickle")), 'rb'))
                 tensor_data = tf.data.experimental.load(str(cache_path / (f"k{subset_index}_" + filename)),
                                                         element_spec=element_spec)\
+                    .shuffle(buffer_size=1000, reshuffle_each_iteration=True)\
                     .batch(batch_size=batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
             tf_dataset.append(tensor_data)
         return tf_dataset
