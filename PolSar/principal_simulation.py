@@ -342,6 +342,7 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
     # TODO: Removed this value from results to save memory on run
     if os.path.isfile(str(root_path / 'evaluate.csv')):
         evaluate = np.mean(evaluation, axis=0)
+        evaluate = _eval_list_to_dict(evaluate, model.metrics)
         eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
         eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
         eval_df.to_csv(str(root_path / 'evaluate.csv'))

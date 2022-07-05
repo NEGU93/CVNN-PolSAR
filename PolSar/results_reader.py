@@ -289,7 +289,8 @@ class ResultReader:
             return f"{eval_stats[dataset]['min'][variable]:.2%} - {eval_stats[dataset]['max'][variable]:.2%}"
 
     def get_total_count(self, json_key):
-        return self.get_eval_stats(json_key=json_key)['train']['count'][0]
+        result = self.get_eval_stats(json_key=json_key)['train']['count']['loss']
+        return result
 
     def find_closest_to(self, json_key, dataset, key_to_find, metric):
         if key_to_find == 'median':

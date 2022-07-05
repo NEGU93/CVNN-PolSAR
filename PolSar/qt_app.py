@@ -432,7 +432,11 @@ class MainWindow(QMainWindow):
         rb7 = QRadioButton("mlp", self)
         rb7.toggled.connect(lambda: self.update_information("model", rb7.text()))
 
+        rb8 = QRadioButton("expanded-mlp", self)
+        rb8.toggled.connect(lambda: self.update_information("model", rb8.text()))
+
         self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb8)
         self.btngroup[-1].addButton(rb7)
         self.btngroup[-1].addButton(rb6)
         self.btngroup[-1].addButton(rb5)
@@ -449,6 +453,7 @@ class MainWindow(QMainWindow):
         vlayout.addWidget(rb5)
         vlayout.addWidget(rb6)
         vlayout.addWidget(rb7)
+        vlayout.addWidget(rb8)
         vlayout.addStretch()
 
         return vlayout
@@ -574,12 +579,13 @@ class MainWindow(QMainWindow):
             # header.setMinimumSectionSize(200)
         elif hasattr(self, "tableAccWidget"):
             self.acc_values_title.setText("Accuracy")
-            self.tableAccWidget.setItem(0, 0, QTableWidgetItem(f"00.00%"))
-            self.tableAccWidget.setItem(0, 1, QTableWidgetItem(f"00.00%"))
-            self.tableAccWidget.setItem(0, 2, QTableWidgetItem(f"00.00%"))
-            self.tableAccWidget.setItem(0, 3, QTableWidgetItem(f"00.00%"))
-            self.tableAccWidget.setItem(0, 4, QTableWidgetItem(f"00.00%"))
-            self.tableAccWidget.setItem(0, 5, QTableWidgetItem(f"00.00%"))
+            for i in range(len(["mean", "median", "iqr", 'range'])):
+                self.tableAccWidget.setItem(i, 0, QTableWidgetItem(f"00.00%"))
+                self.tableAccWidget.setItem(i, 1, QTableWidgetItem(f"00.00%"))
+                self.tableAccWidget.setItem(i, 2, QTableWidgetItem(f"00.00%"))
+                self.tableAccWidget.setItem(i, 3, QTableWidgetItem(f"00.00%"))
+                self.tableAccWidget.setItem(i, 4, QTableWidgetItem(f"00.00%"))
+                self.tableAccWidget.setItem(i, 5, QTableWidgetItem(f"00.00%"))
 
     def _verify_combinations(self, key, value):
         if value == "complex":

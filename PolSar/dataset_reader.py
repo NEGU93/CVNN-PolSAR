@@ -476,6 +476,7 @@ class PolsarDatasetHandler(ABC):
                     .shuffle(buffer_size=1000, reshuffle_each_iteration=True)\
                     .batch(batch_size=batch_size).prefetch(buffer_size=tf.data.AUTOTUNE)
             tf_dataset.append(tensor_data)
+        tf.print("Dataset loaded")
         return tf_dataset
 
     def generate_data(self, method: str, percentage,
