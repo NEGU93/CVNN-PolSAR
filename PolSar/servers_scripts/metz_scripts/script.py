@@ -19,6 +19,8 @@ class MetzScheduler(SimulationScheduler):
 
     def run_simulation(self, params: str):
         now = datetime.today()
+        folder = f"logslurms/{now.strftime('%m%B/%d%A/run-%Hh%Mm%S/')}"
+        os.makedirs(folder, exist_ok=True)
         return f"""#!/bin/bash 
     
 #SBATCH --job-name={self.name}
@@ -27,8 +29,8 @@ class MetzScheduler(SimulationScheduler):
 #SBATCH --exclude=sh[03]
 #SBATCH --time=24:00:00
 #SBATCH --mail-type=ALL
-#SBATCH -e logslurms/{now.strftime('%m%B/%d%A/run-%Hh%Mm%S/')}slurm-%j.err
-#SBATCH -o logslurms/{now.strftime('%m%B/%d%A/run-%Hh%Mm%S/')}slurm-%j.out
+#SBATCH -e {folder}slurm-%j.err
+#SBATCH -o {folder}slurm-%j.out
 
 python3 -m pip install virtualenv --user
 python3 -m virtualenv venv --system-site-packages

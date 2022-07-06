@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import HeNormal
-from tensorflow.keras.layers import concatenate, Add, Activation, Input
+from tensorflow.keras.layers import Concatenate, Add, Activation, Input
 from tensorflow.keras.layers import Conv2D, Dropout, Conv2DTranspose, BatchNormalization, MaxPooling2D, UpSampling2D
 from tensorflow.keras.losses import CategoricalCrossentropy
 from tensorflow.keras import Model, Sequential
@@ -19,7 +19,7 @@ from cvnn.initializers import ComplexHeNormal
 IMG_HEIGHT = None  # 128
 IMG_WIDTH = None  # 128
 
-DROPOUT_DEFAULT = {  # TODO: Not found yet where
+DROPOUT_DEFAULT = {
     "downsampling": None,
     "bottle_neck": None,
     "upsampling": None
@@ -27,16 +27,16 @@ DROPOUT_DEFAULT = {  # TODO: Not found yet where
 
 hyper_params = {
     'padding': 'same',
-    'kernel_shape': (5, 5),
+    'kernel_shape': (3, 3),
     'block6_kernel_shape': (1, 1),
     'max_pool_kernel': (2, 2),
-    'upsampling_layer': ComplexUnPooling2D,
+    'upsampling_layer': ComplexUpSampling2D,
     'stride': 2,
     'activation': cart_relu,
     'kernels': [12, 24, 48, 96, 192],
     'output_function': cart_softmax,
     'init': ComplexHeNormal(),
-    'optimizer': Adam(learning_rate=0.001, beta_1=0.9)
+    'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
 }
 
 tf_hyper_params = {
@@ -58,6 +58,9 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropou
     conv = ComplexConv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'],
                          activation='linear', padding=hyper_params['padding'],
                          kernel_initializer=hyper_params['init'], dtype=dtype)(input_to_block)
+    conv = ComplexConv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'],
+                         activation='linear', padding=hyper_params['padding'],
+                         kernel_initializer=hyper_params['init'], dtype=dtype)(conv)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(hyper_params['activation'])(conv)
     pool, pool_argmax = ComplexMaxPooling2DWithArgmax(hyper_params['max_pool_kernel'],
@@ -70,6 +73,8 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropou
 def _tf_get_downsampling_block(input_to_block, num: int, dropout=False):
     conv = Conv2D(tf_hyper_params['kernels'][num], tf_hyper_params['kernel_shape'], activation=None,
                   padding=tf_hyper_params['padding'], kernel_initializer=tf_hyper_params['init'])(input_to_block)
+    conv = Conv2D(tf_hyper_params['kernels'][num], tf_hyper_params['kernel_shape'], activation=None,
+                  padding=tf_hyper_params['padding'], kernel_initializer=tf_hyper_params['init'])(conv)
     conv = BatchNormalization()(conv)
     conv = Activation(tf_hyper_params['activation'])(conv)
     pool = MaxPooling2D(tf_hyper_params['max_pool_kernel'], strides=tf_hyper_params['stride'])(conv)
@@ -83,7 +88,7 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int,
                           activation=hyper_params['activation'], dropout=False, dtype=np.complex64):
     if isinstance(upsampling_layer, ComplexUnPooling2D) or upsampling_layer == ComplexUnPooling2D:
         unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
-    elif isinstance(upsampling_layer, ComplexUpSampling2D) or upsampling_layer == ComplexUnPooling2D:
+    elif isinstance(upsampling_layer, ComplexUpSampling2D) or upsampling_layer == ComplexUpSampling2D:
         unpool = ComplexUpSampling2D(size=2)(input_to_block)
     elif isinstance(upsampling_layer, ComplexConv2DTranspose) or upsampling_layer == ComplexConv2DTranspose:
         unpool = ComplexConv2DTranspose(filters=hyper_params["kernels"][num], kernel_size=3)(input_to_block)
@@ -92,6 +97,9 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int,
     conv = ComplexConv2D(kernels, hyper_params['kernel_shape'],
                          activation='linear', padding=hyper_params['padding'],
                          kernel_initializer=hyper_params['init'], dtype=dtype)(unpool)
+    conv = ComplexConv2D(kernels, hyper_params['kernel_shape'],
+                         activation='linear', padding=hyper_params['padding'],
+                         kernel_initializer=hyper_params['init'], dtype=dtype)(conv)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(activation)(conv)
     if dropout:
@@ -111,6 +119,8 @@ def _get_tf_upsampling_block(input_to_block, kernels, num: int, upsampling_layer
         raise ValueError(f"Upsampling method {upsampling_layer.name} not supported")
     conv = Conv2D(kernels, tf_hyper_params['kernel_shape'], activation=None, padding=tf_hyper_params['padding'],
                   kernel_initializer=tf_hyper_params['init'])(unpool)
+    conv = Conv2D(kernels, tf_hyper_params['kernel_shape'], activation=None, padding=tf_hyper_params['padding'],
+                  kernel_initializer=tf_hyper_params['init'])(conv)
     conv = BatchNormalization()(conv)
     conv = Activation(activation)(conv)
     if dropout:
@@ -142,19 +152,19 @@ def _get_my_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.co
     conv7 = get_upsampling_block(conv6, pool5_argmax, hyper_params['kernels'][3], num=4,
                                  dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 8
-    add8 = Add()([conv7, pool4])
+    add8 = Concatenate()([conv7, pool4])
     conv8 = get_upsampling_block(add8, pool4_argmax, hyper_params['kernels'][2], num=3,
                                  dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 9
-    add9 = Add()([conv8, pool3])
+    add9 = Concatenate()([conv8, pool3])
     conv9 = get_upsampling_block(add9, pool3_argmax, hyper_params['kernels'][1], num=2,
                                  dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 10
-    add10 = Add()([conv9, pool2])
+    add10 = Concatenate()([conv9, pool2])
     conv10 = get_upsampling_block(add10, pool2_argmax, hyper_params['kernels'][0], num=1,
                                   dropout=dropout_dict["upsampling"], dtype=dtype)
     # Block 11
-    add11 = Add()([conv10, pool1])
+    add11 = Concatenate()([conv10, pool1])
     out = get_upsampling_block(add11, pool1_argmax, dropout=False, num=0,
                                kernels=num_classes, activation=hyper_params['output_function'],
                                dtype=dtype)
@@ -197,16 +207,16 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
     # Block7
     conv7 = get_upsampling_block(conv6, tf_hyper_params['kernels'][3], dropout=dropout_dict["upsampling"], num=4)
     # Block 8
-    add8 = Add()([conv7, pool4])
+    add8 = Concatenate()([conv7, pool4])
     conv8 = get_upsampling_block(add8, tf_hyper_params['kernels'][2], dropout=dropout_dict["upsampling"], num=3)
     # Block 9
-    add9 = Add()([conv8, pool3])
+    add9 = Concatenate()([conv8, pool3])
     conv9 = get_upsampling_block(add9, tf_hyper_params['kernels'][1], dropout=dropout_dict["upsampling"], num=2)
     # Block 10
-    add10 = Add()([conv9, pool2])
+    add10 = Concatenate()([conv9, pool2])
     conv10 = get_upsampling_block(add10, tf_hyper_params['kernels'][0], dropout=dropout_dict["upsampling"], num=1)
     # Block 11
-    add11 = Add()([conv10, pool1])
+    add11 = Concatenate()([conv10, pool1])
     out = get_upsampling_block(add11, dropout=False, kernels=num_classes, activation=tf_hyper_params['output_function'],
                                num=0)
 
