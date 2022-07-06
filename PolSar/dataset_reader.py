@@ -318,7 +318,6 @@ def multi_dimensional_string_to_list(data: str) -> List:
         result_list = []
 
 
-
 class PolsarDatasetHandler(ABC):
 
     def __init__(self, root_path: str, name: str, mode: str, coh_kernel_size: int = 1):
@@ -1272,8 +1271,8 @@ class PolsarDatasetHandler(ABC):
                                                                 f"({size[0]}x{size[1]})"
         for x in range(0, im.shape[0] - size[0] + 1, stride):
             for y in range(0, im.shape[1] - size[1] + 1, stride):
-                label_to_add = self.get_image_around_point(lab, x, y, size if segmentation else (1, 1))
-                image_to_add = self.get_image_around_point(im, x, y, size)
+                label_to_add = self.get_image_around_point(lab, x, y, size if segmentation else (1, 1), squeeze=True)
+                image_to_add = self.get_image_around_point(im, x, y, size, squeeze=False)
                 if add_unlabeled or (segmentation and not np.all(np.all(label_to_add == 0, axis=-1))) or \
                         (not segmentation and not np.all(label_to_add == 0)):
                     # label_tiles.append(label_to_add)
@@ -1291,13 +1290,12 @@ class PolsarDatasetHandler(ABC):
         # return tiles, label_tiles
 
     @staticmethod
-    def get_image_around_point(image_to_crop, x, y, size: Tuple[int, int]):
+    def get_image_around_point(image_to_crop: np.ndarray, x: int, y: int, size: Tuple[int, int], squeeze: bool = False):
         slice_x = slice(x, x + size[0])
         slice_y = slice(y, y + size[1])
-        if size[0] != 1 and size[1] != 1:
-            cropped = image_to_crop[slice_x, slice_y]
-        else:
-            cropped = image_to_crop[x, y]
+        cropped = image_to_crop[slice_x, slice_y]
+        if squeeze:
+            cropped = np.squeeze(cropped)
         return cropped
 
     def get_patches_image_from_point_and_self_image(self, patches_points: List[List[Tuple[int, int]]],

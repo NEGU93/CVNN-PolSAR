@@ -1,66 +1,74 @@
 [
     {
         "model": "cnn",
-        "epochs": 400,
+        "epochs": 100,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "cnn",
-        "epochs": 400,
+        "epochs": 100,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "expanded-mlp",
-        "epochs": 500,
+        "epochs": 150,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "expanded-mlp",
-        "epochs": 500,
+        "epochs": 150,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": true
+        "coherency": true,
+        "dataset_method": "separate"
     },
     {
         "model": "cnn",
-        "epochs": 400,
+        "epochs": 100,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     },
     {
         "model": "cnn",
-        "epochs": 400,
+        "epochs": 100,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     },
     {
         "model": "expanded-mlp",
-        "epochs": 500,
+        "epochs": 150,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     },
     {
         "model": "expanded-mlp",
-        "epochs": 500,
+        "epochs": 150,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": false,
+        "dataset_method": "separate"
     }
 ]

@@ -339,10 +339,16 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
         mask = dataset_handler.get_sparse_labels()
     else:
         mask = None
+    if tf.dtypes.as_dtype(prediction.dtype).is_complex:
+        prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
+    image_prediction = tf.reshape(prediction,
+                                  shape=tuple(dataset_handler.get_image().shape[:-1]) + (prediction.shape[-1],))
+    labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
+                  colors=COLORS[dataset_handler.name])
     # TODO: Removed this value from results to save memory on run
     if os.path.isfile(str(root_path / 'evaluate.csv')):
         evaluate = np.mean(evaluation, axis=0)
-        evaluate = _eval_list_to_dict(evaluate, model.metrics)
+        evaluate = _eval_list_to_dict(evaluate, model.metrics_names)
         eval_df = pd.read_csv(str(root_path / 'evaluate.csv'), index_col=0)
         eval_df = pd.concat([eval_df, DataFrame.from_dict({'full_set': evaluate})], axis=1)
         eval_df.to_csv(str(root_path / 'evaluate.csv'))
@@ -357,12 +363,6 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
     #     next_tile = tiles[int(i*tiles.shape[0]/10):int((i+1)*tiles.shape[0]/10)]
     #     pred = model.predict(next_tile)
     #     prediction = np.append(prediction, pred, axis=0)
-    if tf.dtypes.as_dtype(prediction.dtype).is_complex:
-        prediction = (tf.math.real(prediction) + tf.math.imag(prediction)) / 2.
-    image_prediction = tf.reshape(prediction,
-                                  shape=tuple(dataset_handler.get_image().shape[:-1]) + (prediction.shape[-1],))
-    labels_to_rgb(image_prediction, savefig=str(root_path / "prediction"), mask=mask,
-                  colors=COLORS[dataset_handler.name])
 
 
 def get_final_model_results(root_path, model_name: str,
@@ -497,10 +497,15 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                             temp_path, model_name, complex_mode, weights, equiv_technique, mode,
                                             dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
     if test_ds:
-        evaluate = add_eval_and_conf_matrix(test_ds, evaluate, 'test',
-                                            temp_path, model_name, complex_mode, weights, equiv_technique, mode,
+        evaluate = add_eval_and_conf_matrix(test_ds, evaluate, 'test', temp_path,
+                                            model_name, complex_mode, weights, equiv_technique, mode,
                                             dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
     eval_df = DataFrame.from_dict(evaluate)
+    get_final_model_results(root_path=temp_path, model_name=model_name,
+                            dataset_handler=dataset_handler, equiv_technique=equiv_technique,
+                            dropout=dropout, channels=6 if mode == "t" else 3,  # model hyper-parameters
+                            complex_mode=complex_mode, real_mode=real_mode,  # cv / rv format
+                            use_mask=False, tensorflow=tensorflow)
     return df, dataset_handler, eval_df
 
 

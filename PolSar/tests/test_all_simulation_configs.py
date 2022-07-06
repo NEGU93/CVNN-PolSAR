@@ -45,13 +45,17 @@ def test_all_files():
         single_file_test(file)
 
 
-def single_file_test(file):
-    if file.endswith(".json"):
-        print(f"Testing {file}")
-    simulation_config_path = "/".join(os.path.abspath(__file__).split('/')[:-2] + ["simulations_configs"])
-    RunnerDebugger()(str(Path(simulation_config_path) / file))
+def single_file_test(files):
+    for file in files:
+        if file.endswith(".json"):
+            print(f"Testing {file}")
+        simulation_config_path = "/".join(os.path.abspath(__file__).split('/')[:-2] + ["simulations_configs"])
+        RunnerDebugger()(str(Path(simulation_config_path) / file))
 
 
 if __name__ == "__main__":
     # test_all_files()
-    single_file_test("bretigny.json")
+    single_file_test(["bretigny.json",
+                      "bretigny_classification_balance.json",
+                      "bretigny_classification_balance_separate.json"
+                      ])
