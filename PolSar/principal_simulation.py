@@ -510,7 +510,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                             dropout=dropout, channels=6 if mode == "t" else 3,  # model hyper-parameters
                             complex_mode=complex_mode, real_mode=real_mode,  # cv / rv format
                             use_mask=False, tensorflow=tensorflow)
-    return df, dataset_handler, eval_df
+    return None
 
 
 def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
@@ -587,14 +587,12 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
     with open(temp_path / 'model_summary.txt', 'w+') as summary_file:
         summary_file.write(" ".join(sys.argv[1:]) + "\n")
         summary_file.write(f"\tRun on {socket.gethostname()}\n")
-    df, dataset_handler, eval_df = run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
-                                             mode=mode, complex_mode=complex_mode, real_mode=real_mode,
-                                             early_stop=early_stop, temp_path=temp_path, epochs=epochs,
-                                             dataset_name=dataset_name, dataset_method=dataset_method,
-                                             percentage=percentage, debug=debug, dropout=dropout,
-                                             coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
-    df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
-    eval_df.to_csv(str(temp_path / 'evaluate.csv'))
+    run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
+              mode=mode, complex_mode=complex_mode, real_mode=real_mode,
+              early_stop=early_stop, temp_path=temp_path, epochs=epochs,
+              dataset_name=dataset_name, dataset_method=dataset_method,
+              percentage=percentage, debug=debug, dropout=dropout,
+              coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
 
 
 if __name__ == "__main__":
