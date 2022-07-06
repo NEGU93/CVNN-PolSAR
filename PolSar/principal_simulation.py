@@ -324,10 +324,10 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
             break
         # tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
         if not complex_mode:
-            tiles = transform_to_real(tiles, real_mode)
+            tiles, labels = transform_to_real_map_function(tiles, labels, real_mode)
         if prediction is not None:
             prediction = np.concatenate((prediction, model.predict(tiles)))
-            eval_result = model.evaluate(tiles, np.array(labels), verbose=0)
+            eval_result = model.evaluate(tiles, np.array(labels), verbose=1)
             if not np.isclose(eval_result[1], 0):
                 evaluation = np.append(evaluation, np.expand_dims(eval_result, axis=0), axis=0)
         else:
@@ -486,7 +486,9 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                         y=train_ds[1] if not use_tf_dataset else None, epochs=epochs,
                         batch_size=MODEL_META[model_name]['batch_size'],
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
+    # Saving history
     df = DataFrame.from_dict(history.history)
+    df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     del model
     evaluate = {}
     evaluate = add_eval_and_conf_matrix(train_ds, evaluate, 'train',
@@ -501,6 +503,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                             model_name, complex_mode, weights, equiv_technique, mode,
                                             dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
     eval_df = DataFrame.from_dict(evaluate)
+    eval_df.to_csv(str(temp_path / 'evaluate.csv'))
+    # Create prediction image
     get_final_model_results(root_path=temp_path, model_name=model_name,
                             dataset_handler=dataset_handler, equiv_technique=equiv_technique,
                             dropout=dropout, channels=6 if mode == "t" else 3,  # model hyper-parameters
@@ -517,15 +521,17 @@ def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"])
+    # Create confusion matrix
     predict_result = checkpoint_model.predict(dataset[0] if not use_tf_dataset else dataset,
                                               batch_size=MODEL_META[model_name]['batch_size'])
     test_confusion_matrix = _get_confusion_matrix(predict_result, dataset[1] if not use_tf_dataset else dataset,
                                                   DATASET_META[dataset_name]["classes"])
+    test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
+    # add values to evaluate dictionary
     evaluate[ds_set] = _eval_list_to_dict(
         evaluate=checkpoint_model.evaluate(dataset[0] if not use_tf_dataset else dataset,
                                            dataset[1] if not use_tf_dataset else None),
         metrics=checkpoint_model.metrics_names)
-    test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
     return evaluate
 
 
@@ -589,9 +595,6 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                                              coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
-    # get_final_model_results(temp_path, balance=balance, dataset_name=dataset_name,  mode=mode, model_name=model_name,
-    #                         tensorflow=tensorflow, complex_mode=complex_mode, real_mode=real_mode,
-    #                         channels=3 if mode == "s" else 6, dropout=dropout, use_mask=True)
 
 
 if __name__ == "__main__":
