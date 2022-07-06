@@ -324,10 +324,10 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
             break
         # tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
         if not complex_mode:
-            tiles, labels = transform_to_real_map_function(tiles, labels, real_mode)
+            tiles = transform_to_real(tiles, real_mode)
         if prediction is not None:
             prediction = np.concatenate((prediction, model.predict(tiles)))
-            eval_result = model.evaluate(tiles, np.array(labels), verbose=1)
+            eval_result = model.evaluate(tiles, np.array(labels), verbose=0)
             if not np.isclose(eval_result[1], 0):
                 evaluation = np.append(evaluation, np.expand_dims(eval_result, axis=0), axis=0)
         else:
