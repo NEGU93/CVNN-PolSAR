@@ -289,7 +289,7 @@ def transform_to_real_with_numpy(image, label, mode: str = "real_imag"):
         ret_value = np.real(image)
     else:
         raise KeyError(f"Real cast mode {mode} not implemented")
-    return ret_value, label
+    return ret_value.astype(np.float32), label.astype(np.float32)
 
 
 class CounterList(Sequence):
@@ -547,7 +547,8 @@ class PolsarDatasetHandler(ABC):
                        for i, (x, y) in enumerate(zip(x_patches, y_patches))]
         else:
             if complex_mode:
-                ds_list = [(np.array(x), np.array(y)) for i, (x, y) in enumerate(zip(x_patches, y_patches))]
+                ds_list = [(np.array(x).astype(np.complex64), np.array(y).astype(np.complex64))
+                           for i, (x, y) in enumerate(zip(x_patches, y_patches))]
             else:
                 ds_list = [transform_to_real_with_numpy(x, y, real_mode)
                            for i, (x, y) in enumerate(zip(x_patches, y_patches))]
