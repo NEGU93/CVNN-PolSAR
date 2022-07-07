@@ -19,7 +19,7 @@ class MetzScheduler(SimulationScheduler):
 
     def run_simulation(self, params: str):
         now = datetime.today()
-        folder = f"logslurms/{now.strftime('%m%B/%d%A/run-%Hh%Mm%S/')}"
+        folder = f"logslurms/{now.strftime('%m%B/%d%A/')}"
         os.makedirs(folder, exist_ok=True)
         return f"""#!/bin/bash 
     
