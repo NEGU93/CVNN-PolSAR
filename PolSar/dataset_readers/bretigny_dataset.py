@@ -46,7 +46,7 @@ class BretignyDataset(PolsarDatasetHandler):
         else:
             seg = scipy.io.loadmat(path + '/bretigny_seg_4ROI_balanced.mat')
         seg['image'] = seg['image'][:-3]
-        return seg['image'].astype(np.float32)
+        return seg['image']
 
     """
         PRIVATE
