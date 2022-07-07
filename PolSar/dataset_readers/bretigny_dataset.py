@@ -64,18 +64,18 @@ class BretignyDataset(PolsarDatasetHandler):
     def _get_bret_coherency_dataset(self):
         mat = self._open_data()
         T = self.numpy_coh_matrix(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'], kernel_shape=self.coh_kernel_size)
-        return T
+        return T.astype(np.complex64)
 
     def _get_bret_k_dataset(self):
         mat = self._open_data()
         k = self._get_k_vector(HH=mat['HH'], VV=mat['VV'], HV=mat['HV'])
-        return k
+        return k.astype(np.complex64)
 
     def _get_bret_s_dataset(self):
         mat = self._open_data()
         s = np.array([mat['HH'], mat['HV'], mat['VV']])
         s = np.transpose(s, axes=[1, 2, 0])
-        return s
+        return s.astype(np.complex64)
 
 
 if __name__ == "__main__":
