@@ -29,9 +29,9 @@ from time import sleep
 from tensorflow.keras import callbacks
 import tensorflow as tf
 from typing import Optional, List, Union, Tuple
-from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function, transform_to_real
+from cvnn.utils import REAL_CAST_MODES, create_folder, transform_to_real_map_function
 from cvnn.real_equiv_tools import EQUIV_TECHNIQUES
-from dataset_reader import labels_to_rgb, COLORS
+from dataset_reader import labels_to_rgb, COLORS, transform_to_real_with_numpy
 from dataset_readers.oberpfaffenhofen_dataset import OberpfaffenhofenDataset
 from dataset_readers.sf_data_reader import SanFranciscoDataset
 from dataset_readers.bretigny_dataset import BretignyDataset
@@ -327,7 +327,7 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
             break
         # tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
         if not complex_mode:
-            tiles = transform_to_real(tiles, real_mode)
+            tiles, _ = transform_to_real_with_numpy(tiles, None, mode=real_mode)
         if prediction is not None:
             prediction = np.concatenate((prediction, model.predict(tiles)))
             eval_result = model.evaluate(tiles, np.array(labels), verbose=0)

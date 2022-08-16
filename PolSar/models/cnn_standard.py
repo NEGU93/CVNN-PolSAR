@@ -28,7 +28,7 @@ cnn_params_model = {
     'kernel_init': ComplexHeNormal(),
     'loss': ComplexAverageCrossEntropy(),       # End of II.A.4
     'activation': 'cart_relu',
-    'optimizer': Adam(learning_rate=0.01, beta_1=0.9)
+    'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
 }
 
 
