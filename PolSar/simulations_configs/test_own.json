@@ -1,0 +1,9 @@
+[
+    {
+        "model": "own",
+        "epochs": 50,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "dataset_method": "separate"
+    }
+]

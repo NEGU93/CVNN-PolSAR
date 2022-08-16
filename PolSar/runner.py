@@ -79,5 +79,35 @@ class LocalRunner(SimulationScheduler):
         os.system("./job.sh")
 
 
+class FindModels(SimulationScheduler):
+
+    def __call__(self, indexes: List, config_file):
+        with open(config_file) as json_file:
+            config_json = json.load(json_file)
+            self.name = str(json_file).split('_')[0]
+
+        for param in config_json:
+            for model_index in indexes:
+                param["model_index"] = model_index
+                # Launch the batch jobs
+                param_str = self.get_params(param)
+                # import pdb; pdb.set_trace()
+                try:
+                    self.submit_job(self.run_simulation(param_str))
+                except:
+                    print(f"Error with a job. Running next one.")
+
+    def run_simulation(self, params: str):
+        return f"""python3 -O principal_simulation.py{params}"""
+
+    @staticmethod
+    def submit_job(job):
+        with open('job.sh', 'w') as fp:
+            fp.write(job)
+        os.system("chmod +x job.sh")
+        os.system("./job.sh")
+
+
 if __name__ == "__main__":
-    LocalRunner()()
+    FindModels()(indexes=[28], config_file="simulations_configs/test_own.json")
+    # LocalRunner()()

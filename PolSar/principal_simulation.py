@@ -39,7 +39,7 @@ from dataset_readers.flevoland_data_reader import FlevolandDataset
 from dataset_readers.garon_dataset import GaronDataset
 from models.cao_fcnn import get_cao_fcnn_model
 from models.zhang_cnn import get_zhang_cnn_model
-from models.own_unet import get_my_unet_model
+from models.own_unet import get_my_unet_model, get_my_unet_tests
 from models.haensch_mlp import get_haensch_mlp_model
 from models.tan_3dcnn import get_tan_3d_cnn_model
 from models.cnn_standard import get_cnn_model
@@ -73,7 +73,7 @@ DATASET_META = {
 MODEL_META = {
     "cao": {"size": 128, "stride": 25, "pad": 'same', "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
-    "own": {"size": 128, "stride": 25, "pad": 'same', "batch_size": 32,
+    "own": {"size": 128, "stride": 25, "pad": 'same', "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
@@ -143,6 +143,7 @@ def parse_input():
                                                                                'predominant classes\n'
                                                                                '\t- any other string will be considered'
                                                                                ' as not balanced')
+    parser.add_argument('--model_index', nargs=1, type=int, default=[None])
     parser.add_argument('--real_mode', type=str, nargs='?', const='real_imag', default='complex',
                         help='run real model instead of complex.\nIf [REAL_MODE] is used it should be one of:\n'
                              '\t- real_imag\n\t- amplitude_phase\n\t- amplitude_only\n\t- real_only')
@@ -191,7 +192,8 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
 
 
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
-               dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp"):
+               dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp",
+               model_index: Optional = None):
     model_name = model_name.lower()
     if equiv_technique != "ratio_tp" and model_name != "mlp":
         logging.warning(f"Equivalent technique requested {equiv_technique} but model ({model_name})"
@@ -217,7 +219,8 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                               dropout=dropout["downsampling"],
                               name=name_prefix + model_name)
     elif model_name == "own":
-        model = get_my_unet_model(input_shape=(None, None, channels), num_classes=num_classes,
+        model = get_my_unet_tests(index=model_index,
+                                  input_shape=(None, None, channels), num_classes=num_classes,
                                   tensorflow=tensorflow, dropout_dict=dropout,
                                   dtype=dtype, name=name_prefix + model_name, weights=weights)
     elif model_name == "zhang":
@@ -431,7 +434,8 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
 def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
               early_stop: Union[bool, int], epochs: int, equiv_technique: str, temp_path, dropout,
-              dataset_name: str, dataset_method: str, percentage: Optional[Union[Tuple[float], float]] = None,
+              dataset_name: str, dataset_method: str,
+              percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
               debug: bool = False, use_tf_dataset=True):
     if percentage is None:
         if dataset_method == "random":
@@ -473,7 +477,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         else:
             weights = dataset_handler.labels_occurrences
     # weights = dataset_handler.labels_occurrences if balance == "loss" else None
-    model = _get_model(model_name=model_name,
+    model = _get_model(model_name=model_name, model_index=model_index,
                        channels=6 if mode == "t" else 3,
                        weights=weights, equiv_technique=equiv_technique,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
@@ -580,6 +584,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                 mode: str, complex_mode: bool, real_mode: str,
                 early_stop: Union[int, bool], epochs: int, coh_kernel_size: int,
                 dataset_name: str, dataset_method: str, dropout, equiv_technique: str,
+                model_index: Optional = None,
                 percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False):
     temp_path = create_folder("./log/")
     makedirs(temp_path, exist_ok=True)
@@ -591,7 +596,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
               mode=mode, complex_mode=complex_mode, real_mode=real_mode,
               early_stop=early_stop, temp_path=temp_path, epochs=epochs,
               dataset_name=dataset_name, dataset_method=dataset_method,
-              percentage=percentage, debug=debug, dropout=dropout,
+              percentage=percentage, debug=debug, dropout=dropout, model_index=model_index,
               coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
 
 
@@ -606,6 +611,7 @@ if __name__ == "__main__":
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
                     mode="t" if args.coherency else "s", coh_kernel_size=args.coherency,
+                    model_index=args.model_index[0],
                     complex_mode=True if args.real_mode == 'complex' else False,
                     real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
