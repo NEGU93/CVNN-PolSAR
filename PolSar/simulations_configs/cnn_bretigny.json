@@ -4,6 +4,42 @@
         "epochs": 250,
         "dataset": "BRET",
         "balance": "dataset",
+        "coherency": true,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "cnn",
+        "epochs": 250,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "cnn",
+        "epochs": 100,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "coherency": false,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "cnn",
+        "epochs": 100,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "cnn",
+        "epochs": 250,
+        "dataset": "BRET",
+        "balance": "dataset",
         "coherency": true
     },
     {
@@ -16,22 +52,6 @@
         "coherency": true
     },
     {
-        "model": "expanded-mlp",
-        "epochs": 100,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "coherency": true
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 100,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true
-    },
-    {
         "model": "cnn",
         "epochs": 100,
         "dataset": "BRET",
@@ -40,22 +60,6 @@
     },
     {
         "model": "cnn",
-        "epochs": 100,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": false
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 100,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "coherency": false
-    },
-    {
-        "model": "expanded-mlp",
         "epochs": 100,
         "dataset": "BRET",
         "balance": "dataset",
