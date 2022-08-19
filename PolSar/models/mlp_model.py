@@ -11,7 +11,7 @@ from cvnn.real_equiv_tools import get_real_equivalent_multiplier_from_shape
 mlp_hyper_params = {
     'activation': 'cart_relu',
     'shape': [96, 180],
-    'optimizer': Adam(learning_rate=0.0001, beta_1=0.9),
+    'optimizer': Adam(learning_rate=0.00001, beta_1=0.9),
     'loss': ComplexAverageCrossEntropy()
 }
 
