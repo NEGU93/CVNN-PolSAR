@@ -1,8 +1,19 @@
 [
     {
         "model": "cnn",
-        "epochs": 100,
+        "epochs": 250,
         "dataset": "BRET",
+        "balance": "dataset",
+        "coherency": true,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "cnn",
+        "epochs": 250,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true,
         "coherency": true,
         "dataset_method": "separate"
     },
@@ -10,15 +21,7 @@
         "model": "cnn",
         "epochs": 100,
         "dataset": "BRET",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true,
-        "dataset_method": "separate"
-    },
-    {
-        "model": "cnn",
-        "epochs": 100,
-        "dataset": "BRET",
+        "balance": "dataset",
         "coherency": false,
         "dataset_method": "separate"
     },
@@ -26,38 +29,11 @@
         "model": "cnn",
         "epochs": 100,
         "dataset": "BRET",
+        "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
         "coherency": false,
         "dataset_method": "separate"
-    },
-    {
-        "model": "cnn",
-        "epochs": 250,
-        "dataset": "BRET",
-        "coherency": true
-    },
-    {
-        "model": "cnn",
-        "epochs": 250,
-        "dataset": "BRET",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true
-    },
-    {
-        "model": "cnn",
-        "epochs": 500,
-        "dataset": "BRET",
-        "coherency": false
-    },
-    {
-        "model": "cnn",
-        "epochs": 500,
-        "dataset": "BRET",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": false
     },
     {
         "model": "cnn",
@@ -74,5 +50,21 @@
         "tensorflow": true,
         "real_mode": true,
         "coherency": true
+    },
+    {
+        "model": "cnn",
+        "epochs": 100,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "coherency": false
+    },
+    {
+        "model": "cnn",
+        "epochs": 100,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false
     }
 ]
