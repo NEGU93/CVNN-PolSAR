@@ -1,4 +1,5 @@
 import os.path
+import random
 import timeit
 import sys
 import logging
@@ -737,6 +738,9 @@ class PolsarDatasetHandler(ABC):
             images[i], labels[i] = self._generator_to_list(patches)
             if balance[i]:
                 images[i], labels[i] = self.balance_patches(images[i], labels[i])
+            elif classification and i < len(labels) - 1:
+                images[i], _, labels[i], _ = sklearn.model_selection.train_test_split(images[i], labels[i],
+                                                                                      train_size=0.2)
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
         # images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices,

@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Dense, Flatten, Conv2D, Input, AveragePoolin
 from cvnn.layers import complex_input, ComplexConv2D, ComplexAvgPooling2D, ComplexFlatten, ComplexDense, \
     ComplexBatchNormalization
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy
-from cvnn.losses import ComplexAverageCrossEntropy
+from cvnn.losses import ComplexAverageCrossEntropy, ComplexWeightedAverageCrossEntropy
 from cvnn.initializers import ComplexHeNormal, ComplexGlorotUniform
 from cvnn.activations import cart_softmax
 
@@ -32,7 +32,7 @@ cnn_params_model = {
 }
 
 
-def _get_model(input_shape, num_classes, dtype, name='cnn'):
+def _get_model(input_shape, num_classes, dtype, weights, name='cnn'):
     if dtype.is_complex:
         filters = "complex_filters"
     else:
@@ -54,13 +54,19 @@ def _get_model(input_shape, num_classes, dtype, name='cnn'):
     flat = ComplexFlatten(dtype=dtype)(conv)
     out = ComplexDense(num_classes, activation='cart_softmax', dtype=dtype)(flat)
     model = Model(inputs=in1, outputs=out, name=name)
-    model.compile(optimizer=cnn_params_model['optimizer'], loss=cnn_params_model['loss'],
+
+    if weights is not None:
+        loss = ComplexWeightedAverageCrossEntropy(weights=weights)
+    else:
+        loss = cnn_params_model['loss']
+
+    model.compile(optimizer=cnn_params_model['optimizer'], loss=loss,
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'),
                            ComplexAverageAccuracy(name='average_accuracy')])
     return model
 
 
-def _get_tf_model(input_shape, num_classes, dtype, name='tf_cnn'):
+def _get_tf_model(input_shape, num_classes, dtype, weights, name='tf_cnn'):
     if dtype.is_complex:
         raise ValueError(f"Cannot use Tensorflow for creating a complex model")
     filters = "real_filters"
@@ -81,23 +87,27 @@ def _get_tf_model(input_shape, num_classes, dtype, name='tf_cnn'):
     flat = Flatten(dtype=dtype)(a2)
     out = Dense(num_classes, activation='softmax')(flat)
     model = Model(inputs=[in1], outputs=[out], name=name)
-    model.compile(optimizer=cnn_params_model['optimizer'], loss=cnn_params_model['loss'],
+    if weights is not None:
+        loss = ComplexWeightedAverageCrossEntropy(weights=weights)
+    else:
+        loss = cnn_params_model['loss']
+    model.compile(optimizer=cnn_params_model['optimizer'], loss=loss,
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'),
                            ComplexAverageAccuracy(name='average_accuracy')
                            ])
     return model
 
 
-def get_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, dtype=np.complex64,
-                        tensorflow: bool = False, name="cnn", dropout=None):
+def get_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, dtype=np.complex64, weights=None,
+                  tensorflow: bool = False, name="cnn", dropout=None):
     if dropout is not None:
         raise ValueError("Dropout for zhang model not yet implemented")
     if not tensorflow:
         return _get_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
-                          name=name)
+                          weights=weights, name=name)
     else:
         return _get_tf_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
-                             name=name)
+                             weights=weights, name=name)
 
 
 if __name__ == '__main__':

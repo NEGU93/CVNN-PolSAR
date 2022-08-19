@@ -212,10 +212,8 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                    tensorflow=tensorflow, dropout_dict=dropout,
                                    dtype=dtype, name=name_prefix + model_name, weights=weights)
     elif model_name == "cnn":
-        if weights is not None:
-            print("WARNING: Zhang model does not support weighted loss")
         model = get_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
-                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
                               dropout=dropout["downsampling"],
                               name=name_prefix + model_name)
     elif model_name == "own":
