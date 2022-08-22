@@ -469,13 +469,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
-    weights = None
-    if balance == "loss":
-        if dataset_name == "GARON":
-            weights = [0.8, 0.1, 0.05, 0.05]
-        else:
-            weights = dataset_handler.labels_occurrences
-    # weights = dataset_handler.labels_occurrences if balance == "loss" else None
+    weights = 1 / dataset_handler.labels_occurrences if balance == "loss" else None
     model = _get_model(model_name=model_name, model_index=model_index,
                        channels=6 if mode == "t" else 3, learning_rate=learning_rate,
                        weights=weights, equiv_technique=equiv_technique,
