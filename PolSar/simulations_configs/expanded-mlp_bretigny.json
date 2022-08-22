@@ -1,14 +1,14 @@
 [
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "coherency": true,
         "dataset_method": "separate"
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "tensorflow": true,
         "real_mode": true,

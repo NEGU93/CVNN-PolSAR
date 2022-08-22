@@ -28,11 +28,11 @@ cnn_params_model = {
     'kernel_init': ComplexHeNormal(),
     'loss': ComplexAverageCrossEntropy(),       # End of II.A.4
     'activation': 'cart_relu',
-    'optimizer': Adam(learning_rate=0.0001, beta_1=0.9)
+    'optimizer': Adam
 }
 
 
-def _get_model(input_shape, num_classes, dtype, weights, name='cnn'):
+def _get_model(input_shape, num_classes, dtype, weights, name='cnn', learning_rate=0.0001):
     if dtype.is_complex:
         filters = "complex_filters"
     else:
@@ -60,13 +60,13 @@ def _get_model(input_shape, num_classes, dtype, weights, name='cnn'):
     else:
         loss = cnn_params_model['loss']
 
-    model.compile(optimizer=cnn_params_model['optimizer'], loss=loss,
+    model.compile(optimizer=cnn_params_model['optimizer'](learning_rate=learning_rate, beta_1=0.9), loss=loss,
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'),
                            ComplexAverageAccuracy(name='average_accuracy')])
     return model
 
 
-def _get_tf_model(input_shape, num_classes, dtype, weights, name='tf_cnn'):
+def _get_tf_model(input_shape, num_classes, dtype, weights, name='tf_cnn', learning_rate=0.0001):
     if dtype.is_complex:
         raise ValueError(f"Cannot use Tensorflow for creating a complex model")
     filters = "real_filters"
@@ -91,7 +91,7 @@ def _get_tf_model(input_shape, num_classes, dtype, weights, name='tf_cnn'):
         loss = ComplexWeightedAverageCrossEntropy(weights=weights)
     else:
         loss = cnn_params_model['loss']
-    model.compile(optimizer=cnn_params_model['optimizer'], loss=loss,
+    model.compile(optimizer=cnn_params_model['optimizer'](learning_rate=learning_rate, beta_1=0.9), loss=loss,
                   metrics=[ComplexCategoricalAccuracy(name='accuracy'),
                            ComplexAverageAccuracy(name='average_accuracy')
                            ])
@@ -99,15 +99,17 @@ def _get_tf_model(input_shape, num_classes, dtype, weights, name='tf_cnn'):
 
 
 def get_cnn_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 6), num_classes=15, dtype=np.complex64, weights=None,
-                  tensorflow: bool = False, name="cnn", dropout=None):
+                  tensorflow: bool = False, name="cnn", dropout=None, learning_rate=None):
     if dropout is not None:
         raise ValueError("Dropout for zhang model not yet implemented")
+    if learning_rate is None:
+        learning_rate = 0.0001
     if not tensorflow:
         return _get_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
-                          weights=weights, name=name)
+                          weights=weights, name=name, learning_rate=learning_rate)
     else:
         return _get_tf_model(input_shape=input_shape, num_classes=num_classes, dtype=tf.dtypes.as_dtype(dtype),
-                             weights=weights, name=name)
+                             weights=weights, name=name, learning_rate=learning_rate)
 
 
 if __name__ == '__main__':

@@ -131,6 +131,7 @@ def parse_input():
                              "".join([f"\t- {technique}\n" for technique in EQUIV_TECHNIQUES]))
     parser.add_argument('--tensorflow', action='store_true', help='Use tensorflow library')
     parser.add_argument('--epochs', nargs=1, type=int, default=[EPOCHS], help='(int) epochs to be done')
+    parser.add_argument('--learning_rate', nargs=1, type=float, default=[None], help='(float) optimizer learning rate')
     parser.add_argument('--model', nargs=1, type=str, default=["cao"],
                         help='deep model to be used. Options:\n' +
                              "".join([f"\t- {model}\n" for model in MODEL_META.keys()]))
@@ -193,7 +194,7 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
 
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
                dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp",
-               model_index: Optional = None):
+               model_index: Optional = None, learning_rate: Optional[int] = None,):
     model_name = model_name.lower()
     if equiv_technique != "ratio_tp" and model_name != "mlp":
         logging.warning(f"Equivalent technique requested {equiv_technique} but model ({model_name})"
@@ -214,7 +215,7 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
     elif model_name == "cnn":
         model = get_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
                               num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
-                              dropout=dropout["downsampling"],
+                              dropout=dropout["downsampling"], learning_rate=learning_rate,
                               name=name_prefix + model_name)
     elif model_name == "own":
         model = get_my_unet_tests(index=model_index,
@@ -432,7 +433,7 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
 def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
               early_stop: Union[bool, int], epochs: int, equiv_technique: str, temp_path, dropout,
-              dataset_name: str, dataset_method: str,
+              dataset_name: str, dataset_method: str, learning_rate: Optional[int] = None,
               percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
               debug: bool = False, use_tf_dataset=True):
     if percentage is None:
@@ -476,7 +477,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
             weights = dataset_handler.labels_occurrences
     # weights = dataset_handler.labels_occurrences if balance == "loss" else None
     model = _get_model(model_name=model_name, model_index=model_index,
-                       channels=6 if mode == "t" else 3,
+                       channels=6 if mode == "t" else 3, learning_rate=learning_rate,
                        weights=weights, equiv_technique=equiv_technique,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
                        complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
@@ -582,7 +583,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                 mode: str, complex_mode: bool, real_mode: str,
                 early_stop: Union[int, bool], epochs: int, coh_kernel_size: int,
                 dataset_name: str, dataset_method: str, dropout, equiv_technique: str,
-                model_index: Optional = None,
+                model_index: Optional = None, learning_rate=None,
                 percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False):
     temp_path = create_folder("./log/")
     makedirs(temp_path, exist_ok=True)
@@ -593,7 +594,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
     run_model(model_name=model_name, balance=balance, tensorflow=tensorflow,
               mode=mode, complex_mode=complex_mode, real_mode=real_mode,
               early_stop=early_stop, temp_path=temp_path, epochs=epochs,
-              dataset_name=dataset_name, dataset_method=dataset_method,
+              dataset_name=dataset_name, dataset_method=dataset_method, learning_rate=learning_rate,
               percentage=percentage, debug=debug, dropout=dropout, model_index=model_index,
               coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
 
@@ -609,7 +610,7 @@ if __name__ == "__main__":
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
                     mode="t" if args.coherency else "s", coh_kernel_size=args.coherency,
-                    model_index=args.model_index[0],
+                    model_index=args.model_index[0], learning_rate=args.learning_rate[0],
                     complex_mode=True if args.real_mode == 'complex' else False,
                     real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
