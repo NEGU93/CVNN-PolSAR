@@ -1,7 +1,7 @@
 [
     {
         "model": "cnn",
-        "epochs": 100,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": true,
@@ -9,7 +9,7 @@
     },
     {
         "model": "cnn",
-        "epochs": 100,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
@@ -19,7 +19,7 @@
     },
     {
         "model": "cnn",
-        "epochs": 100,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": false,
@@ -27,7 +27,7 @@
     },
     {
         "model": "cnn",
-        "epochs": 100,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
@@ -37,14 +37,14 @@
     },
     {
         "model": "cnn",
-        "epochs": 250,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": true
     },
     {
         "model": "cnn",
-        "epochs": 250,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
@@ -53,14 +53,14 @@
     },
     {
         "model": "cnn",
-        "epochs": 250,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": false
     },
     {
         "model": "cnn",
-        "epochs": 250,
+        "epochs": 1000,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
