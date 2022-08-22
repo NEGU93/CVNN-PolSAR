@@ -485,6 +485,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         model.summary(print_fn=lambda x: summary_file.write(x + '\n'))
     callbacks = get_callbacks_list(early_stop, temp_path)
     # Training
+    # set_trace()
     history = model.fit(x=train_ds[0] if not use_tf_dataset else train_ds,
                         y=train_ds[1] if not use_tf_dataset else None, epochs=epochs,
                         batch_size=MODEL_META[model_name]['batch_size'],

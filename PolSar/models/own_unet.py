@@ -108,7 +108,7 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activa
     elif isinstance(hyper_params['upsampling_layer'], ComplexConv2DTranspose) or \
             hyper_params['upsampling_layer'] == ComplexConv2DTranspose:
         unpool = ComplexConv2DTranspose(filters=hyper_params["kernels"][num], kernel_size=3,
-                                        dilation_rate=(1, 1))(input_to_block)
+                                        strides=(2, 2), padding='same', dilation_rate=(1, 1))(input_to_block)
     else:
         raise ValueError(f"Upsampling method {hyper_params['upsampling_layer'].name} not supported")
     conv = ComplexConv2D(kernels, hyper_params['kernel_shape'],
@@ -298,7 +298,7 @@ def get_my_unet_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4, dty
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
     if not tensorflow:
-        in1 = complex_input(shape=input_shape, dtype=dtype)
+        in1 = complex_input(shape=(128, 128, 3), dtype=dtype)
         return _get_my_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name,
                              dropout_dict=dropout_dict, num_classes=num_classes, weights=weights)
     else:
