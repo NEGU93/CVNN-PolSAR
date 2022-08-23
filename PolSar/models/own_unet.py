@@ -13,7 +13,7 @@ from cvnn.losses import ComplexAverageCrossEntropy, ComplexWeightedAverageCrossE
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy, ComplexPrecision, ComplexRecall
 from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense, \
-    ComplexUpSampling2D, ComplexConv2DTranspose, ComplexAvgPooling2D, ComplexPolarAvgPooling2D
+    ComplexUpSampling2D, ComplexConv2DTranspose, ComplexAvgPooling2D, ComplexPolarAvgPooling2D, ComplexMaxPooling2D
 from cvnn.activations import cart_softmax, cart_relu
 from cvnn.initializers import ComplexHeNormal
 
@@ -39,19 +39,24 @@ hyper_params = {
     'activation': cart_relu,
     'kernels': [12, 24, 48, 96, 192],
     'output_function': cart_softmax,
-    'init': ComplexHeNormal(),
+    'init': ComplexHeNormal,
     'optimizer': Adam,
     'learning_rate': 0.0001
 }
 
-tf_hyper_params = {
-    'upsampling_layer': UpSampling2D,
-    'activation': "relu",
-    'output_function': "softmax",
-    'init': HeNormal()
+complex_cast_to_tf = {
+    'upsampling_layer': {
+        ComplexUpSampling2D: UpSampling2D,
+        ComplexUnPooling2D: ComplexUnPooling2D,
+        ComplexConv2DTranspose: Conv2DTranspose
+    },
+    'pooling': {
+        ComplexMaxPooling2DWithArgmax: ComplexMaxPooling2DWithArgmax,
+        ComplexAvgPooling2D: AvgPool2D,
+        ComplexMaxPooling2D: MaxPooling2D
+    },
+    'init': {ComplexHeNormal: HeNormal}
 }
-
-
 
 
 def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropout: Optional[bool] = False):
@@ -81,21 +86,22 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropou
 
 
 def _tf_get_downsampling_block(input_to_block, num: int, dropout: Optional[bool] = False):
-    # TODO: pooling not working!!!
-    conv = Conv2D(tf_hyper_params['kernels'][num], tf_hyper_params['kernel_shape'], activation=None,
-                  padding=tf_hyper_params['padding'], kernel_initializer=tf_hyper_params['init'])(input_to_block)
+    conv = Conv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'], activation=None,
+                  padding=hyper_params['padding'],
+                  kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(input_to_block)
     for _ in range(hyper_params['consecutive_conv_layers']):
-        conv = Conv2D(tf_hyper_params['kernels'][num], tf_hyper_params['kernel_shape'], activation=None,
-                      padding=tf_hyper_params['padding'], kernel_initializer=tf_hyper_params['init'])(conv)
+        conv = Conv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'], activation=None,
+                      padding=hyper_params['padding'],
+                      kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(conv)
     conv = BatchNormalization()(conv)
-    conv = Activation(tf_hyper_params['activation'])(conv)
-    if tf_hyper_params['pooling'] == ComplexMaxPooling2DWithArgmax:
+    conv = Activation(hyper_params['activation'])(conv)
+    if complex_cast_to_tf['pooling'][hyper_params['pooling']] == ComplexMaxPooling2DWithArgmax:
         pool, pool_argmax = ComplexMaxPooling2DWithArgmax(hyper_params['max_pool_kernel'],
                                                           strides=hyper_params['stride'])(conv)
-    elif tf_hyper_params['pooling'] == AvgPool2D:
+    elif complex_cast_to_tf['pooling'][hyper_params['pooling']] == AvgPool2D:
         pool = AvgPool2D(hyper_params['max_pool_kernel'], strides=hyper_params['stride'])(conv)
         pool_argmax = None
-    elif tf_hyper_params['pooling'] == MaxPooling2D:
+    elif complex_cast_to_tf['pooling'][hyper_params['pooling']] == MaxPooling2D:
         pool = MaxPooling2D(hyper_params['max_pool_kernel'], strides=hyper_params['stride'])(conv)
         pool_argmax = None
     else:
@@ -107,14 +113,11 @@ def _tf_get_downsampling_block(input_to_block, num: int, dropout: Optional[bool]
 
 def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activation,
                           dropout: Optional[bool] = False, dtype=np.complex64):
-    if isinstance(hyper_params['upsampling_layer'], ComplexUnPooling2D) or \
-            hyper_params['upsampling_layer'] == ComplexUnPooling2D:
+    if hyper_params['upsampling_layer'] == ComplexUnPooling2D:
         unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
-    elif isinstance(hyper_params['upsampling_layer'], ComplexUpSampling2D) or \
-            hyper_params['upsampling_layer'] == ComplexUpSampling2D:
+    elif hyper_params['upsampling_layer'] == ComplexUpSampling2D:
         unpool = ComplexUpSampling2D(size=2)(input_to_block)
-    elif isinstance(hyper_params['upsampling_layer'], ComplexConv2DTranspose) or \
-            hyper_params['upsampling_layer'] == ComplexConv2DTranspose:
+    elif hyper_params['upsampling_layer'] == ComplexConv2DTranspose:
         unpool = ComplexConv2DTranspose(filters=num, kernel_size=3, strides=(2, 2), padding='same',
                                         dilation_rate=(1, 1))(input_to_block)
     else:
@@ -135,24 +138,23 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activa
 
 def _get_tf_upsampling_block(input_to_block, pool_argmax, kernels, num: int,
                              activation, dropout: Optional[bool] = False):
-    if isinstance(tf_hyper_params['upsampling_layer'], UpSampling2D) or \
-            UpSampling2D == tf_hyper_params['upsampling_layer']:
+    if UpSampling2D == complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']]:
         unpool = UpSampling2D(size=2)(input_to_block)
-    elif isinstance(tf_hyper_params['upsampling_layer'], Conv2DTranspose) or \
-            Conv2DTranspose == tf_hyper_params['upsampling_layer']:
+    elif Conv2DTranspose == complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']]:
         # import pdb; pdb.set_trace()
         unpool = Conv2DTranspose(filters=num, kernel_size=3, strides=(2, 2), padding='same',
                                  dilation_rate=(1, 1))(input_to_block)
-    elif isinstance(tf_hyper_params['upsampling_layer'], ComplexUnPooling2D) or \
-            tf_hyper_params['upsampling_layer'] == ComplexUnPooling2D:
+    elif complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']] == ComplexUnPooling2D:
         unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     else:
-        raise ValueError(f"Upsampling method {tf_hyper_params['upsampling_layer'].name} not supported")
+        raise ValueError(f"Upsampling method"
+                         f" {complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']].name} "
+                         f"not supported")
     conv = Conv2D(kernels, hyper_params['kernel_shape'], activation=None, padding=hyper_params['padding'],
-                  kernel_initializer=tf_hyper_params['init'])(unpool)
+                  kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(unpool)
     for _ in range(hyper_params['consecutive_conv_layers']):
         conv = Conv2D(kernels, hyper_params['kernel_shape'], activation=None, padding=hyper_params['padding'],
-                      kernel_initializer=tf_hyper_params['init'])(conv)
+                      kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(conv)
     conv = BatchNormalization()(conv)
     conv = Activation(activation)(conv)
     if dropout:
@@ -229,7 +231,7 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
 
     # Bottleneck
     kernel_backup = hyper_params['kernels'].pop()
-    conv = Conv2D(kernel_backup, (1, 1),  activation=tf_hyper_params['activation'],
+    conv = Conv2D(kernel_backup, (1, 1),  activation=hyper_params['activation'],
                   padding=hyper_params['padding'])(pools.pop())
     if dropout_dict["bottle_neck"] is not None:
         conv = Dropout(rate=dropout_dict["bottle_neck"])(conv)
@@ -241,7 +243,7 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
         new_kernel = hyper_params['kernels'].pop()
         conv = get_upsampling_block(conv, pool_argmax, new_kernel,
                                     num=kernel_backup,
-                                    activation=tf_hyper_params['activation'],
+                                    activation=hyper_params['activation'],
                                     dropout=dropout_dict["upsampling"])
         kernel_backup = new_kernel
         if hyper_params['concat'] == Concatenate:
@@ -260,7 +262,7 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
         loss = CategoricalCrossentropy()
 
     model = Model(inputs=[in1], outputs=[out], name=name)
-    model.compile(optimizer=tf_hyper_params['optimizer'], loss=loss,
+    model.compile(optimizer=hyper_params['optimizer'], loss=loss,
                   metrics=[
                       CategoricalAccuracy(name='accuracy'),
                       ComplexCategoricalAccuracy(name='complex_accuracy'),
