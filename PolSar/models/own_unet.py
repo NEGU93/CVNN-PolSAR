@@ -3,7 +3,8 @@ import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import HeNormal
 from tensorflow.keras.layers import Concatenate, Add, Activation, Input
-from tensorflow.keras.layers import Conv2D, Dropout, Conv2DTranspose, BatchNormalization, MaxPooling2D, UpSampling2D
+from tensorflow.keras.layers import Conv2D, Dropout, Conv2DTranspose, BatchNormalization, MaxPooling2D, \
+    UpSampling2D, AvgPool2D
 from tensorflow.keras.losses import CategoricalCrossentropy
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.metrics import Recall, Precision, CategoricalAccuracy
@@ -44,21 +45,16 @@ hyper_params = {
 }
 
 tf_hyper_params = {
-    'padding': 'same',
-    'kernel_shape': (5, 5),
-    'block6_kernel_shape': (1, 1),
-    'max_pool_kernel': (2, 2),
     'upsampling_layer': UpSampling2D,
-    'stride': 2,
     'activation': "relu",
-    'kernels': [12, 24, 48, 96, 192],
     'output_function': "softmax",
-    'init': HeNormal(),
-    'optimizer': Adam(learning_rate=0.001, beta_1=0.9)
+    'init': HeNormal()
 }
 
 
-def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropout=False):
+
+
+def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropout: Optional[bool] = False):
     conv = ComplexConv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'],
                          activation='linear', padding=hyper_params['padding'],
                          kernel_initializer=hyper_params['init'], dtype=dtype)(input_to_block)
@@ -84,21 +80,33 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropou
     return pool, pool_argmax
 
 
-def _tf_get_downsampling_block(input_to_block, num: int, activation, dropout=False):
+def _tf_get_downsampling_block(input_to_block, num: int, dropout: Optional[bool] = False):
+    # TODO: pooling not working!!!
     conv = Conv2D(tf_hyper_params['kernels'][num], tf_hyper_params['kernel_shape'], activation=None,
                   padding=tf_hyper_params['padding'], kernel_initializer=tf_hyper_params['init'])(input_to_block)
     for _ in range(hyper_params['consecutive_conv_layers']):
         conv = Conv2D(tf_hyper_params['kernels'][num], tf_hyper_params['kernel_shape'], activation=None,
                       padding=tf_hyper_params['padding'], kernel_initializer=tf_hyper_params['init'])(conv)
     conv = BatchNormalization()(conv)
-    conv = Activation(activation)(conv)
-    pool = MaxPooling2D(tf_hyper_params['max_pool_kernel'], strides=tf_hyper_params['stride'])(conv)
+    conv = Activation(tf_hyper_params['activation'])(conv)
+    if tf_hyper_params['pooling'] == ComplexMaxPooling2DWithArgmax:
+        pool, pool_argmax = ComplexMaxPooling2DWithArgmax(hyper_params['max_pool_kernel'],
+                                                          strides=hyper_params['stride'])(conv)
+    elif tf_hyper_params['pooling'] == AvgPool2D:
+        pool = AvgPool2D(hyper_params['max_pool_kernel'], strides=hyper_params['stride'])(conv)
+        pool_argmax = None
+    elif tf_hyper_params['pooling'] == MaxPooling2D:
+        pool = MaxPooling2D(hyper_params['max_pool_kernel'], strides=hyper_params['stride'])(conv)
+        pool_argmax = None
+    else:
+        raise ValueError(f"Unknown pooling {hyper_params['pooling']}")
     if dropout:
         pool = Dropout(rate=dropout)(pool)
-    return pool
+    return pool, pool_argmax
 
 
-def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activation, dropout=False, dtype=np.complex64):
+def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activation,
+                          dropout: Optional[bool] = False, dtype=np.complex64):
     if isinstance(hyper_params['upsampling_layer'], ComplexUnPooling2D) or \
             hyper_params['upsampling_layer'] == ComplexUnPooling2D:
         unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
@@ -107,8 +115,8 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activa
         unpool = ComplexUpSampling2D(size=2)(input_to_block)
     elif isinstance(hyper_params['upsampling_layer'], ComplexConv2DTranspose) or \
             hyper_params['upsampling_layer'] == ComplexConv2DTranspose:
-        unpool = ComplexConv2DTranspose(filters=hyper_params["kernels"][num], kernel_size=3,
-                                        strides=(2, 2), padding='same', dilation_rate=(1, 1))(input_to_block)
+        unpool = ComplexConv2DTranspose(filters=num, kernel_size=3, strides=(2, 2), padding='same',
+                                        dilation_rate=(1, 1))(input_to_block)
     else:
         raise ValueError(f"Upsampling method {hyper_params['upsampling_layer'].name} not supported")
     conv = ComplexConv2D(kernels, hyper_params['kernel_shape'],
@@ -125,22 +133,25 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activa
     return conv
 
 
-def _get_tf_upsampling_block(input_to_block, kernels, num: int,
-                             activation=tf_hyper_params['activation'], dropout=False):
+def _get_tf_upsampling_block(input_to_block, pool_argmax, kernels, num: int,
+                             activation, dropout: Optional[bool] = False):
     if isinstance(tf_hyper_params['upsampling_layer'], UpSampling2D) or \
             UpSampling2D == tf_hyper_params['upsampling_layer']:
         unpool = UpSampling2D(size=2)(input_to_block)
     elif isinstance(tf_hyper_params['upsampling_layer'], Conv2DTranspose) or \
             Conv2DTranspose == tf_hyper_params['upsampling_layer']:
         # import pdb; pdb.set_trace()
-        unpool = Conv2DTranspose(filters=hyper_params["kernels"][num], kernel_size=3)(input_to_block)
+        unpool = Conv2DTranspose(filters=num, kernel_size=3, strides=(2, 2), padding='same',
+                                 dilation_rate=(1, 1))(input_to_block)
+    elif isinstance(tf_hyper_params['upsampling_layer'], ComplexUnPooling2D) or \
+            tf_hyper_params['upsampling_layer'] == ComplexUnPooling2D:
+        unpool = ComplexUnPooling2D(upsampling_factor=2)([input_to_block, pool_argmax])
     else:
-        # import pdb; pdb.set_trace()
         raise ValueError(f"Upsampling method {tf_hyper_params['upsampling_layer'].name} not supported")
-    conv = Conv2D(kernels, tf_hyper_params['kernel_shape'], activation=None, padding=tf_hyper_params['padding'],
+    conv = Conv2D(kernels, hyper_params['kernel_shape'], activation=None, padding=hyper_params['padding'],
                   kernel_initializer=tf_hyper_params['init'])(unpool)
     for _ in range(hyper_params['consecutive_conv_layers']):
-        conv = Conv2D(kernels, tf_hyper_params['kernel_shape'], activation=None, padding=tf_hyper_params['padding'],
+        conv = Conv2D(kernels, hyper_params['kernel_shape'], activation=None, padding=hyper_params['padding'],
                       kernel_initializer=tf_hyper_params['init'])(conv)
     conv = BatchNormalization()(conv)
     conv = Activation(activation)(conv)
@@ -154,64 +165,37 @@ def _get_my_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.co
     # Downsampling
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
-    pool1, pool1_argmax = get_downsampling_block(in1, 0, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 1
-    pool2, pool2_argmax = get_downsampling_block(pool1, 1, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 2
-    pool3, pool3_argmax = get_downsampling_block(pool2, 2, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 3
-    pool4, pool4_argmax = get_downsampling_block(pool3, 3, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 4
-    pool5, pool5_argmax = get_downsampling_block(pool4, 4, dtype=dtype, dropout=dropout_dict["downsampling"])  # Block 5
+
+    pool = in1
+    pools = []
+    argmax_pools = []
+    for index in range(len(hyper_params['kernels'])):
+        pool, pool_argmax = get_downsampling_block(pool, index, dtype=dtype, dropout=dropout_dict["downsampling"])
+        pools.append(pool)
+        argmax_pools.append(pool_argmax)
 
     # Bottleneck
-    # Block 6
-    conv6 = ComplexConv2D(hyper_params['kernels'][4], (1, 1),
-                          activation=hyper_params['activation'], padding=hyper_params['padding'],
-                          dtype=dtype)(pool5)
+    conv = ComplexConv2D(hyper_params['kernels'].pop(), (1, 1),
+                         activation=hyper_params['activation'], padding=hyper_params['padding'],
+                         dtype=dtype)(pools.pop())
     if dropout_dict["bottle_neck"] is not None:
-        conv6 = ComplexDropout(rate=dropout_dict["bottle_neck"], dtype=dtype)(conv6)
+        conv = ComplexDropout(rate=dropout_dict["bottle_neck"], dtype=dtype)(conv)
 
     # Upsampling
-    # Block7
-    conv7 = get_upsampling_block(conv6, pool5_argmax, hyper_params['kernels'][3], num=4,
-                                 activation=hyper_params['activation'],
-                                 dropout=dropout_dict["upsampling"], dtype=dtype)
-    # Block 8
-    if hyper_params['concat'] == Concatenate:
-        add8 = Concatenate()([conv7, pool4])
-    elif hyper_params['concat'] == Add:
-        add8 = Add()([conv7, pool4])
-    else:
-        raise KeyError(f"Concatenation {hyper_params['concat']} not known")
-    conv8 = get_upsampling_block(add8, pool4_argmax, hyper_params['kernels'][2], num=3,
-                                 activation=hyper_params['activation'],
-                                 dropout=dropout_dict["upsampling"], dtype=dtype)
-    # Block 9
-    if hyper_params['concat'] == Concatenate:
-        add9 = Concatenate()([conv8, pool3])
-    elif hyper_params['concat'] == Add:
-        add9 = Add()([conv8, pool3])
-    else:
-        raise KeyError(f"Concatenation {hyper_params['concat']} not known")
-    conv9 = get_upsampling_block(add9, pool3_argmax, hyper_params['kernels'][1], num=2,
-                                 activation=hyper_params['activation'],
-                                 dropout=dropout_dict["upsampling"], dtype=dtype)
-    # Block 10
-    if hyper_params['concat'] == Concatenate:
-        add10 = Concatenate()([conv9, pool2])
-    elif hyper_params['concat'] == Add:
-        add10 = Add()([conv9, pool2])
-    else:
-        raise KeyError(f"Concatenation {hyper_params['concat']} not known")
-    conv10 = get_upsampling_block(add10, pool2_argmax, hyper_params['kernels'][0],
-                                  num=1, activation=hyper_params['activation'],
-                                  dropout=dropout_dict["upsampling"], dtype=dtype)
-    # Block 11
-    if hyper_params['concat'] == Concatenate:
-        add11 = Concatenate()([conv10, pool1])
-    elif hyper_params['concat'] == Add:
-        add11 = Add()([conv10, pool1])
-    else:
-        raise KeyError(f"Concatenation {hyper_params['concat']} not known")
-    out = get_upsampling_block(add11, pool1_argmax, activation=hyper_params['output_function'], dropout=False, num=0,
-                               kernels=num_classes, dtype=dtype)
+    while pools:
+        pool = pools.pop()
+        pool_argmax = argmax_pools.pop()
+        conv = get_upsampling_block(conv, pool_argmax, hyper_params['kernels'].pop(), num=4,
+                                    activation=hyper_params['activation'],
+                                    dropout=dropout_dict["upsampling"], dtype=dtype)
+        if hyper_params['concat'] == Concatenate:
+            conv = Concatenate()([conv, pool])
+        elif hyper_params['concat'] == Add:
+            conv = Add()([conv, pool])
+        else:
+            raise KeyError(f"Concatenation {hyper_params['concat']} not known")
+    out = get_upsampling_block(conv, argmax_pools.pop(), activation=hyper_params['output_function'], dropout=False,
+                               num=0, kernels=num_classes, dtype=dtype)
 
     if weights is not None:
         loss = ComplexWeightedAverageCrossEntropy(weights=weights)
@@ -234,39 +218,40 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
     # Downsampling
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
-    pool1 = get_downsampling_block(in1, 0, dropout=dropout_dict["downsampling"])  # Block 1
-    pool2 = get_downsampling_block(pool1, 1, dropout=dropout_dict["downsampling"])  # Block 2
-    pool3 = get_downsampling_block(pool2, 2, dropout=dropout_dict["downsampling"])  # Block 3
-    pool4 = get_downsampling_block(pool3, 3, dropout=dropout_dict["downsampling"])  # Block 4
-    pool5 = get_downsampling_block(pool4, 4, dropout=dropout_dict["downsampling"])  # Block 5
+
+    pool = in1
+    pools = []
+    argmax_pools = []
+    for index in range(len(hyper_params['kernels'])):
+        pool, pool_argmax = get_downsampling_block(pool, index, dropout=dropout_dict["downsampling"])
+        pools.append(pool)
+        argmax_pools.append(pool_argmax)
 
     # Bottleneck
-    # Block 6
-    conv6 = Conv2D(hyper_params['kernels'][4], (1, 1),
-                   activation=tf_hyper_params['activation'], padding=tf_hyper_params['padding'])(pool5)
+    kernel_backup = hyper_params['kernels'].pop()
+    conv = Conv2D(kernel_backup, (1, 1),  activation=tf_hyper_params['activation'],
+                  padding=hyper_params['padding'])(pools.pop())
     if dropout_dict["bottle_neck"] is not None:
-        conv6 = Dropout(rate=dropout_dict["bottle_neck"])(conv6)
+        conv = Dropout(rate=dropout_dict["bottle_neck"])(conv)
 
     # Upsampling
-    # Block7
-    conv7 = get_upsampling_block(conv6, tf_hyper_params['kernels'][3], activation=tf_hyper_params['activation'],
-                                 dropout=dropout_dict["upsampling"], num=4)
-    # Block 8
-    add8 = Concatenate()([conv7, pool4])
-    conv8 = get_upsampling_block(add8, tf_hyper_params['kernels'][2], activation=tf_hyper_params['activation'],
-                                 dropout=dropout_dict["upsampling"], num=3)
-    # Block 9
-    add9 = Concatenate()([conv8, pool3])
-    conv9 = get_upsampling_block(add9, tf_hyper_params['kernels'][1], activation=tf_hyper_params['activation'],
-                                 dropout=dropout_dict["upsampling"], num=2)
-    # Block 10
-    add10 = Concatenate()([conv9, pool2])
-    conv10 = get_upsampling_block(add10, tf_hyper_params['kernels'][0], activation=tf_hyper_params['activation'],
-                                  dropout=dropout_dict["upsampling"], num=1)
-    # Block 11
-    add11 = Concatenate()([conv10, pool1])
-    out = get_upsampling_block(add11, dropout=False, kernels=num_classes, activation=tf_hyper_params['output_function'],
-                               num=0)
+    while pools:
+        pool = pools.pop()
+        pool_argmax = argmax_pools.pop()
+        new_kernel = hyper_params['kernels'].pop()
+        conv = get_upsampling_block(conv, pool_argmax, new_kernel,
+                                    num=kernel_backup,
+                                    activation=tf_hyper_params['activation'],
+                                    dropout=dropout_dict["upsampling"])
+        kernel_backup = new_kernel
+        if hyper_params['concat'] == Concatenate:
+            conv = Concatenate()([conv, pool])
+        elif hyper_params['concat'] == Add:
+            conv = Add()([conv, pool])
+        else:
+            raise KeyError(f"Concatenation {hyper_params['concat']} not known")
+    out = get_upsampling_block(conv, argmax_pools.pop(), activation=hyper_params['output_function'], dropout=False,
+                               num=kernel_backup, kernels=num_classes)
 
     if weights is not None:
         print("WARNING: loss function will not be from tensorflow")
@@ -298,7 +283,7 @@ def get_my_unet_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4, dty
     if dropout_dict is None:
         dropout_dict = DROPOUT_DEFAULT
     if not tensorflow:
-        in1 = complex_input(shape=(128, 128, 3), dtype=dtype)
+        in1 = complex_input(shape=input_shape, dtype=dtype)
         return _get_my_model(in1, _get_downsampling_block, _get_upsampling_block, dtype=dtype, name=name,
                              dropout_dict=dropout_dict, num_classes=num_classes, weights=weights)
     else:

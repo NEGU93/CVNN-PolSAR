@@ -44,6 +44,7 @@ from models.haensch_mlp import get_haensch_mlp_model
 from models.tan_3dcnn import get_tan_3d_cnn_model
 from models.cnn_standard import get_cnn_model
 from models.mlp_model import get_mlp_model
+from models.small_unet import get_small_unet_model
 
 from pdb import set_trace
 
@@ -75,6 +76,8 @@ MODEL_META = {
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "own": {"size": 128, "stride": 25, "pad": 'same', "batch_size": 30,
             "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
+    "small-unet": {"size": 16, "stride": 1, "pad": 'same', "batch_size": 100,
+                   "percentage": (0.8, 0.1, 0.1), "task": "segmentation"},
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
     "cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
@@ -260,6 +263,10 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                                   MODEL_META["tan"]["size"], channels),
                                      num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
                                      name=name_prefix + model_name)
+    elif model_name == 'small-unet':
+        model = get_small_unet_model(input_shape=(None, None, channels), num_classes=num_classes,
+                                     tensorflow=tensorflow, dropout_dict=dropout,
+                                     dtype=dtype, name=name_prefix + model_name, weights=weights)
     else:
         raise ValueError(f"Unknown model {model_name}")
     return model

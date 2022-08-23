@@ -514,7 +514,7 @@ class MainWindow(QMainWindow):
         else:
             image_path = random.choice(image_path)
             pixmap = QPixmap(image_path)
-        scaled_pixmap = pixmap.scaled(1000, 700, QtCore.Qt.KeepAspectRatio)
+        scaled_pixmap = pixmap.scaled(900, 700, QtCore.Qt.KeepAspectRatio)
         self.label_image.setPixmap(scaled_pixmap)
         self.label_image.resize(scaled_pixmap.width(), scaled_pixmap.height())
 
