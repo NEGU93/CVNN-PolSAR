@@ -41,7 +41,8 @@ hyper_params = {
     'output_function': cart_softmax,
     'init': ComplexHeNormal,
     'optimizer': Adam,
-    'learning_rate': 0.0001
+    'learning_rate': 0.0001,
+    'depth': 5
 }
 
 complex_cast_to_tf = {
@@ -55,18 +56,18 @@ complex_cast_to_tf = {
         ComplexAvgPooling2D: AvgPool2D,
         ComplexMaxPooling2D: MaxPooling2D
     },
-    'init': {ComplexHeNormal: HeNormal}
+    'init': {ComplexHeNormal: HeNormal}     # TODO: Not activation cast done yet.
 }
 
 
 def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropout: Optional[bool] = False):
-    conv = ComplexConv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'],
+    conv = ComplexConv2D(hyper_params['kernels'][:hyper_params['depth']][num], hyper_params['kernel_shape'],
                          activation='linear', padding=hyper_params['padding'],
-                         kernel_initializer=hyper_params['init'], dtype=dtype)(input_to_block)
+                         kernel_initializer=hyper_params['init'](), dtype=dtype)(input_to_block)
     for _ in range(hyper_params['consecutive_conv_layers']):
-        conv = ComplexConv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'],
+        conv = ComplexConv2D(hyper_params['kernels'][:hyper_params['depth']][num], hyper_params['kernel_shape'],
                              activation='linear', padding=hyper_params['padding'],
-                             kernel_initializer=hyper_params['init'], dtype=dtype)(conv)
+                             kernel_initializer=hyper_params['init'](), dtype=dtype)(conv)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(hyper_params['activation'])(conv)
     if hyper_params['pooling'] == ComplexMaxPooling2DWithArgmax:
@@ -86,13 +87,13 @@ def _get_downsampling_block(input_to_block, num: int, dtype=np.complex64, dropou
 
 
 def _tf_get_downsampling_block(input_to_block, num: int, dropout: Optional[bool] = False):
-    conv = Conv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'], activation=None,
+    conv = Conv2D(hyper_params['kernels'][:hyper_params['depth']][num], hyper_params['kernel_shape'], activation=None,
                   padding=hyper_params['padding'],
-                  kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(input_to_block)
+                  kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']]())(input_to_block)
     for _ in range(hyper_params['consecutive_conv_layers']):
-        conv = Conv2D(hyper_params['kernels'][num], hyper_params['kernel_shape'], activation=None,
+        conv = Conv2D(hyper_params['kernels'][:hyper_params['depth']][num], hyper_params['kernel_shape'], activation=None,
                       padding=hyper_params['padding'],
-                      kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(conv)
+                      kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']]())(conv)
     conv = BatchNormalization()(conv)
     conv = Activation(hyper_params['activation'])(conv)
     if complex_cast_to_tf['pooling'][hyper_params['pooling']] == ComplexMaxPooling2DWithArgmax:
@@ -124,11 +125,11 @@ def _get_upsampling_block(input_to_block, pool_argmax, kernels, num: int, activa
         raise ValueError(f"Upsampling method {hyper_params['upsampling_layer'].name} not supported")
     conv = ComplexConv2D(kernels, hyper_params['kernel_shape'],
                          activation='linear', padding=hyper_params['padding'],
-                         kernel_initializer=hyper_params['init'], dtype=dtype)(unpool)
+                         kernel_initializer=hyper_params['init'](), dtype=dtype)(unpool)
     for _ in range(hyper_params['consecutive_conv_layers']):
         conv = ComplexConv2D(kernels, hyper_params['kernel_shape'],
                              activation='linear', padding=hyper_params['padding'],
-                             kernel_initializer=hyper_params['init'], dtype=dtype)(conv)
+                             kernel_initializer=hyper_params['init'](), dtype=dtype)(conv)
     conv = ComplexBatchNormalization(dtype=dtype)(conv)
     conv = Activation(activation)(conv)
     if dropout:
@@ -141,7 +142,6 @@ def _get_tf_upsampling_block(input_to_block, pool_argmax, kernels, num: int,
     if UpSampling2D == complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']]:
         unpool = UpSampling2D(size=2)(input_to_block)
     elif Conv2DTranspose == complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']]:
-        # import pdb; pdb.set_trace()
         unpool = Conv2DTranspose(filters=num, kernel_size=3, strides=(2, 2), padding='same',
                                  dilation_rate=(1, 1))(input_to_block)
     elif complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']] == ComplexUnPooling2D:
@@ -151,10 +151,10 @@ def _get_tf_upsampling_block(input_to_block, pool_argmax, kernels, num: int,
                          f" {complex_cast_to_tf['upsampling_layer'][hyper_params['upsampling_layer']].name} "
                          f"not supported")
     conv = Conv2D(kernels, hyper_params['kernel_shape'], activation=None, padding=hyper_params['padding'],
-                  kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(unpool)
+                  kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']]())(unpool)
     for _ in range(hyper_params['consecutive_conv_layers']):
         conv = Conv2D(kernels, hyper_params['kernel_shape'], activation=None, padding=hyper_params['padding'],
-                      kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']])(conv)
+                      kernel_initializer=complex_cast_to_tf['init'][hyper_params['init']]())(conv)
     conv = BatchNormalization()(conv)
     conv = Activation(activation)(conv)
     if dropout:
@@ -171,13 +171,14 @@ def _get_my_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.co
     pool = in1
     pools = []
     argmax_pools = []
-    for index in range(len(hyper_params['kernels'])):
+    for index in range(len(hyper_params['kernels'][:hyper_params['depth']])):
         pool, pool_argmax = get_downsampling_block(pool, index, dtype=dtype, dropout=dropout_dict["downsampling"])
         pools.append(pool)
         argmax_pools.append(pool_argmax)
 
     # Bottleneck
-    conv = ComplexConv2D(hyper_params['kernels'].pop(), (1, 1),
+    index = -1
+    conv = ComplexConv2D(hyper_params['kernels'][:hyper_params['depth']][index], (1, 1),
                          activation=hyper_params['activation'], padding=hyper_params['padding'],
                          dtype=dtype)(pools.pop())
     if dropout_dict["bottle_neck"] is not None:
@@ -185,9 +186,10 @@ def _get_my_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.co
 
     # Upsampling
     while pools:
+        index -= 1
         pool = pools.pop()
         pool_argmax = argmax_pools.pop()
-        conv = get_upsampling_block(conv, pool_argmax, hyper_params['kernels'].pop(), num=4,
+        conv = get_upsampling_block(conv, pool_argmax, hyper_params['kernels'][:hyper_params['depth']][index], num=4,
                                     activation=hyper_params['activation'],
                                     dropout=dropout_dict["upsampling"], dtype=dtype)
         if hyper_params['concat'] == Concatenate:
@@ -224,13 +226,14 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
     pool = in1
     pools = []
     argmax_pools = []
-    for index in range(len(hyper_params['kernels'])):
+    for index in range(len(hyper_params['kernels'][:hyper_params['depth']])):
         pool, pool_argmax = get_downsampling_block(pool, index, dropout=dropout_dict["downsampling"])
         pools.append(pool)
         argmax_pools.append(pool_argmax)
 
     # Bottleneck
-    kernel_backup = hyper_params['kernels'].pop()
+    index = -1
+    kernel_backup = hyper_params['kernels'][:hyper_params['depth']][index]
     conv = Conv2D(kernel_backup, (1, 1),  activation=hyper_params['activation'],
                   padding=hyper_params['padding'])(pools.pop())
     if dropout_dict["bottle_neck"] is not None:
@@ -240,7 +243,8 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
     while pools:
         pool = pools.pop()
         pool_argmax = argmax_pools.pop()
-        new_kernel = hyper_params['kernels'].pop()
+        index -= 1
+        new_kernel = hyper_params['kernels'][:hyper_params['depth']][index]
         conv = get_upsampling_block(conv, pool_argmax, new_kernel,
                                     num=kernel_backup,
                                     activation=hyper_params['activation'],
@@ -262,7 +266,7 @@ def _get_my_model_with_tf(in1, get_downsampling_block=_tf_get_downsampling_block
         loss = CategoricalCrossentropy()
 
     model = Model(inputs=[in1], outputs=[out], name=name)
-    model.compile(optimizer=hyper_params['optimizer'], loss=loss,
+    model.compile(optimizer=hyper_params['optimizer'](learning_rate=hyper_params['learning_rate']), loss=loss,
                   metrics=[
                       CategoricalAccuracy(name='accuracy'),
                       ComplexCategoricalAccuracy(name='complex_accuracy'),
@@ -294,70 +298,71 @@ def get_my_unet_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 3), num_classes=4, dty
                                      dropout_dict=dropout_dict, num_classes=num_classes, weights=weights)
 
 
-def get_my_unet_tests(index: int, *args, **kwargs):
+def get_my_unet_tests(index: int, depth=5, *args, **kwargs):
     if index == 0 or index is None:
-        return get_my_unet_model(*args, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'learning_rate': 0.1, 'depth': depth}, **kwargs)
     elif index == 1:
-        return get_my_unet_model(*args, hyper_dict={'learning_rate': 0.00001}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'depth': depth}, **kwargs)
     elif index == 2:        # Good peak.
-        return get_my_unet_model(*args, hyper_dict={'consecutive_conv_layers': 1}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'consecutive_conv_layers': 1, 'depth': depth}, **kwargs)
     elif index == 3:
         return get_my_unet_model(*args, hyper_dict={'consecutive_conv_layers': 1,
-                                                    'learning_rate': 0.00001}, **kwargs)
+                                                    'learning_rate': 0.00001, 'depth': depth}, **kwargs)
     elif index == 4:
-        return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D, 'depth': depth}, **kwargs)
     elif index == 5:            # Best ending, with apparently needs more epochs
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
-                                                    'learning_rate': 0.00001},
+                                                    'learning_rate': 0.00001, 'depth': depth},
                                  **kwargs)
     elif index == 6:
-        return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexConv2DTranspose}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexConv2DTranspose, 'depth': depth}, **kwargs)
     elif index == 7:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexConv2DTranspose,
-                                                    'learning_rate': 0.00001},
+                                                    'learning_rate': 0.00001, 'depth': depth},
                                  **kwargs)
     elif index == 8:        # Good peak.
-        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (5, 5)}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (5, 5), 'depth': depth}, **kwargs)
     elif index == 9:
-        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (5, 5), 'learning_rate': 0.00001}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (5, 5), 'learning_rate': 0.00001, 'depth': depth},
+                                 **kwargs)
     elif index == 10:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
-                                                    'concat': Concatenate},
+                                                    'concat': Concatenate, 'depth': depth},
                                  **kwargs)
     elif index == 11:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
-                                                    'concat': Concatenate, 'learning_rate': 0.00001},
+                                                    'concat': Concatenate, 'learning_rate': 0.00001, 'depth': depth},
                                  **kwargs)
     elif index == 12:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexConv2DTranspose,
-                                                    'concat': Concatenate},
+                                                    'concat': Concatenate, 'depth': depth},
                                  **kwargs)
     elif index == 13:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexConv2DTranspose,
-                                                    'concat': Concatenate, 'learning_rate': 0.00001},
+                                                    'concat': Concatenate, 'learning_rate': 0.00001, 'depth': depth},
                                  **kwargs)
     elif index == 14:           # Good one
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'concat': Concatenate,
-                                                    'consecutive_conv_layers': 1},
+                                                    'consecutive_conv_layers': 1, 'depth': depth},
                                  **kwargs)
     elif index == 15:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'concat': Concatenate,
                                                     'consecutive_conv_layers': 1,
-                                                    'learning_rate': 0.00001},
+                                                    'learning_rate': 0.00001, 'depth': depth},
                                  **kwargs)
     elif index == 16:           # VALIDATION WINNER
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'pooling': ComplexAvgPooling2D,
-                                                    'learning_rate': 0.00001,
+                                                    'learning_rate': 0.00001, 'depth': depth,
                                                     },
                                  **kwargs)
     elif index == 17:           # Good one
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'pooling': ComplexAvgPooling2D,
                                                     'concat': Concatenate,
-                                                    'learning_rate': 0.00001,
+                                                    'learning_rate': 0.00001, 'depth': depth,
                                                     },
                                  **kwargs)
     elif index == 18:
@@ -365,20 +370,20 @@ def get_my_unet_tests(index: int, *args, **kwargs):
                                                     'pooling': ComplexAvgPooling2D,
                                                     'concat': Concatenate,
                                                     'learning_rate': 0.00001,
-                                                    'consecutive_conv_layers': 1
+                                                    'consecutive_conv_layers': 1, 'depth': depth,
                                                     },
                                  **kwargs)
     elif index == 19:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'pooling': ComplexPolarAvgPooling2D,
-                                                    'learning_rate': 0.00001,
+                                                    'learning_rate': 0.00001, 'depth': depth,
                                                     },
                                  **kwargs)
     elif index == 20:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'pooling': ComplexPolarAvgPooling2D,
                                                     'concat': Concatenate,
-                                                    'learning_rate': 0.00001,
+                                                    'learning_rate': 0.00001, 'depth': depth,
                                                     },
                                  **kwargs)
     elif index == 21:
@@ -386,27 +391,29 @@ def get_my_unet_tests(index: int, *args, **kwargs):
                                                     'pooling': ComplexPolarAvgPooling2D,
                                                     'concat': Concatenate,
                                                     'learning_rate': 0.00001,
-                                                    'consecutive_conv_layers': 1
+                                                    'consecutive_conv_layers': 1, 'depth': depth,
                                                     },
                                  **kwargs)
     elif index == 22:  # Good peak.
-        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (7, 7)}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (7, 7), 'depth': depth,}, **kwargs)
     elif index == 23:
-        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (7, 7), 'learning_rate': 0.00001}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (7, 7), 'learning_rate': 0.00001, 'depth': depth},
+                                 **kwargs)
     elif index == 24:  # Good peak.
-        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (9, 9)}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (9, 9), 'depth': depth,}, **kwargs)
     elif index == 25:
-        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (9, 9), 'learning_rate': 0.00001}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'kernel_shape': (9, 9), 'learning_rate': 0.00001, 'depth': depth},
+                                 **kwargs)
     elif index == 26:        # Good peak.
-        return get_my_unet_model(*args, hyper_dict={'consecutive_conv_layers': 2}, **kwargs)
+        return get_my_unet_model(*args, hyper_dict={'consecutive_conv_layers': 2, 'depth': depth,}, **kwargs)
     elif index == 27:
         return get_my_unet_model(*args, hyper_dict={'consecutive_conv_layers': 2,
-                                                    'learning_rate': 0.00001}, **kwargs)
+                                                    'learning_rate': 0.00001, 'depth': depth,}, **kwargs)
     elif index == 28:
         return get_my_unet_model(*args, hyper_dict={'upsampling_layer': ComplexUpSampling2D,
                                                     'pooling': ComplexAvgPooling2D,
                                                     'consecutive_conv_layers': 1,
-                                                    'learning_rate': 0.00001,
+                                                    'learning_rate': 0.00001, 'depth': depth,
                                                     },
                                  **kwargs)
     else:

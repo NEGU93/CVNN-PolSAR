@@ -35,6 +35,7 @@ def plot_no_mask_flev():
         dict_key = json.loads(key)
         dataset_handler = FlevolandDataset(complex_mode=dict_key["dtype"] == "complex",
                                            real_mode=dict_key["dtype"])
+        assert dict_key["model"] != "own", f"TODO: Add depth and index here"
         model = open_saved_model(Path(path).parent,
                                  model_name=dict_key["model"], complex_mode=dict_key["dtype"] == "complex",
                                  weights=None,  # I am not training, so no need to use weights in the loss function here

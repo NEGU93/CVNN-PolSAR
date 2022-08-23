@@ -4,6 +4,19 @@
         "epochs": 50,
         "dataset": "BRET",
         "balance": "dataset",
+        "depth": 2,
+        "tensorflow": true,
+        "real_mode": "real_imag",
+        "dataset_method": "separate"
+    },
+    {
+        "model": "own",
+        "epochs": 50,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "depth": 3,
+        "tensorflow": true,
+        "real_mode": "real_imag",
         "dataset_method": "separate"
     }
 ]

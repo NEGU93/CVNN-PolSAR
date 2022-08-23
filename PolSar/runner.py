@@ -109,5 +109,5 @@ class FindModels(SimulationScheduler):
 
 
 if __name__ == "__main__":
-    FindModels()(indexes=[6, 7, 12, 13], config_file="simulations_configs/test_own.json")
+    FindModels()(indexes=list(range(28)), config_file="simulations_configs/test_own.json")
     # LocalRunner()()

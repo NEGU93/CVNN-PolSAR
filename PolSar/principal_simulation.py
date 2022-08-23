@@ -148,6 +148,7 @@ def parse_input():
                                                                                '\t- any other string will be considered'
                                                                                ' as not balanced')
     parser.add_argument('--model_index', nargs=1, type=int, default=[None])
+    parser.add_argument('--depth', nargs=1, type=int, default=[5])
     parser.add_argument('--real_mode', type=str, nargs='?', const='real_imag', default='complex',
                         help='run real model instead of complex.\nIf [REAL_MODE] is used it should be one of:\n'
                              '\t- real_imag\n\t- amplitude_phase\n\t- amplitude_only\n\t- real_only')
@@ -197,7 +198,7 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
 
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
                dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp",
-               model_index: Optional = None, learning_rate: Optional[int] = None,):
+               model_index: Optional = None, learning_rate: Optional[int] = None, depth: int = 5):
     model_name = model_name.lower()
     if equiv_technique != "ratio_tp" and model_name != "mlp":
         logging.warning(f"Equivalent technique requested {equiv_technique} but model ({model_name})"
@@ -221,7 +222,7 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                               dropout=dropout["downsampling"], learning_rate=learning_rate,
                               name=name_prefix + model_name)
     elif model_name == "own":
-        model = get_my_unet_tests(index=model_index,
+        model = get_my_unet_tests(index=model_index, depth=depth,
                                   input_shape=(None, None, channels), num_classes=num_classes,
                                   tensorflow=tensorflow, dropout_dict=dropout,
                                   dtype=dtype, name=name_prefix + model_name, weights=weights)
@@ -273,12 +274,13 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
 
 
 def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, channels: int, dropout,
-                     real_mode: str, tensorflow: bool, num_classes: int, equiv_technique: str):
+                     real_mode: str, tensorflow: bool, num_classes: int, equiv_technique: str, depth: int = 5,
+                     model_index: Optional = None):
     if isinstance(root_path, str):
         root_path = Path(root_path)
     model = _get_model(model_name=model_name, tensorflow=tensorflow, dropout=dropout,
                        channels=channels, weights=weights, real_mode=real_mode, equiv_technique=equiv_technique,
-                       complex_mode=complex_mode, num_classes=num_classes)
+                       complex_mode=complex_mode, num_classes=num_classes, depth=depth, model_index=model_index)
     model.load_weights(str(root_path / "checkpoints/cp.ckpt"))
     return model
 
@@ -379,7 +381,8 @@ def get_final_model_results(root_path, model_name: str,
                             # mode: str, balance: str, dataset_name: str,
                             dropout, channels: int = 3,  # model hyper-parameters
                             complex_mode: bool = True, real_mode: str = "real_imag",  # cv / rv format
-                            use_mask: bool = True, tensorflow: bool = False):
+                            use_mask: bool = True, tensorflow: bool = False, depth: int = 5,
+                            model_index: Optional = None):
     # dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
     #                                        complex_mode=complex_mode, real_mode=real_mode,
     #                                        balance=(balance == "dataset"),
@@ -387,7 +390,8 @@ def get_final_model_results(root_path, model_name: str,
     model = open_saved_model(root_path, model_name=model_name, complex_mode=complex_mode,
                              weights=None,  # I am not training, so no need to use weights in the loss function here
                              channels=channels, real_mode=real_mode, dropout=dropout, equiv_technique=equiv_technique,
-                             tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"])
+                             tensorflow=tensorflow, num_classes=DATASET_META[dataset_handler.name]["classes"],
+                             depth=depth, model_index=model_index)
     if MODEL_META[model_name]['task'] == 'segmentation':
         _final_result_segmentation(root_path=root_path, model=model, dataset_handler=dataset_handler, use_mask=use_mask)
     elif MODEL_META[model_name]['task'] == 'classification':
@@ -442,7 +446,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               early_stop: Union[bool, int], epochs: int, equiv_technique: str, temp_path, dropout,
               dataset_name: str, dataset_method: str, learning_rate: Optional[int] = None,
               percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
-              debug: bool = False, use_tf_dataset=True):
+              debug: bool = False, use_tf_dataset=True, depth: int = 5):
     if percentage is None:
         if dataset_method == "random":
             if dataset_name != "GARON":
@@ -456,11 +460,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     dataset_name = dataset_name.upper()
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
+    size = 2**(2+depth) if MODEL_META[model_name]['task'] == "segmentation" else MODEL_META[model_name]["size"]
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           balance_dataset=balance_dataset,
                                           complex_mode=complex_mode, real_mode=real_mode,
-                                          size=MODEL_META[model_name]["size"],
-                                          stride=128 if dataset_name == "GARON" else MODEL_META[model_name]["stride"],
+                                          size=size,
+                                          stride=size if MODEL_META[model_name]['task'] == "segmentation"
+                                          else MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           classification=MODEL_META[model_name]['task'] == 'classification',
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
@@ -477,13 +483,13 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
     weights = 1 / dataset_handler.labels_occurrences if balance == "loss" else None
-    model = _get_model(model_name=model_name, model_index=model_index,
+    model = _get_model(model_name=model_name, model_index=model_index, depth=depth,
                        channels=6 if mode == "t" else 3, learning_rate=learning_rate,
                        weights=weights, equiv_technique=equiv_technique,
                        real_mode=real_mode, num_classes=DATASET_META[dataset_name]["classes"],
                        complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
     with open(temp_path / 'model_summary.txt', 'a') as summary_file:
-        model.summary(print_fn=lambda x: summary_file.write(x + '\n'))
+        model.summary(print_fn=lambda x: summary_file.write(x + '\n'), line_length=200)
     callbacks = get_callbacks_list(early_stop, temp_path)
     # Training
     # set_trace()
@@ -491,6 +497,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                         y=train_ds[1] if not use_tf_dataset else None, epochs=epochs,
                         batch_size=MODEL_META[model_name]['batch_size'],
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
+    set_trace()
     # Saving history
     df = DataFrame.from_dict(history.history)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
@@ -498,15 +505,18 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     evaluate = {}
     evaluate = add_eval_and_conf_matrix(train_ds, evaluate, 'train',
                                         temp_path, model_name, complex_mode, weights, equiv_technique, mode, dropout,
-                                        real_mode, tensorflow, dataset_name, use_tf_dataset)
+                                        real_mode, tensorflow, dataset_name, use_tf_dataset,
+                                        depth=depth, model_index=model_index)
     if val_ds:
         evaluate = add_eval_and_conf_matrix(val_ds, evaluate, 'val',
                                             temp_path, model_name, complex_mode, weights, equiv_technique, mode,
-                                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
+                                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
+                                            depth=depth, model_index=model_index)
     if test_ds:
         evaluate = add_eval_and_conf_matrix(test_ds, evaluate, 'test', temp_path,
                                             model_name, complex_mode, weights, equiv_technique, mode,
-                                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset)
+                                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
+                                            depth=depth, model_index=model_index)
     eval_df = DataFrame.from_dict(evaluate)
     eval_df.to_csv(str(temp_path / 'evaluate.csv'))
     # Create prediction image
@@ -514,18 +524,19 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                             dataset_handler=dataset_handler, equiv_technique=equiv_technique,
                             dropout=dropout, channels=6 if mode == "t" else 3,  # model hyper-parameters
                             complex_mode=complex_mode, real_mode=real_mode,  # cv / rv format
-                            use_mask=False, tensorflow=tensorflow)
+                            use_mask=False, tensorflow=tensorflow, depth=depth, model_index=model_index)
     return None
 
 
 def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
                              temp_path, model_name, complex_mode, weights, equiv_technique, mode, dropout, real_mode,
-                             tensorflow, dataset_name, use_tf_dataset):
+                             tensorflow, dataset_name, use_tf_dataset, depth, model_index):
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
                                                   weights=weights, equiv_technique=equiv_technique,
                                                   channels=3 if mode == "s" else 6, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
-                                                  num_classes=DATASET_META[dataset_name]["classes"])
+                                                  num_classes=DATASET_META[dataset_name]["classes"],
+                                                  depth=depth, model_index=model_index)
     # Create confusion matrix
     predict_result = checkpoint_model.predict(dataset[0] if not use_tf_dataset else dataset,
                                               batch_size=MODEL_META[model_name]['batch_size'])
@@ -586,7 +597,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
                 early_stop: Union[int, bool], epochs: int, coh_kernel_size: int,
                 dataset_name: str, dataset_method: str, dropout, equiv_technique: str,
                 model_index: Optional = None, learning_rate=None,
-                percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False):
+                percentage: Optional[Union[Tuple[float], float]] = None, debug: bool = False, depth: int = 5):
     temp_path = create_folder("./log/")
     makedirs(temp_path, exist_ok=True)
     dropout = parse_dropout(dropout=dropout)
@@ -598,7 +609,7 @@ def run_wrapper(model_name: str, balance: str, tensorflow: bool,
               early_stop=early_stop, temp_path=temp_path, epochs=epochs,
               dataset_name=dataset_name, dataset_method=dataset_method, learning_rate=learning_rate,
               percentage=percentage, debug=debug, dropout=dropout, model_index=model_index,
-              coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique)
+              coh_kernel_size=coh_kernel_size, equiv_technique=equiv_technique, depth=depth)
 
 
 if __name__ == "__main__":
@@ -616,7 +627,7 @@ if __name__ == "__main__":
                     complex_mode=True if args.real_mode == 'complex' else False,
                     real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
                     dataset_name=args.dataset[0], dataset_method=args.dataset_method[0], percentage=None,
-                    dropout=args.dropout, equiv_technique=args.equiv_technique[0])
+                    dropout=args.dropout, equiv_technique=args.equiv_technique[0], depth=args.depth[0])
     except Exception as e:
         traceback.print_exc()
         if Notify is not None:
