@@ -406,18 +406,25 @@ def _eval_list_to_dict(evaluate, metrics):
     return return_dict
 
 
-def _get_confusion_matrix(prediction, y_true, num_classes):
+def _get_confusion_matrix(model, data, y_true, num_classes):
     # x_input, y_true = np.concatenate([x for x, y in ds], axis=0), np.concatenate([y for x, y in ds], axis=0)
     # x_input, y_true = ds
     # prediction = model.predict(x_input)
     # x_input, y_true = ds
     # prediction = model.predict(x_input)
-    if isinstance(y_true, tf.data.Dataset):
-        labels = np.concatenate([x[1].numpy() for x in y_true], axis=0)
-    elif isinstance(y_true, np.ndarray):
+    if isinstance(data, tf.data.Dataset):
+        data_list = []
+        labels_list = []
+        for x in data:
+            data_list.append(x[0].numpy())
+            labels_list.append(x[1].numpy())
+        labels = np.concatenate(labels_list, axis=0)
+        data = np.concatenate(data_list, axis=0)
+    elif isinstance(data, np.ndarray):
         labels = y_true
     else:
         raise ValueError(f"y_true {y_true} format not supported")
+    prediction = model.predict(data)
     if tf.dtypes.as_dtype(prediction.dtype).is_complex:
         real_prediction = (np.real(prediction) + np.imag(prediction)) / 2.
     else:
@@ -534,9 +541,9 @@ def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
                                                   num_classes=DATASET_META[dataset_name]["classes"],
                                                   depth=depth, model_index=model_index)
     # Create confusion matrix
-    predict_result = checkpoint_model.predict(dataset[0] if not use_tf_dataset else dataset,
-                                              batch_size=MODEL_META[model_name]['batch_size'])
-    test_confusion_matrix = _get_confusion_matrix(predict_result, dataset[1] if not use_tf_dataset else dataset,
+    test_confusion_matrix = _get_confusion_matrix(checkpoint_model,
+                                                  dataset[0] if not use_tf_dataset else dataset,
+                                                  dataset[1] if not use_tf_dataset else None,
                                                   DATASET_META[dataset_name]["classes"])
     test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
     # add values to evaluate dictionary
