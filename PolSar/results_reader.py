@@ -251,7 +251,7 @@ class ResultReader:
                 raise ValueError(f"No simulations results found for json_key:\n{json_key}")
             for path in self.monte_dict[json_key]['train_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
-                tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
                 cm.append(tmp_cm)
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
@@ -259,7 +259,7 @@ class ResultReader:
             cm = []
             for path in self.monte_dict[json_key]['val_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
-                tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
                 cm.append(tmp_cm)
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
@@ -267,7 +267,7 @@ class ResultReader:
             if len(self.monte_dict[json_key]['test_conf']) != 0:
                 for path in self.monte_dict[json_key]['test_conf']:
                     tmp_cm = pd.read_csv(path, index_col=0)
-                    tmp_cm = (tmp_cm.astype('float').T / tmp_cm.drop('Total', axis=1).sum(axis=1)).T
+                    tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
                     cm.append(tmp_cm)
                 cm_concat = pd.concat(tuple(cm))
                 cm_group = cm_concat.groupby(cm_concat.index)

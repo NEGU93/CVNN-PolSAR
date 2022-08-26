@@ -96,7 +96,7 @@ MODEL_META = {
 def get_callbacks_list(early_stop, temp_path):
     tensorboard_callback = callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     cp_callback = callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt', save_weights_only=True,
-                                            verbose=0, save_best_only=True)
+                                            verbose=0, save_best_only=True, monitor='val_average_accuracy')
     callback_list = [tensorboard_callback, cp_callback]
     if early_stop:
         if isinstance(early_stop, int):
