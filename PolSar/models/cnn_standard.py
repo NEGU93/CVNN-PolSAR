@@ -88,7 +88,6 @@ def _get_tf_model(input_shape, num_classes, dtype, weights, name='tf_cnn', learn
     out = Dense(num_classes, activation='softmax')(flat)
     model = Model(inputs=[in1], outputs=[out], name=name)
     if weights is not None:
-        import pdb; pdb.set_trace()
         loss = ComplexWeightedAverageCrossEntropy(weights=weights)
     else:
         loss = cnn_params_model['loss']

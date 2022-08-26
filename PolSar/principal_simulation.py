@@ -433,6 +433,7 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
     conf_df = DataFrame(data=conf.numpy())
     conf_df['Total'] = conf_df.sum(axis=1)
     conf_df.loc['Total'] = conf_df.sum(axis=0)
+    set_trace()
     # one = model.evaluate(x=x_input, y=y_true, batch_size=30)
     # two = model.evaluate(ds)
     # set_trace()
@@ -538,6 +539,7 @@ def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
     # Create confusion matrix
     predict_result = checkpoint_model.predict(dataset[0] if not use_tf_dataset else dataset,
                                               batch_size=MODEL_META[model_name]['batch_size'])
+    set_trace()
     test_confusion_matrix = _get_confusion_matrix(predict_result, dataset[1] if not use_tf_dataset else dataset,
                                                   DATASET_META[dataset_name]["classes"])
     test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
