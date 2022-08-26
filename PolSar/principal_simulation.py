@@ -198,7 +198,7 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
 
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
                dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp",
-               model_index: Optional = None, learning_rate: Optional[int] = None, depth: int = 5):
+               model_index: Optional = None, learning_rate: Optional[float] = None, depth: int = 5):
     model_name = model_name.lower()
     if equiv_technique != "ratio_tp" and model_name != "mlp":
         logging.warning(f"Equivalent technique requested {equiv_technique} but model ({model_name})"
@@ -275,13 +275,15 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
 
 def open_saved_model(root_path, model_name: str, complex_mode: bool, weights, channels: int, dropout,
                      real_mode: str, tensorflow: bool, num_classes: int, equiv_technique: str, depth: int = 5,
-                     model_index: Optional = None):
+                     model_index: Optional = None, learning_rate: Optional[float] = None):
     if isinstance(root_path, str):
         root_path = Path(root_path)
-    model = _get_model(model_name=model_name, tensorflow=tensorflow, dropout=dropout,
-                       channels=channels, weights=weights, real_mode=real_mode, equiv_technique=equiv_technique,
-                       complex_mode=complex_mode, num_classes=num_classes, depth=depth, model_index=model_index)
-    model.load_weights(str(root_path / "checkpoints/cp.ckpt"))
+    model = _get_model(model_name=model_name, model_index=model_index, depth=depth,
+                       channels=channels, learning_rate=learning_rate,
+                       weights=weights, equiv_technique=equiv_technique,
+                       real_mode=real_mode, num_classes=num_classes,
+                       complex_mode=complex_mode, tensorflow=tensorflow, dropout=dropout)
+    model.load_weights(str(root_path / "checkpoints/cp.ckpt")).expect_partial()
     return model
 
 
@@ -444,7 +446,7 @@ def _get_confusion_matrix(prediction, y_true, num_classes):
 def run_model(model_name: str, balance: str, tensorflow: bool,
               mode: str, complex_mode: bool, real_mode: str, coh_kernel_size: int,
               early_stop: Union[bool, int], epochs: int, equiv_technique: str, temp_path, dropout,
-              dataset_name: str, dataset_method: str, learning_rate: Optional[int] = None,
+              dataset_name: str, dataset_method: str, learning_rate: Optional[float] = None,
               percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
               debug: bool = False, use_tf_dataset=True, depth: int = 5):
     if percentage is None:
@@ -497,7 +499,6 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                         y=train_ds[1] if not use_tf_dataset else None, epochs=epochs,
                         batch_size=MODEL_META[model_name]['batch_size'],
                         validation_data=val_ds, shuffle=True, callbacks=callbacks)
-    set_trace()
     # Saving history
     df = DataFrame.from_dict(history.history)
     df.to_csv(str(temp_path / 'history_dict.csv'), index_label="epoch")
@@ -513,8 +514,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                             dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
                                             depth=depth, model_index=model_index)
     if test_ds:
-        evaluate = add_eval_and_conf_matrix(test_ds, evaluate, 'test', temp_path,
-                                            model_name, complex_mode, weights, equiv_technique, mode,
+        evaluate = add_eval_and_conf_matrix(test_ds, evaluate, 'test',
+                                            temp_path, model_name, complex_mode, weights, equiv_technique, mode,
                                             dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
                                             depth=depth, model_index=model_index)
     eval_df = DataFrame.from_dict(evaluate)
@@ -524,7 +525,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                             dataset_handler=dataset_handler, equiv_technique=equiv_technique,
                             dropout=dropout, channels=6 if mode == "t" else 3,  # model hyper-parameters
                             complex_mode=complex_mode, real_mode=real_mode,  # cv / rv format
-                            use_mask=False, tensorflow=tensorflow, depth=depth, model_index=model_index)
+                            use_mask=False, tensorflow=tensorflow,
+                            depth=depth, model_index=model_index)
     return None
 
 
