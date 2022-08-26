@@ -242,19 +242,15 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                       dropout=dropout["downsampling"],
                                       name=name_prefix + model_name)
     elif model_name == 'mlp':
-        if weights is not None:
-            print("WARNING: MLP model does not support weighted loss")
         model = get_mlp_model(input_shape=(MODEL_META["mlp"]["size"],
                                            MODEL_META["mlp"]["size"], channels),
-                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
                               dropout=dropout["downsampling"], equiv_technique=equiv_technique,
                               name=equiv_technique.replace('_', '-') + '-' + name_prefix + model_name)
     elif model_name == 'expanded-mlp':
-        if weights is not None:
-            print("WARNING: expanded-MLP model does not support weighted loss")
         model = get_mlp_model(input_shape=(MODEL_META["expanded-mlp"]["size"],
                                            MODEL_META["expanded-mlp"]["size"], channels),
-                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype,
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
                               dropout=dropout["downsampling"], equiv_technique=equiv_technique,
                               name=equiv_technique.replace('_', '-') + '-' + name_prefix + model_name)
     elif model_name == 'tan':
