@@ -96,7 +96,7 @@ MODEL_META = {
 def get_callbacks_list(early_stop, temp_path):
     tensorboard_callback = callbacks.TensorBoard(log_dir=temp_path / 'tensorboard', histogram_freq=0)
     cp_callback = callbacks.ModelCheckpoint(filepath=temp_path / 'checkpoints/cp.ckpt', save_weights_only=True,
-                                            verbose=0, save_best_only=True, monitor='val_average_accuracy')
+                                            verbose=0, save_best_only=True, monitor='val_loss')
     callback_list = [tensorboard_callback, cp_callback]
     if early_stop:
         if isinstance(early_stop, int):
@@ -407,11 +407,6 @@ def _eval_list_to_dict(evaluate, metrics):
 
 
 def _get_confusion_matrix(model, data, y_true, num_classes):
-    # x_input, y_true = np.concatenate([x for x, y in ds], axis=0), np.concatenate([y for x, y in ds], axis=0)
-    # x_input, y_true = ds
-    # prediction = model.predict(x_input)
-    # x_input, y_true = ds
-    # prediction = model.predict(x_input)
     if isinstance(data, tf.data.Dataset):
         data_list = []
         labels_list = []
