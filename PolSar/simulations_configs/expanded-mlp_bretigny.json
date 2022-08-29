@@ -17,14 +17,14 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "coherency": false,
         "dataset_method": "separate"
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "tensorflow": true,
         "real_mode": true,
@@ -33,35 +33,39 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
-        "coherency": true
+        "coherency": true,
+        "learning_rate": 0.00005
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
-        "dataset": "BRET",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 1000,
-        "dataset": "BRET",
-        "coherency": false
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": true,
+        "learning_rate": 0.00005
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
+        "dataset": "BRET",
+        "coherency": false,
+        "learning_rate": 0.0001
+    },
+    {
+        "model": "expanded-mlp",
+        "epochs": 300,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "learning_rate": 0.0001
+    },
+    {
+        "model": "expanded-mlp",
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": true,
@@ -69,7 +73,7 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -79,7 +83,7 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "balance": "dataset",
         "coherency": false,
@@ -87,7 +91,7 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
@@ -97,39 +101,43 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "dataset",
-        "coherency": true
+        "coherency": true,
+        "learning_rate": 0.0001
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 1000,
-        "dataset": "BRET",
-        "balance": "dataset",
-        "coherency": false
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": true,
+        "learning_rate": 0.0001
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "coherency": false,
+        "learning_rate": 0.0001
+    },
+    {
+        "model": "expanded-mlp",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "dataset",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "learning_rate": 0.0001
+    },
+    {
+        "model": "expanded-mlp",
+        "epochs": 200,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": true,
@@ -137,7 +145,7 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
@@ -147,7 +155,7 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": false,
@@ -155,7 +163,7 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 200,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
@@ -165,14 +173,14 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "loss",
         "coherency": true
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
@@ -181,18 +189,20 @@
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "loss",
-        "coherency": false
+        "coherency": false,
+        "learning_rate": 0.0001
     },
     {
         "model": "expanded-mlp",
-        "epochs": 1000,
+        "epochs": 300,
         "dataset": "BRET",
         "balance": "loss",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": false,
+        "learning_rate": 0.0001
     }
 ]
