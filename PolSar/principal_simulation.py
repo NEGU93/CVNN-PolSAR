@@ -15,9 +15,11 @@ import numpy as np
 import pandas as pd
 import time
 from datetime import timedelta
+
 try:
     from notify_run import Notify
-    if socket.gethostname() == 'barrachina-SONDRA':     # My machine, I usually know what is happening here
+
+    if socket.gethostname() == 'barrachina-SONDRA':  # My machine, I usually know what is happening here
         Notify = None
 except ImportError:
     Notify = None
@@ -175,7 +177,7 @@ def early_stop_type(arg):
 
 
 def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_kernel_size: int = 1):
-    coh_kernel_size = int(coh_kernel_size)      # For back compat we make int(bool) so default kernel size = 1.
+    coh_kernel_size = int(coh_kernel_size)  # For back compat we make int(bool) so default kernel size = 1.
     dataset_name = dataset_name.upper()
     if dataset_name.startswith("SF"):
         dataset_handler = SanFranciscoDataset(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
@@ -326,9 +328,9 @@ def _final_result_classification(root_path, use_mask, dataset_handler, model, co
     prediction = None
     pbar = tqdm(total=int(np.ceil(np.prod(dataset_handler.shape) / batch_size)))
     while True:
-        patches = [x for _, x in zip(range(batch_size), generator)]     # TODO: itertools.islice did not work. Why?
+        patches = [x for _, x in zip(range(batch_size), generator)]  # TODO: itertools.islice did not work. Why?
         tiles = np.array([x[0] for x in patches])
-        labels = np.array([x[1] for x in patches])                      # TODO: Horrible management
+        labels = np.array([x[1] for x in patches])  # TODO: Horrible management
         if len(patches) == 0:
             break
         # tiles = dataset_handler.get_patches_image_from_point_and_self_image([tiles], size=shape[:-1], pad="same")
@@ -446,6 +448,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               dataset_name: str, dataset_method: str, learning_rate: Optional[float] = None,
               percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
               debug: bool = False, use_tf_dataset=True, depth: int = 5):
+    # If I use stride = 1 on radnom dataset method I get train and validation superposition, so avoid them
+    avoid_coincidences = MODEL_META[model_name]['task'] == "classification" and dataset_method == "random"
     if percentage is None:
         if dataset_method == "random":
             if dataset_name != "GARON":
@@ -459,13 +463,12 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     dataset_name = dataset_name.upper()
     mode = mode.lower()
     dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=coh_kernel_size)
-    size = 2**(2+depth) if MODEL_META[model_name]['task'] == "segmentation" else MODEL_META[model_name]["size"]
+    size = 2 ** (2 + depth) if MODEL_META[model_name]['task'] == "segmentation" else MODEL_META[model_name]["size"]
     ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
                                           balance_dataset=balance_dataset,
                                           complex_mode=complex_mode, real_mode=real_mode,
                                           size=size,
-                                          stride=size if MODEL_META[model_name]['task'] == "segmentation"
-                                          else MODEL_META[model_name]["stride"],
+                                          stride=size if avoid_coincidences else MODEL_META[model_name]["stride"],
                                           pad=MODEL_META[model_name]["pad"],
                                           classification=MODEL_META[model_name]['task'] == 'classification',
                                           shuffle=True, savefig=str(temp_path / "image_") if debug else None,
@@ -616,7 +619,7 @@ if __name__ == "__main__":
     start_time = time.monotonic()
     if Notify is not None:
         notify = Notify()
-        sleep(randint(1, 30))       # Wait between 1 sec and half a minute
+        sleep(randint(1, 30))  # Wait between 1 sec and half a minute
         notify.send(f"{socket.gethostname()}: Running simulation with params {' '.join(sys.argv[1:])}")
     try:
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,

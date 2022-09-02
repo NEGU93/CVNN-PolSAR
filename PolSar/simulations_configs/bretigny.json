@@ -1,25 +1,31 @@
 [
     {
         "model": "cao",
-        "epochs": 200,
+        "epochs": 150,
         "dataset": "BRET",
-        "balance": "dataset",
         "coherency": true
     },
     {
         "model": "cao",
-        "epochs": 200,
+        "epochs": 150,
         "dataset": "BRET",
-        "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
         "coherency": true
     },
     {
         "model": "cao",
-        "epochs": 200,
+        "epochs": 150,
         "dataset": "BRET",
-        "balance": "dataset",
+        "coherency": true,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "cao",
+        "epochs": 150,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
         "coherency": true,
         "dataset_method": "separate"
     },
@@ -27,44 +33,136 @@
         "model": "cao",
         "epochs": 200,
         "dataset": "BRET",
-        "balance": "dataset",
+        "coherency": true,
+        "balance": "loss"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
         "tensorflow": true,
         "real_mode": true,
         "coherency": true,
-        "dataset_method": "separate"
+        "balance": "loss"
     },
     {
         "model": "cao",
         "epochs": 200,
         "dataset": "BRET",
-        "balance": "dataset",
-        "coherency": false
+        "coherency": true,
+        "dataset_method": "separate",
+        "balance": "loss"
     },
     {
         "model": "cao",
         "epochs": 200,
         "dataset": "BRET",
-        "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
-        "coherency": false
+        "coherency": true,
+        "dataset_method": "separate",
+        "balance": "loss"
     },
     {
         "model": "cao",
         "epochs": 200,
         "dataset": "BRET",
-        "balance": "dataset",
         "coherency": false,
-        "dataset_method": "separate"
+        "balance": "loss"
     },
     {
         "model": "cao",
         "epochs": 200,
         "dataset": "BRET",
-        "balance": "dataset",
         "tensorflow": true,
         "real_mode": true,
         "coherency": false,
-        "dataset_method": "separate"
+        "balance": "loss"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "coherency": false,
+        "dataset_method": "separate",
+        "balance": "loss"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "dataset_method": "separate",
+        "balance": "loss"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "coherency": true,
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "coherency": true,
+        "dataset_method": "separate",
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "dataset_method": "separate",
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "coherency": false,
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "coherency": false,
+        "dataset_method": "separate",
+        "balance": "dataset"
+    },
+    {
+        "model": "cao",
+        "epochs": 200,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "dataset_method": "separate",
+        "balance": "dataset"
     }
 ]

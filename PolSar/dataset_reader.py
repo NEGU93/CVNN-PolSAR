@@ -743,8 +743,6 @@ class PolsarDatasetHandler(ABC):
                                                                                       train_size=0.2)
         if shuffle:  # No need to shuffle the rest as val and test does not really matter they are shuffled
             images[0], labels[0] = sklearn.utils.shuffle(images[0], labels[0])
-        # images = self.get_patches_image_from_points(patches_points=images, image_to_crop=image_slices,
-        #                                             size=size, pad="same")
         return images, labels
 
     def _get_single_image_separated_dataset(self, percentage: tuple, savefig: Optional[str] = None,
