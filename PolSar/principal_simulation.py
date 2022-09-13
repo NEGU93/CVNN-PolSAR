@@ -84,6 +84,8 @@ MODEL_META = {
               "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
     "cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
             "percentage": (0.08, 0.02, 0.1), "task": "classification"},
+    "expanded-cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
+                     "percentage": (0.08, 0.02, 0.1), "task": "classification"},
     "haensch": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
                 "percentage": (0.02, 0.08, 0.1, 0.8), "task": "classification"},
     "mlp": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
@@ -223,6 +225,11 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                               num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
                               dropout=dropout["downsampling"], learning_rate=learning_rate,
                               name=name_prefix + model_name)
+    elif model_name == "expanded-cnn":
+        model = get_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+                              num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
+                              dropout=dropout["downsampling"], learning_rate=learning_rate,
+                              name=name_prefix + model_name, hyper_dict={'complex_filters': [6, 12, 24]})
     elif model_name == "own":
         model = get_my_unet_tests(index=model_index, depth=depth,
                                   input_shape=(None, None, channels), num_classes=num_classes,

@@ -1,0 +1,74 @@
+[
+    {
+        "model": "expanded-cnn",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "loss",
+        "coherency": true,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "loss",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 200,
+        "dataset": "BRET",
+        "balance": "loss",
+        "coherency": false,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 200,
+        "dataset": "BRET",
+        "balance": "loss",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "dataset_method": "separate"
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "loss",
+        "coherency": true,
+        "learning_rate": 0.001
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "loss",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "learning_rate": 0.001
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "loss",
+        "coherency": false,
+        "learning_rate": 0.001
+    },
+    {
+        "model": "expanded-cnn",
+        "epochs": 300,
+        "dataset": "BRET",
+        "balance": "loss",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": false,
+        "learning_rate": 0.001
+    }
+]

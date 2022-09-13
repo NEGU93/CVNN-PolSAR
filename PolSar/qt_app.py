@@ -417,14 +417,14 @@ class MainWindow(QMainWindow):
         rb2 = QRadioButton("own", self)
         rb2.toggled.connect(lambda: self.update_information("model", rb2.text()))
 
-        rb3 = QRadioButton("zhang")
-        rb3.toggled.connect(lambda: self.update_information("model", rb3.text()))
-
-        rb4 = QRadioButton("haensch", self)
-        rb4.toggled.connect(lambda: self.update_information("model", rb4.text()))
-
-        rb5 = QRadioButton("tan", self)
-        rb5.toggled.connect(lambda: self.update_information("model", rb5.text()))
+        # rb3 = QRadioButton("zhang")
+        # rb3.toggled.connect(lambda: self.update_information("model", rb3.text()))
+        #
+        # rb4 = QRadioButton("haensch", self)
+        # rb4.toggled.connect(lambda: self.update_information("model", rb4.text()))
+        #
+        # rb5 = QRadioButton("tan", self)
+        # rb5.toggled.connect(lambda: self.update_information("model", rb5.text()))
 
         rb6 = QRadioButton("cnn", self)
         rb6.toggled.connect(lambda: self.update_information("model", rb6.text()))
@@ -435,25 +435,30 @@ class MainWindow(QMainWindow):
         rb8 = QRadioButton("expanded-mlp", self)
         rb8.toggled.connect(lambda: self.update_information("model", rb8.text()))
 
+        rb9 = QRadioButton("expanded-cnn", self)
+        rb9.toggled.connect(lambda: self.update_information("model", rb9.text()))
+
         self.btngroup.append(QButtonGroup())
+        self.btngroup[-1].addButton(rb9)
         self.btngroup[-1].addButton(rb8)
         self.btngroup[-1].addButton(rb7)
         self.btngroup[-1].addButton(rb6)
-        self.btngroup[-1].addButton(rb5)
-        self.btngroup[-1].addButton(rb4)
-        self.btngroup[-1].addButton(rb3)
+        # self.btngroup[-1].addButton(rb5)
+        # self.btngroup[-1].addButton(rb4)
+        # self.btngroup[-1].addButton(rb3)
         self.btngroup[-1].addButton(rb2)
         self.btngroup[-1].addButton(rb1)
 
         rb1.setChecked(True)
         vlayout.addWidget(rb1)
         vlayout.addWidget(rb2)
-        vlayout.addWidget(rb3)
-        vlayout.addWidget(rb4)
-        vlayout.addWidget(rb5)
+        # vlayout.addWidget(rb3)
+        # vlayout.addWidget(rb4)
+        # vlayout.addWidget(rb5)
         vlayout.addWidget(rb6)
         vlayout.addWidget(rb7)
         vlayout.addWidget(rb8)
+        vlayout.addWidget(rb9)
         vlayout.addStretch()
 
         return vlayout
@@ -624,9 +629,9 @@ class MainWindow(QMainWindow):
         if self.simulation_results.data_exists(json_key):
             stats = self.simulation_results.get_stats(json_key=json_key)
             conf_stats = self.simulation_results.get_conf_stats(json_key=json_key)
-            self.plot(stats)
+            self.plot(stats) if self.simulation_results.data_exists(json_key) else self.clear_plot()
             self.print_values(json_key)
-            self.plot_conf_matrix(conf_stats)
+            self.plot_conf_matrix(conf_stats) if conf_stats else self.clear_conf_matrix()
         else:
             self.print_values(None)
             self.clear_plot()

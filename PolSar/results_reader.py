@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 import re
@@ -248,7 +249,8 @@ class ResultReader:
             cm = []
             # TODO: Put separated function. Repeat code twice
             if len(self.monte_dict[json_key]['train_conf']) == 0:
-                raise ValueError(f"No simulations results found for json_key:\n{json_key}")
+                logging.warning(f"No simulations results found for json_key:\n{json_key}")
+                return None
             for path in self.monte_dict[json_key]['train_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
                 tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
@@ -289,7 +291,8 @@ class ResultReader:
             return f"{eval_stats[dataset]['min'][variable]:.2%} - {eval_stats[dataset]['max'][variable]:.2%}"
 
     def get_total_count(self, json_key):
-        result = self.get_eval_stats(json_key=json_key)['train']['count']['loss']
+        result = len(self.monte_dict[json_key]['data'])
+        # result = self.get_eval_stats(json_key=json_key)['train']['count']['loss']
         return result
 
     def find_closest_to(self, json_key, dataset, key_to_find, metric):
