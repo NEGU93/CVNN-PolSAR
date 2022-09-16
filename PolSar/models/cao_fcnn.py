@@ -4,7 +4,7 @@ from tensorflow.keras import Model, Sequential
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.optimizers import Adam
 from cvnn.metrics import ComplexCategoricalAccuracy, ComplexAverageAccuracy, ComplexPrecision, ComplexRecall
-from cvnn.losses import ComplexAverageCrossEntropy, ComplexWeightedAverageCrossEntropy
+from cvnn.losses import ComplexAverageCrossEntropyIgnoreUnlabeled, ComplexWeightedAverageCrossEntropyIgnoreUnlabeled
 from cvnn.layers import complex_input, ComplexConv2D, ComplexDropout, \
     ComplexMaxPooling2DWithArgmax, ComplexUnPooling2D, ComplexInput, ComplexBatchNormalization, ComplexDense
 from cvnn.activations import cart_softmax, cart_relu
@@ -134,9 +134,9 @@ def _get_cao_model(in1, get_downsampling_block, get_upsampling_block, dtype=np.c
                                dtype=dtype)
 
     if weights is not None:
-        loss = ComplexWeightedAverageCrossEntropy(weights=weights)
+        loss = ComplexWeightedAverageCrossEntropyIgnoreUnlabeled(weights=weights)
     else:
-        loss = ComplexAverageCrossEntropy()
+        loss = ComplexAverageCrossEntropyIgnoreUnlabeled()
 
     model = Model(inputs=[in1], outputs=[out], name=name)
     model.compile(optimizer=cao_params_model['optimizer'], loss=loss,
