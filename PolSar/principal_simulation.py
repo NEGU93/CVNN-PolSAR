@@ -83,7 +83,7 @@ MODEL_META = {
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
     "cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
-            "percentage": (0.16, 0.04, 0.2), "task": "classification"},
+            "percentage": (0.8, 0.1, 0.1), "task": "classification"},
     "expanded-cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
                      "percentage": (0.08, 0.02, 0.1), "task": "classification"},
     "haensch": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
@@ -91,7 +91,7 @@ MODEL_META = {
     "mlp": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
             "percentage": (0.08, 0.02, 0.1), "task": "classification"},
     "expanded-mlp": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
-                     "percentage": (0.08, 0.02, 0.1), "task": "classification"},
+                     "percentage": (0.8, 0.1, 0.1), "task": "classification"},
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
@@ -221,12 +221,12 @@ def _get_model(model_name: str, channels: int, weights: Optional[List[float]], r
                                    tensorflow=tensorflow, dropout_dict=dropout,
                                    dtype=dtype, name=name_prefix + model_name, weights=weights)
     elif model_name == "cnn":
-        model = get_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+        model = get_cnn_model(input_shape=(MODEL_META["cnn"]["size"], MODEL_META["cnn"]["size"], channels),
                               num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
                               dropout=dropout["downsampling"], learning_rate=learning_rate,
                               name=name_prefix + model_name)
     elif model_name == "expanded-cnn":
-        model = get_cnn_model(input_shape=(MODEL_META["zhang"]["size"], MODEL_META["zhang"]["size"], channels),
+        model = get_cnn_model(input_shape=(MODEL_META["cnn"]["size"], MODEL_META["cnn"]["size"], channels),
                               num_classes=num_classes, tensorflow=tensorflow, dtype=dtype, weights=weights,
                               dropout=dropout["downsampling"], learning_rate=learning_rate,
                               name=name_prefix + model_name, hyper_dict={'complex_filters': [6, 12, 24]})
@@ -455,14 +455,11 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               dataset_name: str, dataset_method: str, learning_rate: Optional[float] = None,
               percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
               debug: bool = False, use_tf_dataset=True, depth: int = 5):
-    # If I use stride = 1 on radnom dataset method I get train and validation superposition, so avoid them
+    # If I use stride = 1 on random dataset method I get train and validation superposition, so avoid them
     avoid_coincidences = MODEL_META[model_name]['task'] == "classification" and dataset_method == "random"
     if percentage is None:
         if dataset_method == "random":
-            if dataset_name != "GARON":
-                percentage = MODEL_META[model_name]["percentage"]
-            else:
-                percentage = (0.4, 0.1, 0.05)
+            percentage = MODEL_META[model_name]["percentage"]
         else:
             percentage = DATASET_META[dataset_name]["percentage"]
     balance_dataset = (balance == "dataset",) * (len(percentage) - 1) + (False,)
