@@ -91,7 +91,7 @@ MODEL_META = {
     "mlp": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
             "percentage": (0.08, 0.02, 0.1), "task": "classification"},
     "expanded-mlp": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
-                     "percentage": (0.8, 0.1, 0.1), "task": "classification"},
+                     "percentage": (0.08, 0.02, 0.8), "task": "classification"},
     "tan": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 64,
             "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"}
 }
