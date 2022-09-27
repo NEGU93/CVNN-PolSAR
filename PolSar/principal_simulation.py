@@ -83,7 +83,7 @@ MODEL_META = {
     "zhang": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
               "percentage": (0.09, 0.01, 0.1, 0.8), "task": "classification"},
     "cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
-            "percentage": (0.8, 0.1, 0.1), "task": "classification"},
+            "percentage": (0.08, 0.02, 0.8), "task": "classification"},
     "expanded-cnn": {"size": 12, "stride": 1, "pad": 'same', "batch_size": 100,
                      "percentage": (0.08, 0.02, 0.1), "task": "classification"},
     "haensch": {"size": 1, "stride": 1, "pad": 'same', "batch_size": 100,
@@ -456,7 +456,8 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
               percentage: Optional[Union[Tuple[float], float]] = None, model_index: Optional = None,
               debug: bool = False, use_tf_dataset=True, depth: int = 5):
     # If I use stride = 1 on random dataset method I get train and validation superposition, so avoid them
-    avoid_coincidences = MODEL_META[model_name]['task'] == "classification" and dataset_method == "random"
+    # avoid_coincidences = MODEL_META[model_name]['task'] == "classification" and dataset_method == "random"
+    avoid_coincidences = False
     if percentage is None:
         if dataset_method == "random":
             percentage = MODEL_META[model_name]["percentage"]

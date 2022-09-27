@@ -2,6 +2,7 @@ import logging
 import os
 import json
 import re
+import shutil
 from numpy import linspace
 import numpy as np
 from math import sqrt
@@ -123,6 +124,7 @@ class ResultReader:
         child_dirs = os.walk(root_dir)
         monte_dict = defaultdict(lambda: defaultdict(list))
         for child_dir in child_dirs:
+            move = False
             # set_trace()
             if "run-" in os.path.split(child_dir[0])[-1]:
                 file_path = Path(child_dir[0]) / "model_summary.txt"
@@ -180,8 +182,12 @@ class ResultReader:
                                 str(Path(child_dir[0]) / 'history_dict.csv'))
                         else:
                             print("No history_dict found on path " + child_dir[0])
+                            move = True
                 else:
                     print("No model_summary.txt found in " + child_dir[0])
+                    move = True
+            if move:
+                shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
         self.monte_dict = monte_dict
         self.df = pd.DataFrame()
         for params in self.monte_dict.keys():
@@ -253,7 +259,7 @@ class ResultReader:
                 return None
             for path in self.monte_dict[json_key]['train_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
-                tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
+                tmp_cm = (tmp_cm.astype('float') / tmp_cm.iloc[-1])
                 cm.append(tmp_cm)
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
@@ -261,7 +267,7 @@ class ResultReader:
             cm = []
             for path in self.monte_dict[json_key]['val_conf']:
                 tmp_cm = pd.read_csv(path, index_col=0)
-                tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
+                tmp_cm = (tmp_cm.astype('float') / tmp_cm.iloc[-1])
                 cm.append(tmp_cm)
             cm_concat = pd.concat(tuple(cm))
             cm_group = cm_concat.groupby(cm_concat.index)
@@ -269,7 +275,7 @@ class ResultReader:
             if len(self.monte_dict[json_key]['test_conf']) != 0:
                 for path in self.monte_dict[json_key]['test_conf']:
                     tmp_cm = pd.read_csv(path, index_col=0)
-                    tmp_cm = (tmp_cm.astype('float') / tmp_cm.drop('Total', axis=1).sum(axis=1))
+                    tmp_cm = (tmp_cm.astype('float') / tmp_cm.iloc[-1])
                     cm.append(tmp_cm)
                 cm_concat = pd.concat(tuple(cm))
                 cm_group = cm_concat.groupby(cm_concat.index)
