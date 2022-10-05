@@ -167,7 +167,8 @@ class ResultReader:
                            dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
                            depth=5, model_index=None)
 
-    def _search_for_root_file(self):
+    @staticmethod
+    def _search_for_root_file():
         if os.path.exists("/media/barrachina/data/results/new method"):
             return "/media/barrachina/data/results/new method"
         elif os.path.exists("D:/results/new method"):
@@ -237,7 +238,7 @@ class ResultReader:
                                 self._re_generate_data(model_name=params["model"], balance=params["balance"],
                                                        dataset_method=params["dataset_method"],
                                                        dataset_name=params["dataset"],
-                                                       mode="t" if params["dataset_mode"] == "coh" else "s",    # TODO
+                                                       mode="t" if params["dataset_mode"] == "coh" else "s",  # TODO
                                                        complex_mode=params["dtype"] == "complex",
                                                        real_mode=params["dtype"], temp_path=Path(child_dir[0]),
                                                        use_tf_dataset=True,
@@ -259,7 +260,7 @@ class ResultReader:
                             monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
                                 str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
                         monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
-                                str(Path(child_dir[0]) / 'history_dict.csv'))
+                            str(Path(child_dir[0]) / 'history_dict.csv'))
                     else:
                         print("No history_dict found on path " + child_dir[0])
                         txt_sum_file.close()
@@ -566,6 +567,7 @@ class SeveralMonteCarloPlotter:
     """--------------
         BAR PLOT
     --------------"""
+
     def per_class_bar_plot(self, labels: List[str], data: List,
                            dataset,
                            library="seaborn", print_values=True,
@@ -598,9 +600,10 @@ class SeveralMonteCarloPlotter:
             savefig = True
         df_list = []
         for dat in data:
-            tmp_dict = {f"class {j}": dat[d_index][str(j)][str(j)] for j in range(len(dat[d_index])-1)}
+            tmp_dict = {f"class {j}": dat[d_index][str(j)][str(j)] for j in range(len(dat[d_index]) - 1)}
             df_list.append(tmp_dict)
-        plotly_colors = [plotly.colors.label_rgb(color) for color in [plotly.colors.convert_to_RGB_255(color) for color in colors]]
+        plotly_colors = [plotly.colors.label_rgb(color) for color in
+                         [plotly.colors.convert_to_RGB_255(color) for color in colors]]
         fig = go.Figure(
             data=[go.Bar(name=key, x=labels, y=[elem[key] for elem in df_list],
                          marker_color=plotly_colors[i]) for i, key in enumerate(df_list[0].keys())]
@@ -665,6 +668,7 @@ class SeveralMonteCarloPlotter:
     """--------------
         BOX PLOT
     --------------"""
+
     def violin_plot(self, labels: List[str], data: List,
                     key='val_accuracy', library='seaborn', showfig=False, savefile: Optional[str] = None):
         self.box_plot(labels=labels, data=data, key=key, library=library, showfig=showfig, savefile=savefile,
@@ -738,7 +742,7 @@ class SeveralMonteCarloPlotter:
                 dtick=0.05,
             ),
             xaxis=dict(
-              title="model"
+                title="model"
             ),
             showlegend=True
         )
@@ -770,7 +774,7 @@ class SeveralMonteCarloPlotter:
             ax = sns.boxplot(x='name', y=dataset, data=result, boxprops=dict(alpha=.3),
                              palette=sns.color_palette(), notch=True)
         else:
-            ax = sns.violinplot(x='name', y=dataset, data=result,   # boxprops=dict(alpha=.3),
+            ax = sns.violinplot(x='name', y=dataset, data=result,  # boxprops=dict(alpha=.3),
                                 palette=sns.color_palette())
         ax.grid(axis='y', which='major')
         ax.set_ylabel(f"{dataset} {metric.replace('_', ' ')}")
@@ -793,6 +797,7 @@ class SeveralMonteCarloPlotter:
     """--------------
         LINE PLOT
     --------------"""
+
     def plot(self, data, labels: List[str], keys: Union[str, List[str]] = "val_accuracy",
              ax=None, library="seaborn", showfig=False, savefile=None):
         """
@@ -924,6 +929,7 @@ class SeveralMonteCarloPlotter:
     """--------------------
         HISTOGRAM PLOT
     --------------------"""
+
     def histogram_plot(self, labels: List[str], data: List, key='val_accuracy', library='seaborn',
                        showfig=False, savefile: Optional[str] = None, extension=".svg"):
         if library == 'plotly':
@@ -936,7 +942,7 @@ class SeveralMonteCarloPlotter:
         return None
 
     def _plotly_histogram_plot(self, labels: List[str], mc_runs: List,
-                         key='accuracy', showfig=False, savefile=None):
+                               key='accuracy', showfig=False, savefile=None):
         if 'plotly' not in AVAILABLE_LIBRARIES:
             raise ModuleNotFoundError(f"No Plotly installed, function {self._box_plot_plotly.__name__} "
                                       f"was called but will be omitted")
@@ -998,6 +1004,7 @@ class SeveralMonteCarloPlotter:
     """
         CONFUSION MATRIX (HEATMAP)
     """
+
     def confusion_matrix(self, labels: List[str], data: List, dataset: str,
                          library="plotly", print_values=True,
                          showfig=False, savefile=None, colors=None, extension: str = ".svg", min_lim=0.0):
@@ -1012,7 +1019,7 @@ class SeveralMonteCarloPlotter:
         for lab, dat in zip(labels, data):
             conf_mat = dat[['val', 'train', 'test'].index(dataset)]
             z = conf_mat.values.tolist()
-            annotations = [[f"{100*col:.2f}%" for col in row] for row in z]
+            annotations = [[f"{100 * col:.2f}%" for col in row] for row in z]
             fig = ff.create_annotated_heatmap(z, x=conf_mat.columns.tolist(), y=conf_mat.index.tolist(),
                                               annotation_text=annotations, colorscale='Matter')
             # fig = go.Figure(data=go.Heatmap(
@@ -1042,7 +1049,8 @@ def plot_all(simulations, models_params, library, root_path, labels, colors=None
             key = SeveralMonteCarloPlotter().get_key_from_metric_and_dataset(dataset=dset, metric=metric)
             if dset != "test":
                 SeveralMonteCarloPlotter().plot(data=data, labels=labels, keys=key, library=library,
-                                                showfig=showfig, savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/lines-plot")
+                                                showfig=showfig,
+                                                savefile=f"{root_path}/{f'{dset}idation' if dset == 'val' else dset}/{metric}/lines-plot")
             if metric == "accuracy":
                 SeveralMonteCarloPlotter().confusion_matrix(labels=labels, showfig=False, library=library, dataset=dset,
                                                             data=conf_stats, print_values=print_values_bar_plot,
@@ -1130,7 +1138,7 @@ if __name__ == "__main__":
             '"random", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "none", "library": '
             '"tensorflow", "model": "mlp"}'
         ]
-        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-ALTERNATE", "RV-MLP-NONE"]     # "RV-MLP-ALTERNATE",
+        labels = ["CV-MLP", "RV-MLP-RATIO", "RV-MLP-NP", "RV-MLP-ALTERNATE", "RV-MLP-NONE"]  # "RV-MLP-ALTERNATE",
         plot_all(simulations=simulation_results, models_params=keys, library="seaborn",
                  root_path="/media/barrachina/data/results/graphs/equiv_technique_ober_mlp",
                  labels=labels, colors=COLORS['OBER'])
