@@ -186,88 +186,89 @@ class ResultReader:
         child_dirs = os.walk(root_dir)
         monte_dict = defaultdict(lambda: defaultdict(list))
         for child_dir in child_dirs:
-            move = False
             if "run-" in os.path.split(child_dir[0])[-1]:
                 file_path = Path(child_dir[0]) / "model_summary.txt"
                 if file_path.is_file():
-                    with open(file_path) as txt_sum_file:
-                        simu_params = txt_sum_file.readline()
-                        if (Path(child_dir[0]) / 'history_dict.csv').is_file():
-                            # TODO: Verify model and other strings are valid
-                            params = {
-                                "dataset": self._get_dataset(simu_params), "model": self._get_model(simu_params),
-                                "dtype": self._get_real_mode(simu_params),
-                                "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
-                                "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
-                                "dataset_method": self._get_dataset_method(simu_params),
-                                "balance": self._get_balance(simu_params),
-                                "equiv_technique": self._get_equiv_technique(simu_params)
-                            }
-                            monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
-                                str(Path(child_dir[0]) / 'prediction.png'))
-                            if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
-                                print(f"Generating picture predicted figure on {file_path}.\n"
-                                      "This will take a while but will only be done once in a lifetime")
-                                # If I dont have the image I generate it
-                                dataset_name = params["dataset"].upper()
-                                if dataset_name == "BRETIGNY":  # For version compatibility
-                                    dataset_name = "BRET"
-                                mode = "t" if 'coherency' in simu_params else "s"
-                                dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
-                                                                       balance=(params['balance'] == "dataset"))
-                                get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
-                                                        use_mask=False,
-                                                        model_name=params["model"],
-                                                        equiv_technique=params["equiv_technique"],
-                                                        tensorflow='tensorflow' in simu_params,
-                                                        complex_mode='real_mode' not in simu_params,
-                                                        channels=6 if 'coherency' in simu_params else 3,
-                                                        dropout={
-                                                            "downsampling": None,
-                                                            "bottle_neck": None,
-                                                            "upsampling": None
-                                                        })
-                            if (Path(child_dir[0]) / 'evaluate.csv').is_file():
+                    txt_sum_file = open(file_path, 'r')
+                    simu_params = txt_sum_file.readline()
+                    if (Path(child_dir[0]) / 'history_dict.csv').is_file():
+                        # TODO: Verify model and other strings are valid
+                        params = {
+                            "dataset": self._get_dataset(simu_params), "model": self._get_model(simu_params),
+                            "dtype": self._get_real_mode(simu_params),
+                            "library": f"{'cvnn' if 'tensorflow' not in simu_params else 'tensorflow'}",
+                            "dataset_mode": f"{'coh' if 'coherency' in simu_params else 'k'}",
+                            "dataset_method": self._get_dataset_method(simu_params),
+                            "balance": self._get_balance(simu_params),
+                            "equiv_technique": self._get_equiv_technique(simu_params)
+                        }
+                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
+                            str(Path(child_dir[0]) / 'prediction.png'))
+                        if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
+                            print(f"Generating picture predicted figure on {file_path}.\n"
+                                  "This will take a while but will only be done once in a lifetime")
+                            # If I dont have the image I generate it
+                            dataset_name = params["dataset"].upper()
+                            if dataset_name == "BRETIGNY":  # For version compatibility
+                                dataset_name = "BRET"
+                            mode = "t" if 'coherency' in simu_params else "s"
+                            dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
+                                                                   balance=(params['balance'] == "dataset"))
+                            get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
+                                                    use_mask=False,
+                                                    model_name=params["model"],
+                                                    equiv_technique=params["equiv_technique"],
+                                                    tensorflow='tensorflow' in simu_params,
+                                                    complex_mode='real_mode' not in simu_params,
+                                                    channels=6 if 'coherency' in simu_params else 3,
+                                                    dropout={
+                                                        "downsampling": None,
+                                                        "bottle_neck": None,
+                                                        "upsampling": None
+                                                    })
+                        if (Path(child_dir[0]) / 'evaluate.csv').is_file():
+                            monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                                str(Path(child_dir[0]) / 'evaluate.csv'))
+                        else:
+                            if missing_file_strategy == "create":
+                                logging.warning("Trying to eval, "
+                                                "this may yield wrong results if dataset "
+                                                "is not splitted the same way.")
+                                self._re_generate_data(model_name=params["model"], balance=params["balance"],
+                                                       dataset_method=params["dataset_method"],
+                                                       dataset_name=params["dataset"],
+                                                       mode="t" if params["dataset_mode"] == "coh" else "s",    # TODO
+                                                       complex_mode=params["dtype"] == "complex",
+                                                       real_mode=params["dtype"], temp_path=Path(child_dir[0]),
+                                                       use_tf_dataset=True,
+                                                       tensorflow=params["library"] == "tensorflow",
+                                                       equiv_technique=params["equiv_technique"])
                                 monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
                                     str(Path(child_dir[0]) / 'evaluate.csv'))
-                            else:
-                                if missing_file_strategy == "create":
-                                    logging.warning("Trying to eval, "
-                                                    "this may yield wrong results if dataset "
-                                                    "is not splitted the same way.")
-                                    self._re_generate_data(model_name=params["model"], balance=params["balance"],
-                                                           dataset_method=params["dataset_method"],
-                                                           dataset_name=params["dataset"],
-                                                           mode="t" if params["dataset_mode"] == "coh" else "s",    # TODO
-                                                           complex_mode=params["dtype"] == "complex",
-                                                           real_mode=params["dtype"], temp_path=Path(child_dir[0]),
-                                                           use_tf_dataset=True,
-                                                           tensorflow=params["library"] == "tensorflow",
-                                                           equiv_technique=params["equiv_technique"])
-                                    monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
-                                        str(Path(child_dir[0]) / 'evaluate.csv'))
-                                elif missing_file_strategy == "move":
-                                    move = True
-                            if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file() and not move:
-                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
-                                    str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
-                            if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file() and not move:
-                                monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
-                                    str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
-                            if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file() and not move:
-                                monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
-                                    str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
-                            if not move:
-                                monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
-                                    str(Path(child_dir[0]) / 'history_dict.csv'))
-                        else:
-                            print("No history_dict found on path " + child_dir[0])
-                            move = True
+                            elif missing_file_strategy == "move":
+                                txt_sum_file.close()
+                                shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
+                                continue
+                        if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
+                            monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                        if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
+                            monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
+                                str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
+                        if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
+                            monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
+                                str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
+                        monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
+                                str(Path(child_dir[0]) / 'history_dict.csv'))
+                    else:
+                        print("No history_dict found on path " + child_dir[0])
+                        txt_sum_file.close()
+                        shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
+                        continue
+                    txt_sum_file.close()
                 else:
                     print("No model_summary.txt found in " + child_dir[0])
-                    move = True
-            if move:
-                shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
+                    shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
         self.monte_dict = monte_dict
         self.df = pd.DataFrame()
         for params in self.monte_dict.keys():
