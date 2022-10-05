@@ -8,6 +8,7 @@ import numpy as np
 from math import sqrt
 from pdb import set_trace
 from pathlib import Path
+import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 import pandas as pd
@@ -179,13 +180,13 @@ class ResultReader:
         Finds all paths in a given `root_dir` directory
         :param root_dir:
         """
+        missing_file_strategy = "move"
         if root_dir is None:
             root_dir = self._search_for_root_file()
         child_dirs = os.walk(root_dir)
         monte_dict = defaultdict(lambda: defaultdict(list))
         for child_dir in child_dirs:
             move = False
-            # set_trace()
             if "run-" in os.path.split(child_dir[0])[-1]:
                 file_path = Path(child_dir[0]) / "model_summary.txt"
                 if file_path.is_file():
@@ -230,31 +231,35 @@ class ResultReader:
                                 monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
                                     str(Path(child_dir[0]) / 'evaluate.csv'))
                             else:
-                                monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
-                                    str(Path(child_dir[0]) / 'evaluate.csv'))
-                                logging.warning("Trying to eval, "
-                                                "this may yield wrong results if dataset is not splitted the same way.")
-                                self._re_generate_data(model_name=params["model"], balance=params["balance"],
-                                                       dataset_method=params["dataset_method"],
-                                                       dataset_name=params["dataset"],
-                                                       mode="t" if params["dataset_mode"] == "coh" else "s",    # TODO
-                                                       complex_mode=params["dtype"] == "complex",
-                                                       real_mode=params["dtype"], temp_path=Path(child_dir[0]),
-                                                       use_tf_dataset=True,
-                                                       tensorflow=params["library"] == "tensorflow",
-                                                       equiv_technique=params["equiv_technique"])
-
-                            if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
+                                if missing_file_strategy == "create":
+                                    logging.warning("Trying to eval, "
+                                                    "this may yield wrong results if dataset "
+                                                    "is not splitted the same way.")
+                                    self._re_generate_data(model_name=params["model"], balance=params["balance"],
+                                                           dataset_method=params["dataset_method"],
+                                                           dataset_name=params["dataset"],
+                                                           mode="t" if params["dataset_mode"] == "coh" else "s",    # TODO
+                                                           complex_mode=params["dtype"] == "complex",
+                                                           real_mode=params["dtype"], temp_path=Path(child_dir[0]),
+                                                           use_tf_dataset=True,
+                                                           tensorflow=params["library"] == "tensorflow",
+                                                           equiv_technique=params["equiv_technique"])
+                                    monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                                        str(Path(child_dir[0]) / 'evaluate.csv'))
+                                elif missing_file_strategy == "move":
+                                    move = True
+                            if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file() and not move:
                                 monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
                                     str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
-                            if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
+                            if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file() and not move:
                                 monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
                                     str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
-                            if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
+                            if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file() and not move:
                                 monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
                                     str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
-                            monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
-                                str(Path(child_dir[0]) / 'history_dict.csv'))
+                            if not move:
+                                monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
+                                    str(Path(child_dir[0]) / 'history_dict.csv'))
                         else:
                             print("No history_dict found on path " + child_dir[0])
                             move = True

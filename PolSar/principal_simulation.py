@@ -637,7 +637,7 @@ if __name__ == "__main__":
     try:
         # TODO: BUG?! I use s instead of k
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
-                    mode="t" if args.coherency else "s", coh_kernel_size=args.coherency,
+                    mode="t" if args.coherency else "k", coh_kernel_size=args.coherency,
                     model_index=args.model_index[0], learning_rate=args.learning_rate[0],
                     complex_mode=True if args.real_mode == 'complex' else False,
                     real_mode=args.real_mode, early_stop=args.early_stop, epochs=args.epochs[0],
