@@ -489,6 +489,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
     if debug:
         dataset_handler.print_ground_truth(path=temp_path)
     # Model
+
     weights = 1 / dataset_handler.labels_occurrences if balance == "loss" else None
     model = _get_model(model_name=model_name, model_index=model_index, depth=depth,
                        channels=6 if mode == "t" else 3, learning_rate=learning_rate,
@@ -523,7 +524,7 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                                             dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
                                             depth=depth, model_index=model_index)
     eval_df = DataFrame.from_dict(evaluate)
-    eval_df.to_csv(str(temp_path / 'evaluate.csv'))
+    eval_df.to_csv(str(temp_path / 'evaluate.csv'))     # Override if already exists
     # Create prediction image
     get_final_model_results(root_path=temp_path, model_name=model_name,
                             dataset_handler=dataset_handler, equiv_technique=equiv_technique,
@@ -532,6 +533,16 @@ def run_model(model_name: str, balance: str, tensorflow: bool,
                             use_mask=False, tensorflow=tensorflow,
                             depth=depth, model_index=model_index)
     return None
+
+
+def add_eval(dataset, checkpoint_model, ds_set, use_tf_dataset, temp_path, evaluate):
+    evaluate[ds_set] = _eval_list_to_dict(
+        evaluate=checkpoint_model.evaluate(dataset[0] if not use_tf_dataset else dataset,
+                                           dataset[1] if not use_tf_dataset else None),
+        metrics=checkpoint_model.metrics_names)
+    eval_df = DataFrame.from_dict(evaluate)
+    eval_df.to_csv(str(temp_path / 'evaluate.csv'))  # Override if already exists
+    return evaluate
 
 
 def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
@@ -550,11 +561,8 @@ def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
                                                   DATASET_META[dataset_name]["classes"])
     test_confusion_matrix.to_csv(str(temp_path / f"{ds_set}_confusion_matrix.csv"))
     # add values to evaluate dictionary
-    evaluate[ds_set] = _eval_list_to_dict(
-        evaluate=checkpoint_model.evaluate(dataset[0] if not use_tf_dataset else dataset,
-                                           dataset[1] if not use_tf_dataset else None),
-        metrics=checkpoint_model.metrics_names)
-    return evaluate
+    return add_eval(dataset=dataset, checkpoint_model=checkpoint_model, ds_set=ds_set, use_tf_dataset=use_tf_dataset,
+                    temp_path=temp_path, evaluate=evaluate)
 
 
 def clear_and_open_saved_model(*args, **kwargs):
@@ -627,6 +635,7 @@ if __name__ == "__main__":
         sleep(randint(1, 30))  # Wait between 1 sec and half a minute
         notify.send(f"{socket.gethostname()}: Running simulation with params {' '.join(sys.argv[1:])}")
     try:
+        # TODO: BUG?! I use s instead of k
         run_wrapper(model_name=args.model[0], balance=args.balance[0], tensorflow=args.tensorflow,
                     mode="t" if args.coherency else "s", coh_kernel_size=args.coherency,
                     model_index=args.model_index[0], learning_rate=args.learning_rate[0],

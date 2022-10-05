@@ -429,6 +429,7 @@ class PolsarDatasetHandler(ABC):
         # In recent versions of python, dicts are ordered but I do it just in case
         object_variable_dict = {k: v for k, v in vars(self).items() if not k.startswith("_")}
         object_variable_dict.update(kwargs)  # add the parameters
+        object_variable_dict["mode"] = self.mode
         del object_variable_dict["self"]
         del object_variable_dict["root_path"]
         del object_variable_dict["batch_size"]
@@ -438,7 +439,7 @@ class PolsarDatasetHandler(ABC):
         cache_path = self.root_path / "cache"
         cache_path.mkdir(exist_ok=True)
         # assert len(args) == 0       # TODO: *args not used. This can have issues! I need to add *args to **kwargs
-        filename = ''
+        filename = ''       # f'mode_{self.mode}_'
         for k, v in sorted(object_variable_dict.items()):
             filename += f"{k}_{v}_".replace('.', '').replace(' ', '').replace('[', '').replace(']', '').replace(',', '').replace('(', '').replace(')', '')
         filename = filename[:-1]                            # Remove trailing '_' and add extension

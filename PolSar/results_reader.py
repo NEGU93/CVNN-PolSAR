@@ -15,6 +15,7 @@ from cvnn.utils import REAL_CAST_MODES
 from principal_simulation import get_final_model_results, _get_dataset_handler
 from typing import List, Optional, Union
 from dataset_reader import COLORS
+from principal_simulation import add_eval, clear_and_open_saved_model, DATASET_META, MODEL_META, parse_dropout
 
 AVAILABLE_LIBRARIES = set()
 try:
@@ -106,6 +107,65 @@ def add_transparency(color='rgb(31, 119, 180)', alpha=0.5):
 
 class ResultReader:
 
+    @staticmethod
+    def _get_eval(dataset, evaluate, ds_set,
+                  temp_path, model_name, complex_mode, weights, equiv_technique, mode, dropout, real_mode,
+                  tensorflow, dataset_name, use_tf_dataset, depth, model_index):
+        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                      weights=weights, equiv_technique=equiv_technique,
+                                                      channels=3 if mode == "s" else 6, dropout=dropout,
+                                                      real_mode=real_mode, tensorflow=tensorflow,
+                                                      num_classes=DATASET_META[dataset_name]["classes"],
+                                                      depth=depth, model_index=model_index)
+        return add_eval(dataset=dataset, checkpoint_model=checkpoint_model, ds_set=ds_set,
+                        use_tf_dataset=use_tf_dataset, temp_path=temp_path, evaluate=evaluate)
+
+    def _re_generate_data(self, model_name, balance, dataset_name, mode, dataset_method,
+                          complex_mode, real_mode, temp_path, use_tf_dataset, tensorflow,
+                          equiv_technique):
+        dropout = parse_dropout(dropout=None)
+        if dataset_method == "random":
+            percentage = MODEL_META[model_name]["percentage"]
+        else:
+            percentage = DATASET_META[dataset_name]["percentage"]
+        balance_dataset = (balance == "dataset",) * (len(percentage) - 1) + (False,)
+        # Dataset
+        dataset_name = dataset_name.upper()
+        mode = mode.lower()
+        dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=1)
+        size = 2 ** (2 + 5) if MODEL_META[model_name]['task'] == "segmentation" else MODEL_META[model_name]["size"]
+        ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
+                                              balance_dataset=balance_dataset,
+                                              complex_mode=complex_mode, real_mode=real_mode,
+                                              size=size,
+                                              stride=MODEL_META[model_name]["stride"],
+                                              pad=MODEL_META[model_name]["pad"],
+                                              classification=MODEL_META[model_name]['task'] == 'classification',
+                                              shuffle=True, savefig=None,
+                                              azimuth=DATASET_META[dataset_name]['azimuth'],
+                                              data_augment=False, batch_size=MODEL_META[model_name]['batch_size'],
+                                              cast_to_np=not use_tf_dataset
+                                              )
+        train_ds = ds_list[0]
+        val_ds = ds_list[1]
+        test_ds = ds_list[2] if len(ds_list) >= 3 else None
+        weights = 1 / dataset_handler.labels_occurrences if balance == "loss" else None
+        evaluate = {}
+        evaluate = self._get_eval(train_ds, evaluate, 'train',
+                                  temp_path, model_name, complex_mode, weights, equiv_technique, mode,
+                                  dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
+                                  depth=5, model_index=None)
+        if val_ds:
+            evaluate = self._get_eval(val_ds, evaluate, 'val',
+                                      temp_path, model_name, complex_mode, weights, equiv_technique, mode,
+                                      dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
+                                      depth=5, model_index=None)
+        if test_ds:
+            self._get_eval(test_ds, evaluate, 'test',
+                           temp_path, model_name, complex_mode, weights, equiv_technique, mode,
+                           dropout, real_mode, tensorflow, dataset_name, use_tf_dataset,
+                           depth=5, model_index=None)
+
     def _search_for_root_file(self):
         if os.path.exists("/media/barrachina/data/results/new method"):
             return "/media/barrachina/data/results/new method"
@@ -169,6 +229,21 @@ class ResultReader:
                             if (Path(child_dir[0]) / 'evaluate.csv').is_file():
                                 monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
                                     str(Path(child_dir[0]) / 'evaluate.csv'))
+                            else:
+                                monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                                    str(Path(child_dir[0]) / 'evaluate.csv'))
+                                logging.warning("Trying to eval, "
+                                                "this may yield wrong results if dataset is not splitted the same way.")
+                                self._re_generate_data(model_name=params["model"], balance=params["balance"],
+                                                       dataset_method=params["dataset_method"],
+                                                       dataset_name=params["dataset"],
+                                                       mode="t" if params["dataset_mode"] == "coh" else "s",    # TODO
+                                                       complex_mode=params["dtype"] == "complex",
+                                                       real_mode=params["dtype"], temp_path=Path(child_dir[0]),
+                                                       use_tf_dataset=True,
+                                                       tensorflow=params["library"] == "tensorflow",
+                                                       equiv_technique=params["equiv_technique"])
+
                             if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
                                 monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
                                     str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
