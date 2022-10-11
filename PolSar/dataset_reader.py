@@ -177,6 +177,32 @@ def flip(data, labels):
     return data, labels
 
 
+def labels_stats(label_patches):
+    """
+    Verifies:
+        - Total pixels per class balanced too
+    Raises assertion error if image is not balanced
+    :param label_patches:
+    :return:
+    """
+    # count = np.bincount(np.where(label_patches == 1)[-1])  # Count of total pixels
+    # assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
+    counter = defaultdict(lambda: {"total": 0, "mixed": 0, "solo images": 0, "mixed images": 0})
+    for i, la in enumerate(label_patches):
+        present_classes = np.where(la == 1)[-1]     # Find all classes (again, there will be at least one).
+        assert len(present_classes)                 # No empty image are supposed to be here.
+        all_equal = np.all(present_classes == present_classes[0])  # Are all classes the same one?
+        if all_equal:                               # If only one class present, then add it to the counter
+            counter[present_classes[0]]["total"] += len(present_classes)
+            counter[present_classes[0]]["solo images"] += 1
+        else:               # If mixed case, then it must be balanced itself
+            for cls in set(present_classes):
+                counter[cls]["total"] += np.sum(present_classes == cls)
+                counter[cls]["mixed"] += np.sum(present_classes == cls)
+                counter[cls]["mixed images"] += 1
+    min_case = np.min([counter[i]["total"] for i in range(label_patches.shape[-1]) if counter[i]["total"] != 0])
+    set_trace()
+
 def _remove_lower_part(coh):
     mask = np.array(
         [True, True, True,
@@ -917,13 +943,17 @@ class PolsarDatasetHandler(ABC):
             -> Tuple[List[Tuple[int, int]], np.ndarray]:
         label_patches = np.array(label_patches)
         if len(label_patches.shape) == 4:
+            # self._sanity_check_total_one_class_images(label_patches)
+            # labels_stats(label_patches)
             # First make 'one-class' images to be the same amount
             patches, label_patches = self._remove_exceeding_one_class_images(patches, label_patches)
             # Then make all classes pixels to be the same amount
+            # labels_stats(label_patches)
             if __debug__:
                 self._sanity_check_total_one_class_images(label_patches)
             # This was added into previous function for optimization
             label_patches = self._balance_total_pixels_of_patch(label_patches)
+            # labels_stats(label_patches)
             # assert len(patches) == len(label_patches)
         elif len(label_patches.shape) == 2:
             patches, label_patches = self._balance_classification_patches(patches, label_patches)

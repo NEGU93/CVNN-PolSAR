@@ -550,7 +550,7 @@ def add_eval_and_conf_matrix(dataset, evaluate, ds_set,
                              tensorflow, dataset_name, use_tf_dataset, depth, model_index):
     checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
                                                   weights=weights, equiv_technique=equiv_technique,
-                                                  channels=3 if mode == "s" else 6, dropout=dropout,
+                                                  channels=6 if mode == "t" else 3, dropout=dropout,
                                                   real_mode=real_mode, tensorflow=tensorflow,
                                                   num_classes=DATASET_META[dataset_name]["classes"],
                                                   depth=depth, model_index=model_index)

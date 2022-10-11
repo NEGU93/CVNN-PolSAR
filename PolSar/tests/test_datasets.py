@@ -45,9 +45,10 @@ def verify_images(handler, gt, img, show_gt, show_img):
 def handler_to_test(dataset_handler, show_gt=False, show_img=False):
     ground_truth = None
     rgb_image = None
-    for dataset_method in ["random", "separate", "single_separated_image"]:
-        dataset_handler.get_dataset(method=dataset_method, percentage=(0.8, 0.2), size=128, stride=25, pad=0,
-                                    shuffle=True, savefig=None, classification=False, cast_to_np=True)
+    for dataset_method in ["separate", "random", "single_separated_image"]:
+        np_data = dataset_handler.get_dataset(method=dataset_method, percentage=(0.8, 0.2), size=128, stride=25, pad=0,
+                                              shuffle=True, savefig=None, classification=False, cast_to_np=True)
+        # verify_labels_balanced(np_data[0][1])
         rgb_image, ground_truth = verify_images(dataset_handler, ground_truth, rgb_image, show_gt, show_img)
     for dataset_method in ["separate", "random"]:
         dataset_handler.get_dataset(method=dataset_method, percentage=(0.8, 0.2), size=128, stride=25, pad=0,
@@ -79,15 +80,15 @@ def full_verify_dataset(dataset_handler):
     startt = time.monotonic()
     logging.info(f"Testing dataset {dataset_handler.name}")
     # test_tf_tensor_mode(dataset_handler)
-    balanced_classification_separate_test(dataset_handler)
     balance_test_segmentation(dataset_handler)
+    handler_to_test(dataset_handler)
+    balanced_classification_separate_test(dataset_handler)
     if dataset_handler.name != "FLEVOLAND":
         balanced_classification_random_test(dataset_handler, percentage=(0.04, 0.96))
         balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
                                             balance_dataset=[True, True, False])
     balanced_classification_random_test(dataset_handler, percentage=(0.03, 0.02, 0.95),
                                         balance_dataset=False)
-    handler_to_test(dataset_handler)
     try:
         scattering_vector(dataset_handler)
         mode_change(dataset_handler)
@@ -144,19 +145,21 @@ def verify_labels_balanced(label_patches):
     :param label_patches:
     :return:
     """
-    count = np.bincount(np.where(label_patches == 1)[-1])  # Count of total pixels
-    assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
-    counter = defaultdict(lambda: {"total": 0, "mixed": 0})
+    # count = np.bincount(np.where(label_patches == 1)[-1])  # Count of total pixels
+    # assert np.all(np.logical_or(count == count[np.nonzero(count)][0], count == 0))
+    counter = defaultdict(lambda: {"total": 0, "mixed": 0, "solo images": 0, "mixed images": 0})
     for i, la in enumerate(label_patches):
         present_classes = np.where(la == 1)[-1]     # Find all classes (again, there will be at least one).
         assert len(present_classes)                 # No empty image are supposed to be here.
         all_equal = np.all(present_classes == present_classes[0])  # Are all classes the same one?
         if all_equal:                               # If only one class present, then add it to the counter
             counter[present_classes[0]]["total"] += len(present_classes)
+            counter[present_classes[0]]["solo images"] += 1
         else:               # If mixed case, then it must be balanced itself
             for cls in set(present_classes):
                 counter[cls]["total"] += np.sum(present_classes == cls)
                 counter[cls]["mixed"] += np.sum(present_classes == cls)
+                counter[cls]["mixed images"] += 1
     min_case = np.min([counter[i]["total"] for i in range(label_patches.shape[-1]) if counter[i]["total"] != 0])
     for cls in range(label_patches.shape[-1]):
         assert counter[cls]["total"] == min_case or counter[cls]["total"] == counter[cls]["mixed"] or \
@@ -245,8 +248,8 @@ if __name__ == "__main__":
     # garon_balance_test(percentage=(0.8, 0.2))
     logging.basicConfig(level=logging.INFO)
     start_time = time.monotonic()
-    test_sf()
     test_bretigny()
+    test_sf()
     test_flev()
     test_ober()
     logging.info(f"Time of tests {timedelta(seconds=time.monotonic() - start_time)}")

@@ -16,7 +16,8 @@ from cvnn.utils import REAL_CAST_MODES
 from principal_simulation import get_final_model_results, _get_dataset_handler
 from typing import List, Optional, Union
 from dataset_reader import COLORS
-from principal_simulation import add_eval, clear_and_open_saved_model, DATASET_META, MODEL_META, parse_dropout
+from principal_simulation import add_eval, clear_and_open_saved_model, DATASET_META, MODEL_META, parse_dropout, \
+    _get_confusion_matrix
 
 AVAILABLE_LIBRARIES = set()
 try:
@@ -114,16 +115,66 @@ class ResultReader:
                   tensorflow, dataset_name, use_tf_dataset, depth, model_index):
         checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
                                                       weights=weights, equiv_technique=equiv_technique,
-                                                      channels=3 if mode == "s" else 6, dropout=dropout,
+                                                      channels=6 if mode == "t" else 3, dropout=dropout,
                                                       real_mode=real_mode, tensorflow=tensorflow,
                                                       num_classes=DATASET_META[dataset_name]["classes"],
                                                       depth=depth, model_index=model_index)
         return add_eval(dataset=dataset, checkpoint_model=checkpoint_model, ds_set=ds_set,
                         use_tf_dataset=use_tf_dataset, temp_path=temp_path, evaluate=evaluate)
 
-    def _re_generate_data(self, model_name, balance, dataset_name, mode, dataset_method,
-                          complex_mode, real_mode, temp_path, use_tf_dataset, tensorflow,
-                          equiv_technique):
+
+    def _re_generate_matrix(self, dataset_split: str,
+                            model_name, balance, dataset_name, mode, dataset_method,
+                            complex_mode, real_mode, temp_path, use_tf_dataset, tensorflow,
+                            equiv_technique):
+        dropout = parse_dropout(dropout=None)
+        if dataset_method == "random":
+            percentage = MODEL_META[model_name]["percentage"]
+        else:
+            percentage = DATASET_META[dataset_name]["percentage"]
+        balance_dataset = (balance == "dataset",) * (len(percentage) - 1) + (False,)
+        # Dataset
+        dataset_name = dataset_name.upper()
+        mode = mode.lower()
+        dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode, coh_kernel_size=1)
+        size = 2 ** (2 + 5) if MODEL_META[model_name]['task'] == "segmentation" else MODEL_META[model_name]["size"]
+        ds_list = dataset_handler.get_dataset(method=dataset_method, percentage=percentage,
+                                              balance_dataset=balance_dataset,
+                                              complex_mode=complex_mode, real_mode=real_mode,
+                                              size=size,
+                                              stride=MODEL_META[model_name]["stride"],
+                                              pad=MODEL_META[model_name]["pad"],
+                                              classification=MODEL_META[model_name]['task'] == 'classification',
+                                              shuffle=True, savefig=None,
+                                              azimuth=DATASET_META[dataset_name]['azimuth'],
+                                              data_augment=False, batch_size=MODEL_META[model_name]['batch_size'],
+                                              cast_to_np=not use_tf_dataset
+                                              )
+        if dataset_split.lower() == "train":
+            dataset = ds_list[0]
+        elif dataset_split.lower() == "val":
+            dataset = ds_list[1]
+        elif dataset_split.lower() == "test":
+            dataset = ds_list[2]
+        else:
+            raise ValueError(f"Unknown dataset_name: {dataset_split}")
+        weights = 1 / dataset_handler.labels_occurrences if balance == "loss" else None
+        checkpoint_model = clear_and_open_saved_model(temp_path, model_name=model_name, complex_mode=complex_mode,
+                                                      weights=weights, equiv_technique=equiv_technique,
+                                                      channels=6 if mode == "t" else 3, dropout=dropout,
+                                                      real_mode=real_mode, tensorflow=tensorflow,
+                                                      num_classes=DATASET_META[dataset_name]["classes"],
+                                                      depth=5, model_index=None)
+        # Create confusion matrix
+        confusion_matrix = _get_confusion_matrix(checkpoint_model,
+                                                 dataset[0] if not use_tf_dataset else dataset,
+                                                 dataset[1] if not use_tf_dataset else None,
+                                                 DATASET_META[dataset_name]["classes"])
+        confusion_matrix.to_csv(str(temp_path / f"{dataset_split.lower()}_confusion_matrix.csv"))
+
+    def _re_generate_eval_data(self, model_name, balance, dataset_name, mode, dataset_method,
+                               complex_mode, real_mode, temp_path, use_tf_dataset, tensorflow,
+                               equiv_technique):
         dropout = parse_dropout(dropout=None)
         if dataset_method == "random":
             percentage = MODEL_META[model_name]["percentage"]
@@ -181,7 +232,7 @@ class ResultReader:
         Finds all paths in a given `root_dir` directory
         :param root_dir:
         """
-        missing_file_strategy = "move"
+        missing_file_strategy = "create"
         if root_dir is None:
             root_dir = self._search_for_root_file()
         child_dirs = os.walk(root_dir)
@@ -203,16 +254,14 @@ class ResultReader:
                             "balance": self._get_balance(simu_params),
                             "equiv_technique": self._get_equiv_technique(simu_params)
                         }
-                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
-                            str(Path(child_dir[0]) / 'prediction.png'))
-                        if not os.path.isfile(monte_dict[json.dumps(params, sort_keys=True)]["image"][-1]):
+                        if not os.path.isfile(Path(child_dir[0]) / 'prediction.png'):
                             print(f"Generating picture predicted figure on {file_path}.\n"
                                   "This will take a while but will only be done once in a lifetime")
                             # If I dont have the image I generate it
                             dataset_name = params["dataset"].upper()
                             if dataset_name == "BRETIGNY":  # For version compatibility
                                 dataset_name = "BRET"
-                            mode = "t" if 'coherency' in simu_params else "s"
+                            mode = "t" if 'coherency' in simu_params else "k"
                             dataset_handler = _get_dataset_handler(dataset_name=dataset_name, mode=mode,
                                                                    balance=(params['balance'] == "dataset"))
                             get_final_model_results(Path(child_dir[0]), dataset_handler=dataset_handler,
@@ -227,38 +276,90 @@ class ResultReader:
                                                         "bottle_neck": None,
                                                         "upsampling": None
                                                     })
-                        if (Path(child_dir[0]) / 'evaluate.csv').is_file():
-                            monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
-                                str(Path(child_dir[0]) / 'evaluate.csv'))
-                        else:
+                        monte_dict[json.dumps(params, sort_keys=True)]["image"].append(
+                            str(Path(child_dir[0]) / 'prediction.png'))
+                        if not (Path(child_dir[0]) / 'evaluate.csv').is_file():
                             if missing_file_strategy == "create":
                                 logging.warning("Trying to eval, "
                                                 "this may yield wrong results if dataset "
                                                 "is not splitted the same way.")
-                                self._re_generate_data(model_name=params["model"], balance=params["balance"],
-                                                       dataset_method=params["dataset_method"],
-                                                       dataset_name=params["dataset"],
-                                                       mode="t" if params["dataset_mode"] == "coh" else "s",  # TODO
-                                                       complex_mode=params["dtype"] == "complex",
-                                                       real_mode=params["dtype"], temp_path=Path(child_dir[0]),
-                                                       use_tf_dataset=True,
-                                                       tensorflow=params["library"] == "tensorflow",
-                                                       equiv_technique=params["equiv_technique"])
+                                self._re_generate_eval_data(model_name=params["model"], balance=params["balance"],
+                                                            dataset_method=params["dataset_method"],
+                                                            dataset_name=params["dataset"],
+                                                            mode="t" if params["dataset_mode"] == "coh" else "k",  # TODO
+                                                            complex_mode=params["dtype"] == "complex",
+                                                            real_mode=params["dtype"], temp_path=Path(child_dir[0]),
+                                                            use_tf_dataset=True,
+                                                            tensorflow=params["library"] == "tensorflow",
+                                                            equiv_technique=params["equiv_technique"])
                                 monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
                                     str(Path(child_dir[0]) / 'evaluate.csv'))
                             elif missing_file_strategy == "move":
                                 txt_sum_file.close()
                                 shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
                                 continue
-                        if (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
-                            monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
-                                str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
-                        if (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
-                            monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
-                                str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
-                        if (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
-                            monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
-                                str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
+                        monte_dict[json.dumps(params, sort_keys=True)]["eval"].append(
+                            str(Path(child_dir[0]) / 'evaluate.csv'))
+                        if not (Path(child_dir[0]) / 'train_confusion_matrix.csv').is_file():
+                            if missing_file_strategy == "create":
+                                logging.warning("Trying to eval, "
+                                                "this may yield wrong results if dataset "
+                                                "is not splitted the same way.")
+                                self._re_generate_matrix(
+                                    dataset_split="train", model_name=params["model"], balance=params["balance"],
+                                    dataset_method=params["dataset_method"], dataset_name=params["dataset"],
+                                    mode="t" if params["dataset_mode"] == "coh" else "k",
+                                    complex_mode=params["dtype"] == "complex",
+                                    real_mode=params["dtype"], temp_path=Path(child_dir[0]), use_tf_dataset=True,
+                                    tensorflow=params["library"] == "tensorflow", equiv_technique=params["equiv_technique"])
+                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                    str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                            elif missing_file_strategy == "move":
+                                txt_sum_file.close()
+                                shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
+                                continue
+                        monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                            str(Path(child_dir[0]) / 'train_confusion_matrix.csv'))
+                        if not (Path(child_dir[0]) / 'val_confusion_matrix.csv').is_file():
+                            if missing_file_strategy == "create":
+                                logging.warning("Trying to eval, "
+                                                "this may yield wrong results if dataset "
+                                                "is not splitted the same way.")
+                                self._re_generate_matrix(
+                                    dataset_split="val", model_name=params["model"], balance=params["balance"],
+                                    dataset_method=params["dataset_method"], dataset_name=params["dataset"],
+                                    mode="t" if params["dataset_mode"] == "coh" else "k",
+                                    complex_mode=params["dtype"] == "complex",
+                                    real_mode=params["dtype"], temp_path=Path(child_dir[0]), use_tf_dataset=True,
+                                    tensorflow=params["library"] == "tensorflow", equiv_technique=params["equiv_technique"])
+                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                    str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
+                            elif missing_file_strategy == "move":
+                                txt_sum_file.close()
+                                shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
+                                continue
+                        monte_dict[json.dumps(params, sort_keys=True)]["val_conf"].append(
+                            str(Path(child_dir[0]) / 'val_confusion_matrix.csv'))
+                        if not (Path(child_dir[0]) / 'test_confusion_matrix.csv').is_file():
+                            if missing_file_strategy == "create":
+                                logging.warning("Trying to eval, "
+                                                "this may yield wrong results if dataset "
+                                                "is not splitted the same way.")
+                                self._re_generate_matrix(
+                                    dataset_split="test", model_name=params["model"], balance=params["balance"],
+                                    dataset_method=params["dataset_method"], dataset_name=params["dataset"],
+                                    mode="t" if params["dataset_mode"] == "coh" else "k",
+                                    complex_mode=params["dtype"] == "complex",
+                                    real_mode=params["dtype"], temp_path=Path(child_dir[0]), use_tf_dataset=True,
+                                    tensorflow=params["library"] == "tensorflow", equiv_technique=params["equiv_technique"])
+                                monte_dict[json.dumps(params, sort_keys=True)]["train_conf"].append(
+                                    str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
+                            elif missing_file_strategy == "move":
+                                txt_sum_file.close()
+                                shutil.move(child_dir[0], child_dir[0].replace("new method", "faulty"))
+                                continue
+                        monte_dict[json.dumps(params, sort_keys=True)]["test_conf"].append(
+                            str(Path(child_dir[0]) / 'test_confusion_matrix.csv'))
                         monte_dict[json.dumps(params, sort_keys=True)]["data"].append(
                             str(Path(child_dir[0]) / 'history_dict.csv'))
                     else:

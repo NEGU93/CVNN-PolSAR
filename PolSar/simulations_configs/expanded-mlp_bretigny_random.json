@@ -66,39 +66,5 @@
         "real_mode": true,
         "coherency": false,
         "learning_rate": 0.0001
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 300,
-        "dataset": "BRET",
-        "balance": "loss",
-        "coherency": true
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 300,
-        "dataset": "BRET",
-        "balance": "loss",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": true
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 300,
-        "dataset": "BRET",
-        "balance": "loss",
-        "coherency": false,
-        "learning_rate": 0.0001
-    },
-    {
-        "model": "expanded-mlp",
-        "epochs": 300,
-        "dataset": "BRET",
-        "balance": "loss",
-        "tensorflow": true,
-        "real_mode": true,
-        "coherency": false,
-        "learning_rate": 0.0001
     }
 ]
