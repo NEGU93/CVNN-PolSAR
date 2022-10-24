@@ -232,7 +232,7 @@ class ResultReader:
         Finds all paths in a given `root_dir` directory
         :param root_dir:
         """
-        missing_file_strategy = "create"
+        missing_file_strategy = "move"
         if root_dir is None:
             root_dir = self._search_for_root_file()
         child_dirs = os.walk(root_dir)

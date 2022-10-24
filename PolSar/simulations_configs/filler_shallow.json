@@ -1,0 +1,36 @@
+[
+    {
+        "model": "cnn",
+        "epochs": 200,
+        "dataset": "BRET",
+        "coherency": true,
+        "balance": "dataset"
+    },
+    {
+        "model": "cnn",
+        "epochs": 200,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "balance": "dataset"
+    },
+    {
+        "model": "expanded-mlp",
+        "epochs": 300,
+        "dataset": "BRET",
+        "coherency": true,
+        "learning_rate": 0.00005,
+        "balance": "dataset"
+    },
+    {
+        "model": "expanded-mlp",
+        "epochs": 300,
+        "dataset": "BRET",
+        "tensorflow": true,
+        "real_mode": true,
+        "coherency": true,
+        "learning_rate": 0.00005,
+        "balance": "dataset"
+    }
+]
