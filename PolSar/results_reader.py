@@ -1177,10 +1177,10 @@ if __name__ == "__main__":
     PLOT_OBER = False
     PLOT_SF = False
     PLOT_FLEV = False
-    PLOT_OBER_EQUIV = True
-    BRET_PLOTS = False
-    # simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
-    simulation_results = ResultReader(root_dir="/media/barrachina/data/results/equiv_technique")
+    PLOT_OBER_EQUIV = False
+    BRET_PLOTS = True
+    simulation_results = ResultReader(root_dir="/media/barrachina/data/results/new method")
+    # simulation_results = ResultReader(root_dir="/media/barrachina/data/results/equiv_technique")
     # lst = list(simulation_results.monte_dict.keys())
     if PLOT_SF:
         sf_keys = [
@@ -1202,24 +1202,34 @@ if __name__ == "__main__":
                  root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/SF-AIRSAR/",
                  labels=labels, colors=COLORS['SF-AIRSAR'])
     if BRET_PLOTS:
-        keys = []
-        labels = []
-        for dataset_mode in {"k", "coh"}:
-            for dataset_method in {"random", "separate"}:
-                keys.append(
-                    f'{{"balance": "dataset", "dataset": "BRET", "dataset_method": "{dataset_method}", '
-                    f'"dataset_mode": "{dataset_mode}", "dtype": "complex", "equiv_technique": "ratio_tp", '
-                    f'"library": "cvnn", "model": "cao"}}'
-                )
-                keys.append(
-                    f'{{"balance": "dataset", "dataset": "BRET", "dataset_method": "{dataset_method}", '
-                    f'"dataset_mode": "{dataset_mode}", "dtype": "real_imag", "equiv_technique": "ratio_tp", '
-                    f'"library": "tensorflow", "model": "cao"}}'
-                )
-                labels.append(f"CV-FCNN-{dataset_mode}-{dataset_method}")
-                labels.append(f"RV-FCNN-{dataset_mode}-{dataset_method}")
-        plot_all(simulations=simulation_results, models_params=keys, library="plotly",
-                 root_path="/home/barrachina/Documents/cvnn_vs_rvnn_polsar_applications/public/assets/Bretigny/",
+        MODEL = "cnn"
+        if MODEL == "cnn":
+            keys = [
+                '{"balance": "none", "dataset": "BRET", "dataset_method": '
+                '"separate", "dataset_mode": "coh", "dtype": "complex", "equiv_technique": "ratio_tp", "library": '
+                '"cvnn", "model": "cnn"}',
+                '{"balance": "dataset", "dataset": "BRET", "dataset_method": '
+                '"separate", "dataset_mode": "coh", "dtype": "complex", "equiv_technique": "ratio_tp", "library": '
+                '"cvnn", "model": "cnn"}',
+                '{"balance": "loss", "dataset": "BRET", "dataset_method": '
+                '"separate", "dataset_mode": "coh", "dtype": "complex", "equiv_technique": "ratio_tp", "library": '
+                '"cvnn", "model": "cnn"}',
+                '{"balance": "none", "dataset": "BRET", "dataset_method": '
+                '"separate", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "ratio_tp", "library": '
+                '"tensorflow", "model": "cnn"}',
+                '{"balance": "dataset", "dataset": "BRET", "dataset_method": '
+                '"separate", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "ratio_tp", "library": '
+                '"tensorflow", "model": "cnn"}',
+                '{"balance": "loss", "dataset": "BRET", "dataset_method": '
+                '"separate", "dataset_mode": "coh", "dtype": "real_imag", "equiv_technique": "ratio_tp", "library": '
+                '"tensorflow", "model": "cnn"}',
+            ]
+            labels = ["CV-CNN", "CV-CNN dataset split", "CV-CNN weighted loss",
+                      "RV-CNN", "RV-CNN dataset split", "RV-CNN weighted loss"]
+        else:
+            raise ValueError(f"Unknown requested model {MODEL}")
+        plot_all(simulations=simulation_results, models_params=keys, library="seaborn",
+                 root_path=f"/home/barrachina/Documents/ojsp_results/{MODEL}",
                  labels=labels, colors=COLORS['BRET'])
     if PLOT_OBER_EQUIV:
         keys = [
