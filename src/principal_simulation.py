@@ -203,6 +203,22 @@ def _get_dataset_handler(dataset_name: str, mode, balance: bool = False, coh_ker
 def _get_model(model_name: str, channels: int, weights: Optional[List[float]], real_mode: str, num_classes: int,
                dropout, complex_mode: bool = True, tensorflow: bool = False, equiv_technique="ratio_tp",
                model_index: Optional = None, learning_rate: Optional[float] = None, depth: int = 5):
+    """
+    :param num_classes: (int) Classes the model will need to classify
+    :param weights: Used for the weighted loss function
+    :param tensorflow: boolean. If true, use Tensorflow instead of cvnn
+    :param model_name: String, name of the model architecture
+    :param channels:
+    :param real_mode:
+    :param num_classes:
+    :param dropout:
+    :param complex_mode:
+    :param equiv_technique:
+    :param model_index:
+    :param learning_rate:
+    :param depth:
+    :return: Compiled tf.Model.
+    """
     model_name = model_name.lower()
     if equiv_technique != "ratio_tp" and model_name != "mlp":
         logging.warning(f"Equivalent technique requested {equiv_technique} but model ({model_name})"

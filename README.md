@@ -21,6 +21,17 @@ Complex-Valued and Real-Valued Fully Connected Neural Networks - Application to 
 
 ## Single simulations usage:
 
+Each run will be saved into `log/<year>/<month>/<day>/run-<time>/`. Inside each iteration, the following information will be saved by default:
+
+- `tensorboard/`: Tensorboard.
+- `checkpoints/`: Saved best performant model (lower validation loss).
+- `evaluate.csv`: Loss and metrics performance per dataset (train, val and test).
+- `history_dict.csv`: loss and metric per epoch for both train and validation sets (as can be seen in Tensorboard).
+- `model_summary.txt`: Parameters used for the simulation and model summary.
+- `prediction.png`: Predicted image.
+- `<set>_connfusion_matrix`: Confusion matrix.
+
+
 ```
 usage: principal_simulation.py [-h] [--dataset_method DATASET_METHOD] [--equiv_technique EQUIV_TECHNIQUE] [--tensorflow] [--epochs EPOCHS]
                                [--learning_rate LEARNING_RATE] [--model MODEL] [--early_stop [EARLY_STOP]] [--balance BALANCE] [--model_index MODEL_INDEX]
@@ -101,17 +112,6 @@ To run several simulations, you can use a MonteCarlo simulation.
 ```
 python runner.py -I <number of iteration per config> -CF <json configuration path>
 ```
-
-Each iteration of the montecarlo run will be separately saved into `log/<year>/<month>/<day>/run-<time>/`. Inside each iteration, the following information will be saved by default:
-
-- `tensorboard/`: Tensorboard.
-- `checkpoints/`: Saved best performant model (lower validation loss).
-- `evaluate.csv`: Loss and metrics performance per dataset (train, val and test).
-- `history_dict.csv`: loss and metric per epoch for both train and validation sets (as can be seen in Tensorboard).
-- `model_summary.txt`: Parameters used for the simulation and model summary.
-- `prediction.png`: Predicted image.
-- `<set>_connfusion_matrix`: Confusion matrix.
-
 ## Result viewer
 
 The stat results from the runner can be seen using the [qt_app.py](https://github.com/NEGU93/CVNN-PolSAR/blob/master/src/qt_app.py) script. The app allows the quick visualization of the results predicted image (choosing a random simulation to display), stats results with error, total number of simulations, loss and accuracy evolution per epoch, etc.
@@ -162,4 +162,13 @@ For the supported datasets, it will suffice to download the data and labels and 
 
 ## Add model
 
-### Supported datasets
+1. Create a function that returns a `tf.Model`. (Must return it compiled).
+2. Add the function into `_get_model` on [line 203](https://github.com/NEGU93/CVNN-PolSAR/blob/7a4a78a273b7603bdfe4fbf3d03e6bc495520c74/src/principal_simulation.py#L203). You can use this code for reference of the methos parameters and implementation.
+3. Add model [metadata](https://github.com/NEGU93/CVNN-PolSAR/blob/7a4a78a273b7603bdfe4fbf3d03e6bc495520c74/src/principal_simulation.py#L76) information with:
+    - Size, stride and padding of the sliding window operation used for extracting the small image patches.
+    - batch size
+    - Percentage of the datasets, example `(0.8, 0.1, 0.1)` for 80% training set and 10% for both validation and test set.
+    - Task (segmentation or classification). This parameter will change the labels shape.
+        - segmentation: (size, size, classes)
+        - classification: (1, 1, classes)
+
