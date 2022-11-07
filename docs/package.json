@@ -1,6 +1,6 @@
 {
   "name": "cvnn-polsar",
-  "homepage": "https://negu93.github.io/cvnn-polsar/docs",
+  "homepage": "https://negu93.github.io/CVNN-PolSAR/",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
