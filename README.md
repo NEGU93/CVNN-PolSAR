@@ -7,7 +7,6 @@ Core code for simulations used for the following publications:
 
 ## Publications
 
-<style>body {text-align: justify}</style>
 - Barrachina, J. A., Ren, C., Morisseau, C., Vieillard, G., and Ovarlez, J.-P. (2022). 
 "Comparison Between Equivalent Architectures of Complex-Valued and Real-Valued Neural Networks - Application on Polarimetric SAR Image Segmentation". 
 *Journal of Signal Processing Systems*, pages 1–10. [link](https://link.springer.com/article/10.1007/s11265-022-01793-0).
@@ -115,9 +114,11 @@ Each iteration of the montecarlo run will be separately saved into `log/<year>/<
 
 ## Result viewer
 
-The stat results from the runner can be seen using the [qt_app.py](https://github.com/NEGU93/CVNN-PolSAR/blob/master/src/qt_app.py) script. 
+The stat results from the runner can be seen using the [qt_app.py](https://github.com/NEGU93/CVNN-PolSAR/blob/master/src/qt_app.py) script. The app allows the quick visualization of the results predicted image (choosing a random simulation to display), stats results with error, total number of simulations, loss and accuracy evolution per epoch, etc.
 
-**ATTENTION**: The log file path of the results should be added as a variable `root_drive`.
+**ATTENTION**: The log file path of the results should be added as a variable `root_drive` (see [line 21](https://github.com/NEGU93/CVNN-PolSAR/blob/9105b6c908dc4f6ada61d9207fb958194138d25f/src/qt_app.py#L21)). Together with the datasets RGB images in `BASE_PATHS` and `GROUND_TRUTH_PATHS`. 
+
+![qt_app_results](qt_app_results.png)
 
 ## Configure datasets
 
