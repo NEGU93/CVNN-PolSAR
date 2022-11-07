@@ -9,8 +9,8 @@ from pathlib import Path
 from pdb import set_trace
 from typing import Optional
 sys.path.insert(1, '../')
-if os.path.exists("/home/barrachina/Documents/onera/PolSar"):
-    sys.path.insert(1, "/home/barrachina/Documents/onera/PolSar")
+if os.path.exists("/home/barrachina/Documents/onera/src"):
+    sys.path.insert(1, "/home/barrachina/Documents/onera/src")
     dataset_path = "/media/barrachina/data/datasets/PolSar/garon/polsar_mat"
     labels_path = "/media/barrachina/data/datasets/PolSar/garon/labels"
     NOTIFY = False
@@ -30,7 +30,7 @@ elif os.path.exists("/scratchm/jbarrach/Garon"):
     dataset_path = "/scratchm/jbarrach/garon/labels"
     NOTIFY = True
 else:
-    raise FileNotFoundError("path of the flevoland dataset not found")
+    raise FileNotFoundError("path of the Garon dataset not found")
 from dataset_reader import PolsarDatasetHandler
 
 available_images = {

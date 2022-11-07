@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 from pdb import set_trace
 sys.path.insert(1, '../')
-if os.path.exists('/home/barrachina/Documents/onera/PolSar'):
-    sys.path.insert(1, '/home/barrachina/Documents/onera/PolSar')
+if os.path.exists('/home/barrachina/Documents/onera/src'):
+    sys.path.insert(1, '/home/barrachina/Documents/onera/src')
     dataset_path = "/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/T3"
     labels_path = '/media/barrachina/data/datasets/PolSar/Flevoland/AIRSAR_Flevoland/Label_Flevoland_15cls.mat'
     NOTIFY = False
