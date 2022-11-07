@@ -1175,7 +1175,7 @@ def plot_all(simulations, models_params, library, root_path, labels, colors=None
 
 if __name__ == "__main__":
     PLOT_OBER = False
-    PLOT_SF = False
+    PLOT_SF = True
     PLOT_FLEV = False
     PLOT_OBER_EQUIV = False
     BRET_PLOTS = True

@@ -120,6 +120,10 @@ The stat results from the runner can be seen using the [qt_app.py](https://githu
 
 ![qt_app_results](qt_app_results.png)
 
+### Plot exports
+
+It is possible to export [Plotly](https://plotly.com/) or [seaborn](https://seaborn.pydata.org/)/[matplotlib](https://matplotlib.org/) figures using [results_reader.py](https://github.com/NEGU93/CVNN-PolSAR/blob/master/src/results_reader.py).
+
 ## Configure datasets
 
 To use this library, the user must download its own dataset and configure it as the following:
