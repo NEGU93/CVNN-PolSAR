@@ -1,0 +1,23 @@
+@import "./variables";
+
+.SelectContainer {
+  // border: solid 2px red;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+
+  & select {
+    border-radius: 4rem;
+    // border: solid 2px red;
+    // background-color: gray;
+    // color: white;
+    margin: 0.5rem;
+    margin-bottom: 4rem;
+    width: 19rem;
+    height: 2.1rem;
+    text-align: center;
+    cursor: pointer;
+  }
+}

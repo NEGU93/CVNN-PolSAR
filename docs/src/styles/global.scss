@@ -1,0 +1,23 @@
+@import "./variables.scss";
+
+// Global styles
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html {
+  font-size: 62.5%;
+  // height: 100%;
+}
+
+// note: This root configuration allows to position the footer
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+body {
+  background-color: $secondary_bg;
+  color: $primary_font_color;
+}

@@ -1,0 +1,49 @@
+@import "./variables";
+
+.pngImgContainer {
+  border: solid 2px white;
+  border-radius: 1rem;
+  padding: 1rem;
+  display: grid;
+  gap: 3rem;
+  grid-template-columns: repeat(auto-fill, minmax(33rem, 1fr));
+  margin-bottom: 3rem;
+}
+
+.htmlImgContainer {
+  border: white solid 2px;
+
+  // display: grid;
+  // grid-template-columns: 1fr;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 3rem;
+  width: 80vw;
+  height: 95vh;
+}
+
+.imageContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  // border: solid 2px red;
+  .pngImg {
+    width: 100%;
+  }
+
+  .htmlImg {
+    // border: green 2px solid;
+    // padding: 1rem;
+    width: 80vw;
+    height: 95vh;
+  }
+}
+
+.defaultText {
+  font-size: 1.3rem;
+  font-style: italic;
+  cursor: default;
+}
