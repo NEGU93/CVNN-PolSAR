@@ -3,6 +3,8 @@
 
 This code performs real or complex-valued neural networks semantic segmentation or pixel-wise classification on Polarimetric Synthetic Aperture Radar (PolSAR) images (to be downloaded by the user).
 
+Plots of the results achieved are displayed online [here](http://negu93.github.io/cvnn_vs_rvnn_polsar_applications). With exception of the Bretigny dataset which was not published due to confidenciality reasons.
+
 Core code for simulations used for the following publications:
 
 ## Publications
@@ -123,6 +125,8 @@ The stat results from the runner can be seen using the [qt_app.py](https://githu
 ### Plot exports
 
 It is possible to export [Plotly](https://plotly.com/) or [seaborn](https://seaborn.pydata.org/)/[matplotlib](https://matplotlib.org/) figures using [results_reader.py](https://github.com/NEGU93/CVNN-PolSAR/blob/master/src/results_reader.py).
+
+Figures generated can be seen in [this online](http://negu93.github.io/cvnn_vs_rvnn_polsar_applications source.
 
 ## Configure datasets
 
